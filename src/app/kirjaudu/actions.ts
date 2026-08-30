@@ -27,7 +27,18 @@ export async function kirjaudu(
   });
 
   if (error) {
-    return { virhe: "Kirjautuminen epäonnistui. Tarkista sähköposti ja salasana." };
+    if (error.code === "email_not_confirmed") {
+      return {
+        virhe:
+          "Sähköpostiosoitetta ei ole vahvistettu. Vahvista tili, tai poista pakollinen " +
+          "sähköpostivahvistus käytöstä Supabasen Authentication -> Sign In / Providers " +
+          "-asetuksista (Confirm email).",
+      };
+    }
+    if (error.code === "invalid_credentials") {
+      return { virhe: "Väärä sähköposti tai salasana." };
+    }
+    return { virhe: `Kirjautuminen epäonnistui: ${error.message} (${error.code ?? error.status})` };
   }
 
   redirect(seuraava || "/");
