@@ -47,8 +47,6 @@ export default async function OsatSivu({
     kysely = kysely.or(`nimi.ilike.%${q}%,merkki.ilike.%${q}%,malli.ilike.%${q}%`);
   }
 
-  const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
-
   const [
     osatVastaus,
     variVastaus,
@@ -71,11 +69,12 @@ export default async function OsatSivu({
   const osat = osatVastaus.data ?? [];
 
   // Näytetään korteissa asiakashinta-asteikko (halvin-kallein sellinen kategoria)
-  // samalla laskentaperusteella kuin osan omalla sivulla, mutta työkustannus
-  // lasketaan tässä JS:ssä RPC-kutsujen sijaan, jotta listasivu ei tee erillistä
-  // tietokantakutsua jokaiselle osalle.
+  // kaikille käyttäjärooleille - kyseessä on asiakkaalle näkyvä hinta, ei
+  // sisäinen kustannustieto. Samalla laskentaperusteella kuin osan omalla
+  // sivulla, mutta työkustannus lasketaan tässä JS:ssä RPC-kutsujen sijaan,
+  // jotta listasivu ei tee erillistä tietokantakutsua jokaiselle osalle.
   const hintaskaalat = new Map<string, { min: number; max: number }>();
-  if (naytaHinnat && osat.length > 0) {
+  if (osat.length > 0) {
     const varitHinnoin = await Promise.all(
       (variVastaus.data ?? []).map(async (vari) => {
         const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
