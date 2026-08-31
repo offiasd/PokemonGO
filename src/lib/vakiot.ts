@@ -62,10 +62,13 @@ export const TOINEN_VARI_ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
   lakka: "Lakka",
 };
 
-// Candy vaatii aina pohjavärin, illusion aina lakan - solidille lakkaus on
-// valinnainen lisä. Käytössä väri+hinta-valinnassa (Uusi työ, osan sivu).
+// Candy vaatii aina pohjavärin, metallic ja illusion aina lakan (metallic
+// tarvitsee lakkauksen vain omana värinään - ei kun sitä käytetään candyn
+// pohjavärinä) - solidille lakkaus on valinnainen lisä. Käytössä
+// väri+hinta-valinnassa (Uusi työ, osan sivu).
 export const PAKOLLINEN_TOINEN_VARI_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {
   candy: "pohjavari",
+  metallic: "lakka",
   illusion: "lakka",
 };
 export const VALINNAINEN_TOINEN_VARI_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {

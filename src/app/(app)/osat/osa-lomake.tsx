@@ -83,6 +83,7 @@ function VaiheRivi({
 
 const TOINEN_KULUTUS_LABEL: Partial<Record<MyytavaMaaliTyyppi, string>> = {
   candy: "Pohjavärin kulutus (g)",
+  metallic: "Lakan kulutus (g)",
   illusion: "Lakan kulutus (g)",
 };
 
