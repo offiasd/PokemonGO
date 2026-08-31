@@ -44,6 +44,10 @@ export function maaliTyypinNimi(tyyppi: MaaliTyyppi): string {
   return MAALI_TYYPIT.find((t) => t.arvo === tyyppi)?.nimi ?? tyyppi;
 }
 
+export function myytavaMaaliTyypinNimi(tyyppi: MyytavaMaaliTyyppi): string {
+  return MYYTAVAT_MAALI_TYYPIT.find((t) => t.arvo === tyyppi)?.nimi ?? tyyppi;
+}
+
 // Kategoriahinnoiteltavat tyypit (myydään aina omana työnä osalle) - alijoukko
 // MAALI_TYYPIT:istä. Lakat/Muu eivät ole tässä, koska niitä ei myydä yksinään
 // (lakka on candy/illusion-työn sisäänrakennettu osa tai solidin valinnainen lisä).
@@ -56,6 +60,16 @@ export const MYYTAVAT_MAALI_TYYPIT: { arvo: MyytavaMaaliTyyppi; nimi: string }[]
 export const TOINEN_VARI_ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
   pohjavari: "Pohjaväri",
   lakka: "Lakka",
+};
+
+// Candy vaatii aina pohjavärin, illusion aina lakan - solidille lakkaus on
+// valinnainen lisä. Käytössä väri+hinta-valinnassa (Uusi työ, osan sivu).
+export const PAKOLLINEN_TOINEN_VARI_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {
+  candy: "pohjavari",
+  illusion: "lakka",
+};
+export const VALINNAINEN_TOINEN_VARI_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {
+  solid: "lakka",
 };
 
 export function tyoVaiheenNimi(vaihe: TyoVaihe): string {
