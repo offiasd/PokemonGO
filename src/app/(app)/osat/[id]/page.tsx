@@ -17,14 +17,20 @@ import {
   ajoneuvotyypinNimi,
   muotoileEuro,
   muotoileValiEuro,
-  tyoVaiheenNimi,
   variTyypinNimi,
 } from "@/lib/vakiot";
+import type { TyoVaihe } from "@/lib/supabase/database.types";
 
 import { paivitaOsa } from "../actions";
 import { OsaLomake } from "../osa-lomake";
-import { laskeKategoriaKustannukset } from "../kustannusarvio";
+import { laskeKategoriaKustannukset, laskeTyokustannus } from "../kustannusarvio";
 import { PoistaPalautaOsa } from "./poista-palauta-osa";
+import { OsanHinnoittelu } from "./osan-hinnoittelu";
+
+// Pesu ja maalinpoisto ovat aina valinnaisia lisätöitä - maalaaja päättää
+// tarvitseeko kyseinen osa niitä, joten niiden kesto ei kuulu osan
+// perustyökustannukseen (ks. OsanHinnoittelu).
+const LISATYO_VAIHEET = new Set<TyoVaihe>(["pesu", "maalinpoisto"]);
 
 export default async function OsaSivu({
   params,
@@ -36,20 +42,60 @@ export default async function OsaSivu({
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
 
-  const [osaVastaus, tyovaiheetVastaus, variVastaus, kategoriahintaVastaus, variKategoriaVastaus] =
-    await Promise.all([
-      supabase.from("osat").select("*").eq("id", id).single(),
-      supabase.from("osa_tyovaiheet").select("*").eq("osa_id", id),
-      supabase.from("varit").select("id, nimi").eq("aktiivinen", true).order("nimi"),
-      supabase.from("osa_kategoriahinnat").select("*").eq("osa_id", id),
-      supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
-    ]);
+  const [
+    osaVastaus,
+    tyovaiheetVastaus,
+    variVastaus,
+    kategoriahintaVastaus,
+    variKategoriaVastaus,
+    tuntiveloitusVastaus,
+  ] = await Promise.all([
+    supabase.from("osat").select("*").eq("id", id).single(),
+    supabase.from("osa_tyovaiheet").select("*").eq("osa_id", id),
+    supabase.from("varit").select("id, nimi, hintalisa_prosentti").eq("aktiivinen", true).order("nimi"),
+    supabase.from("osa_kategoriahinnat").select("*").eq("osa_id", id),
+    supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
+    supabase.from("tuntiveloitukset").select("vaihe, tuntihinta"),
+  ]);
 
   const osa = osaVastaus.data;
   if (!osa) notFound();
 
-  const tyovaiheet = (tyovaiheetVastaus.data ?? []).filter((v) => v.tarvitaan);
   const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
+
+  // Väri- ja hinnoittelutiedot ovat asiakkaalle luvattavaa hintaa, ei
+  // sisäistä kustannustietoa, joten ne lasketaan kaikille rooleille -
+  // nayta_hinnat_maalaajalle-asetus koskee vain alla olevaa sisäistä
+  // kustannusarviota.
+  const varitHinnoin = await Promise.all(
+    (variVastaus.data ?? []).map(async (vari) => {
+      const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
+      return { ...vari, kokonaishinta: data ?? 0 };
+    })
+  );
+
+  const tuntiveloitukset = new Map<TyoVaihe, number>();
+  for (const t of tuntiveloitusVastaus.data ?? []) {
+    if (t.vaihe) tuntiveloitukset.set(t.vaihe, t.tuntihinta);
+  }
+
+  const kaikkiVaiheet = tyovaiheetVastaus.data ?? [];
+  const perusTyokustannus = laskeTyokustannus(
+    kaikkiVaiheet.filter((v) => v.tarvitaan && !LISATYO_VAIHEET.has(v.vaihe)),
+    tuntiveloitukset,
+    asetukset.yleinen_tuntihinta
+  );
+  const pesunKustannus = laskeTyokustannus(
+    kaikkiVaiheet.filter((v) => v.vaihe === "pesu"),
+    tuntiveloitukset,
+    asetukset.yleinen_tuntihinta
+  );
+  const maalinpoistonKustannus = laskeTyokustannus(
+    kaikkiVaiheet.filter((v) => v.vaihe === "maalinpoisto"),
+    tuntiveloitukset,
+    asetukset.yleinen_tuntihinta
+  );
+  const kateProsentti = osa.kate_prosentti ?? asetukset.kate_prosentti_oletus;
 
   let tyoaikaMin = 0;
   let tyokustannus = 0;
@@ -62,13 +108,6 @@ export default async function OsaSivu({
     ]);
     tyoaikaMin = tyoaikaVastaus.data ?? 0;
     tyokustannus = tyokustannusVastaus.data ?? 0;
-
-    const varitHinnoin = await Promise.all(
-      (variVastaus.data ?? []).map(async (vari) => {
-        const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
-        return { id: vari.id, nimi: vari.nimi, kokonaishinta: data ?? 0 };
-      })
-    );
 
     kategoriaKustannukset = laskeKategoriaKustannukset({
       osa,
@@ -113,24 +152,20 @@ export default async function OsaSivu({
             </Card>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Työvaiheet</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {tyovaiheet.length === 0 && (
-                <p className="text-sm text-muted-foreground">Ei määriteltyjä työvaiheita.</p>
-              )}
-              <ul className="grid gap-1 text-sm">
-                {tyovaiheet.map((v) => (
-                  <li key={v.id} className="flex justify-between">
-                    <span>{tyoVaiheenNimi(v.vaihe)}</span>
-                    <span className="text-muted-foreground">{v.arvioitu_kesto_min} min</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <div className="lg:col-span-2">
+            <OsanHinnoittelu
+              manuaalinenHinta={osa.manuaalinen_hinta}
+              kateProsentti={kateProsentti}
+              kateKiintea={osa.kate_kiintea ?? 0}
+              lakkausLisahinta={osa.lakkaus_lisahinta}
+              perusTyokustannus={perusTyokustannus}
+              pesunKustannus={pesunKustannus}
+              maalinpoistonKustannus={maalinpoistonKustannus}
+              kategoriahinnat={kategoriahintaVastaus.data ?? []}
+              varit={varitHinnoin}
+              variKategoriat={variKategoriaVastaus.data ?? []}
+            />
+          </div>
 
           {naytaHinnat && (
             <Card>

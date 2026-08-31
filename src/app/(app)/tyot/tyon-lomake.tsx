@@ -25,7 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { muotoileEuro } from "@/lib/vakiot";
+import {
+  muotoileEuro,
+  myytavaMaaliTyypinNimi,
+  PAKOLLINEN_TOINEN_VARI_ROOLI,
+  TOINEN_VARI_ROOLIN_NIMI,
+  VALINNAINEN_TOINEN_VARI_ROOLI,
+} from "@/lib/vakiot";
 import type { MaaliTyyppi, MyytavaMaaliTyyppi, ToinenVariRooli } from "@/lib/supabase/database.types";
 
 import { aloitaTyo } from "./actions";
@@ -78,25 +84,6 @@ interface KoriRivi {
   toinenVariRooli: ToinenVariRooli | null;
   toinenArvioituKulutusG: number | null;
 }
-
-const KATEGORIA_NIMET: Record<MyytavaMaaliTyyppi, string> = {
-  solid: "Solid / RAL",
-  metallic: "Metallic",
-  candy: "Candy",
-  illusion: "Illusion",
-};
-
-const PAKOLLINEN_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {
-  candy: "pohjavari",
-  illusion: "lakka",
-};
-const VALINNAINEN_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {
-  solid: "lakka",
-};
-const ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
-  pohjavari: "Pohjaväri",
-  lakka: "Lakka",
-};
 
 export function TyonLomake({
   osat,
@@ -152,8 +139,8 @@ export function TyonLomake({
     [varit, kategoria, variKategoriaKartta]
   );
 
-  const pakollinenRooli = kategoria ? PAKOLLINEN_ROOLI[kategoria] : undefined;
-  const valinnainenRooli = kategoria ? VALINNAINEN_ROOLI[kategoria] : undefined;
+  const pakollinenRooli = kategoria ? PAKOLLINEN_TOINEN_VARI_ROOLI[kategoria] : undefined;
+  const valinnainenRooli = kategoria ? VALINNAINEN_TOINEN_VARI_ROOLI[kategoria] : undefined;
   const toinenVariRooli = pakollinenRooli ?? (lakkausValittu ? valinnainenRooli : undefined);
   const toinenVariAktiivinen = Boolean(toinenVariRooli);
   const toisenVarinKategoria: MaaliTyyppi | undefined =
@@ -231,7 +218,7 @@ export function TyonLomake({
       return;
     }
     if (toinenVariAktiivinen && !toinenVariId) {
-      toast.error(`Valitse ${(toinenVariRooli && ROOLIN_NIMI[toinenVariRooli]) ?? "toinen väri"}.`);
+      toast.error(`Valitse ${(toinenVariRooli && TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]) ?? "toinen väri"}.`);
       return;
     }
 
@@ -335,7 +322,7 @@ export function TyonLomake({
                   )}
                   {osanKategoriat.map((k) => (
                     <SelectItem key={k.maali_tyyppi} value={k.maali_tyyppi}>
-                      {KATEGORIA_NIMET[k.maali_tyyppi]}
+                      {myytavaMaaliTyypinNimi(k.maali_tyyppi)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -381,13 +368,13 @@ export function TyonLomake({
           {toinenVariAktiivinen && toinenVariRooli && (
             <div className="grid gap-2 rounded-md border bg-muted/30 p-4">
               <Label htmlFor="toinen_vari_id">
-                {ROOLIN_NIMI[toinenVariRooli]}
+                {TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]}
                 {pakollinenRooli ? " *" : ""}
               </Label>
               <Select value={toinenVariId} onValueChange={setToinenVariId}>
                 <SelectTrigger id="toinen_vari_id" className="w-full">
                   <SelectValue
-                    placeholder={`Valitse ${ROOLIN_NIMI[toinenVariRooli].toLowerCase()}`}
+                    placeholder={`Valitse ${TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli].toLowerCase()}`}
                   />
                 </SelectTrigger>
                 <SelectContent>
