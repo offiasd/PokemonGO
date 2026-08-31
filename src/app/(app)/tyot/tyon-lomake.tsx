@@ -37,6 +37,10 @@ interface Osa {
   malli: string | null;
   lakkaus_lisahinta: number | null;
   lakkaus_kulutus_g: number | null;
+  tyokustannus: number;
+  kateProsentti: number;
+  kateKiintea: number;
+  manuaalinen_hinta: number | null;
 }
 
 interface Vari {
@@ -46,12 +50,12 @@ interface Vari {
   saldo_g: number;
   varattu_g: number;
   hintalisa_prosentti: number;
+  kokonaishinta: number;
 }
 
 interface Kategoriahinta {
   osa_id: string;
   maali_tyyppi: MyytavaMaaliTyyppi;
-  hinta: number;
   arvioitu_kulutus_g: number;
   toinen_arvioitu_kulutus_g: number | null;
 }
@@ -169,14 +173,34 @@ export function TyonLomake({
     ? (valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? 0)
     : (valittuOsa?.lakkaus_kulutus_g ?? 0);
 
+  // Asiakashinta lasketaan värin todellisesta ostohinnasta + katteesta, ei
+  // erikseen asetetusta kiinteästä kategoriahinnasta - sama laskentaperuste
+  // kuin osan omalla sivulla näkyvässä kustannusarviossa.
   const yksikkohintaEur = useMemo(() => {
-    if (!valittuKategoriahinta || !valittuVari) return null;
-    const kategorianHinta = valittuKategoriahinta.hinta;
+    if (!valittuKategoriahinta || !valittuVari || !valittuOsa) return null;
+    let kustannus = (arvioituKulutusG / 1000) * valittuVari.kokonaishinta + valittuOsa.tyokustannus;
+    if (pakollinenRooli && valittuToinenVari) {
+      kustannus += (toinenArvioituKulutusG / 1000) * valittuToinenVari.kokonaishinta;
+    }
+    const kategorianHinta =
+      valittuOsa.manuaalinen_hinta ??
+      Math.round((kustannus * (1 + valittuOsa.kateProsentti / 100) + valittuOsa.kateKiintea) * 100) /
+        100;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
     const lakkausLisa =
       kategoria === "solid" && lakkausValittu ? (valittuOsa?.lakkaus_lisahinta ?? 0) : 0;
     return Math.round((kategorianHinta + lisa + lakkausLisa) * 100) / 100;
-  }, [valittuKategoriahinta, valittuVari, kategoria, lakkausValittu, valittuOsa]);
+  }, [
+    valittuKategoriahinta,
+    valittuVari,
+    valittuOsa,
+    valittuToinenVari,
+    pakollinenRooli,
+    arvioituKulutusG,
+    toinenArvioituKulutusG,
+    kategoria,
+    lakkausValittu,
+  ]);
 
   function vaihdaOsa(v: string) {
     setOsaId(v);
@@ -311,7 +335,7 @@ export function TyonLomake({
                   )}
                   {osanKategoriat.map((k) => (
                     <SelectItem key={k.maali_tyyppi} value={k.maali_tyyppi}>
-                      {KATEGORIA_NIMET[k.maali_tyyppi]} - {muotoileEuro(k.hinta)}
+                      {KATEGORIA_NIMET[k.maali_tyyppi]}
                     </SelectItem>
                   ))}
                 </SelectContent>

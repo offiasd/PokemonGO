@@ -90,14 +90,12 @@ function KategoriaRivi({
   arvo,
   nimi,
   oletusKaytossa,
-  oletusHinta,
   oletusKulutus,
   oletusToinenKulutus,
 }: {
   arvo: MyytavaMaaliTyyppi;
   nimi: string;
   oletusKaytossa: boolean;
-  oletusHinta: number | null;
   oletusKulutus: number | null;
   oletusToinenKulutus: number | null;
 }) {
@@ -118,20 +116,7 @@ function KategoriaRivi({
         </Label>
       </div>
       {kaytossa && (
-        <div className={toinenLabel ? "grid gap-3 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}>
-          <div className="grid gap-1">
-            <Label htmlFor={`kategoria_${arvo}_hinta`} className="text-xs text-muted-foreground">
-              Hinta €
-            </Label>
-            <Input
-              id={`kategoria_${arvo}_hinta`}
-              name={`kategoria_${arvo}_hinta`}
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={oletusHinta ?? ""}
-            />
-          </div>
+        <div className={toinenLabel ? "grid gap-3 sm:grid-cols-2" : "grid gap-3 sm:grid-cols-1 sm:max-w-xs"}>
           <div className="grid gap-1">
             <Label htmlFor={`kategoria_${arvo}_kulutus`} className="text-xs text-muted-foreground">
               Maalinkulutus (g)
@@ -240,10 +225,11 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
 
       <div className="grid gap-3 rounded-md border p-4">
         <div>
-          <Label className="font-medium">Asiakashinta kategorioittain</Label>
+          <Label className="font-medium">Myytävät kategoriat</Label>
           <p className="text-xs text-muted-foreground">
-            Sama hinta koskee kaikkia kategorian värejä (ellei värille ole asetettu omaa
-            hintalisä-%:a). Vain valitut kategoriat ovat myytävissä tälle osalle Työt-sivulla.
+            Asiakashinta lasketaan automaattisesti värin ostohinnasta ja katteesta, ei asetettu
+            erikseen tässä. Vain maalinkulutus tarvitaan laskentaa varten. Vain valitut
+            kategoriat ovat myytävissä tälle osalle Työt-sivulla.
           </p>
         </div>
         <div className="grid gap-3">
@@ -255,7 +241,6 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
                 arvo={arvo}
                 nimi={nimi}
                 oletusKaytossa={Boolean(olemassaOleva)}
-                oletusHinta={olemassaOleva?.hinta ?? null}
                 oletusKulutus={olemassaOleva?.arvioitu_kulutus_g ?? null}
                 oletusToinenKulutus={olemassaOleva?.toinen_arvioitu_kulutus_g ?? null}
               />
