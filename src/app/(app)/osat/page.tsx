@@ -108,10 +108,18 @@ export default async function OsatSivu({
         variKategoriat: variKategoriaVastaus.data ?? [],
       });
 
+      // Admin voi asettaa kategorialle kiinteän hinnan, joka ohittaa listan
+      // hintanäytössä automaattisen (väri + kate -pohjaisen) suositushinnan.
       if (rivit.length > 0) {
+        const rajat = rivit.map((r) => {
+          const kiinteaHinta = omatKategoriahinnat.find((k) => k.maali_tyyppi === r.avain)?.hinta;
+          return kiinteaHinta != null
+            ? { min: kiinteaHinta, max: kiinteaHinta }
+            : { min: r.suositusMin, max: r.suositusMax };
+        });
         hintaskaalat.set(osa.id, {
-          min: Math.min(...rivit.map((r) => r.suositusMin)),
-          max: Math.max(...rivit.map((r) => r.suositusMax)),
+          min: Math.min(...rajat.map((r) => r.min)),
+          max: Math.max(...rajat.map((r) => r.max)),
         });
       }
     }

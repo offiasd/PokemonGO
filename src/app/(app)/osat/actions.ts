@@ -45,31 +45,36 @@ const TOISEN_KULUTUKSEN_KATEGORIAT = new Set(["candy", "illusion"]);
 
 interface KategoriahintaSyote {
   maali_tyyppi: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"];
+  hinta: number | null;
   arvioitu_kulutus_g: number;
   toinen_arvioitu_kulutus_g: number | null;
 }
 
 // Palauttaa [käytössä-olevat kategoriahinnat, pois-jätettyjen kategorioiden tyypit].
-// Asiakashinta lasketaan aina värin ostohinnasta + katteesta, joten kategorian
-// aktivointi vaatii vain maalinkulutuksen, ei enää erikseen asetettua hintaa.
+// Kategorian aktivointi vaatii vain maalinkulutuksen. Hinta on valinnainen
+// kiinteä ylikirjoitus - jos sitä ei aseteta, asiakashinta lasketaan värin
+// ostohinnasta + katteesta (ks. kustannusarvio.ts / osat-listan hintaskaala).
 function lueKategoriahinnat(formData: FormData) {
   const kaytossa: KategoriahintaSyote[] = [];
   const poistettavat: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"][] = [];
 
   for (const { arvo } of MYYTAVAT_MAALI_TYYPIT) {
     const kaytossaTama = formData.get(`kategoria_${arvo}_kaytossa`) === "on";
+    const hinta = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_hinta`));
     const kulutus = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_kulutus`));
     const toinenKulutus = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_toinen_kulutus`));
     const toinenVaadittu = TOISEN_KULUTUKSEN_KATEGORIAT.has(arvo);
 
     if (
       kaytossaTama &&
+      (hinta === null || hinta >= 0) &&
       kulutus !== null &&
       kulutus >= 0 &&
       (!toinenVaadittu || (toinenKulutus !== null && toinenKulutus >= 0))
     ) {
       kaytossa.push({
         maali_tyyppi: arvo,
+        hinta,
         arvioitu_kulutus_g: kulutus,
         toinen_arvioitu_kulutus_g: toinenVaadittu ? toinenKulutus : null,
       });
