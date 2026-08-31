@@ -54,7 +54,7 @@ export function VariKortti({
         }`}
       >
         <CardHeader className="grid min-w-0 gap-3 px-4 sm:px-6">
-          <p className="truncate text-xs text-muted-foreground sm:hidden">
+          <p className="truncate text-center text-xs text-muted-foreground sm:hidden">
             {vari.valmistaja ?? "Valmistaja tuntematon"}
           </p>
           <div className="flex min-w-0 items-start justify-between gap-2">

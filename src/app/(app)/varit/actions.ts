@@ -61,9 +61,11 @@ function lueVariKentat(formData: FormData) {
     valmistaja: tyhjaksiTekstiksi(formData.get("valmistaja")),
     alkupera: String(formData.get("alkupera") ?? "EU") as Alkupera,
     ostohinta_per_kg: Number(formData.get("ostohinta_per_kg") ?? 0),
-    tullimaksu_prosentti: tyhjaksiNumeroksi(formData.get("tullimaksu_prosentti")),
-    alv_prosentti: tyhjaksiNumeroksi(formData.get("alv_prosentti")),
-    toimituskulu_per_kg: tyhjaksiNumeroksi(formData.get("toimituskulu_per_kg")),
+    // Toimituskulu, tullimaksu ja ALV tulevat aina Asetukset-sivun arvoista:
+    // null jättää ne SQL-funktion coalesce-oletuksille (vari_kokonaishinta).
+    tullimaksu_prosentti: null,
+    alv_prosentti: null,
+    toimituskulu_per_kg: null,
     hintalisa_prosentti: Number(formData.get("hintalisa_prosentti") ?? 0),
     myyja_linkki: tyhjaksiTekstiksi(formData.get("myyja_linkki")),
     kuva_url: tyhjaksiTekstiksi(formData.get("kuva_url")),

@@ -27,6 +27,8 @@ export default async function UusiVariSivu() {
             toimituskuluOletusEu={asetukset.toimituskulu_per_kg_eu_oletus}
             toimituskuluOletusUsa={asetukset.toimituskulu_per_kg_usa_oletus}
             toimituskuluOletusMuu={asetukset.toimituskulu_per_kg_muu_oletus}
+              tullimaksuOletus={asetukset.tullimaksu_prosentti_oletus}
+              alvOletus={asetukset.alv_prosentti_oletus}
           />
         </CardContent>
       </Card>
