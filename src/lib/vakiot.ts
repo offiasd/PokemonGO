@@ -12,7 +12,7 @@ export const TYO_VAIHEET: { arvo: TyoVaihe; nimi: string }[] = [
   { arvo: "pesu", nimi: "Pesu" },
   { arvo: "maalinpoisto", nimi: "Maalinpoisto" },
   { arvo: "puhallus", nimi: "Puhallus" },
-  { arvo: "teippaus", nimi: "Teippaus" },
+  { arvo: "teippaus", nimi: "Suojaus" },
   { arvo: "maalaus", nimi: "Maalaus" },
 ];
 
@@ -75,6 +75,22 @@ export const PAKOLLINEN_TOINEN_VARI_ROOLI: Partial<Record<MyytavaMaaliTyyppi, To
 export const VALINNAINEN_TOINEN_VARI_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {
   solid: "lakka",
 };
+
+// Monikerrosmaalauksessa (candy, illusion, metallic, solid + lakkaus) maalaus- ja
+// suojausvaihe tehdään jokaiselle värikerrokselle erikseen, joten niiden kesto
+// kertautuu värien lukumäärällä. Muut vaiheet (pesu, maalinpoisto, puhallus)
+// tehdään kerran riippumatta kerrosten määrästä.
+export const VARIKERROKSITTAIN_KERTAUTUVAT_VAIHEET: TyoVaihe[] = ["maalaus", "teippaus"];
+
+// Montako eri väriä/maalia kategorian työhön kuluu: pakollinen pohjaväri tai
+// lakka lasketaan omaksi kerroksekseen.
+export function kategorianVarienMaara(
+  kategoria: MyytavaMaaliTyyppi,
+  lakkausValittu = false
+): number {
+  if (PAKOLLINEN_TOINEN_VARI_ROOLI[kategoria]) return 2;
+  return VALINNAINEN_TOINEN_VARI_ROOLI[kategoria] && lakkausValittu ? 2 : 1;
+}
 
 export function tyoVaiheenNimi(vaihe: TyoVaihe): string {
   return TYO_VAIHEET.find((v) => v.arvo === vaihe)?.nimi ?? vaihe;

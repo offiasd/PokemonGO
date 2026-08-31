@@ -4,7 +4,7 @@ import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
 
-import { laskeTyokustannus } from "../../osat/kustannusarvio";
+import { laskeTyokustannusKerroksittain } from "../../osat/kustannusarvio";
 import { TyonLomake } from "../tyon-lomake";
 
 export default async function UusiTyoSivu() {
@@ -55,7 +55,11 @@ export default async function UusiTyoSivu() {
     const omatVaiheet = (tyovaiheetVastaus.data ?? []).filter((v) => v.osa_id === osa.id);
     return {
       ...osa,
-      tyokustannus: laskeTyokustannus(omatVaiheet, tuntiveloitukset, asetukset.yleinen_tuntihinta),
+      tyokustannusKerroksittain: laskeTyokustannusKerroksittain(
+        omatVaiheet,
+        tuntiveloitukset,
+        asetukset.yleinen_tuntihinta
+      ),
       kateProsentti: osa.kate_prosentti ?? asetukset.kate_prosentti_oletus,
       kateKiintea: osa.kate_kiintea ?? 0,
     };

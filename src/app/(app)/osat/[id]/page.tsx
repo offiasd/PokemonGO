@@ -23,7 +23,11 @@ import type { TyoVaihe } from "@/lib/supabase/database.types";
 
 import { paivitaOsa } from "../actions";
 import { OsaLomake } from "../osa-lomake";
-import { laskeKategoriaKustannukset, laskeTyokustannus } from "../kustannusarvio";
+import {
+  laskeKategoriaKustannukset,
+  laskeTyokustannus,
+  laskeTyokustannusKerroksittain,
+} from "../kustannusarvio";
 import { PoistaPalautaOsa } from "./poista-palauta-osa";
 import { OsanHinnoittelu } from "./osan-hinnoittelu";
 
@@ -80,8 +84,12 @@ export default async function OsaSivu({
   }
 
   const kaikkiVaiheet = tyovaiheetVastaus.data ?? [];
-  const perusTyokustannus = laskeTyokustannus(
-    kaikkiVaiheet.filter((v) => v.tarvitaan && !LISATYO_VAIHEET.has(v.vaihe)),
+  const perusVaiheet = kaikkiVaiheet.filter(
+    (v) => v.tarvitaan && !LISATYO_VAIHEET.has(v.vaihe)
+  );
+  // Maalaus ja suojaus kertautuvat värikerroksittain: [1 väri, 2 väriä].
+  const perusTyokustannusKerroksittain = laskeTyokustannusKerroksittain(
+    perusVaiheet,
     tuntiveloitukset,
     asetukset.yleinen_tuntihinta
   );
@@ -112,7 +120,11 @@ export default async function OsaSivu({
     kategoriaKustannukset = laskeKategoriaKustannukset({
       osa,
       asetukset,
-      tyokustannus,
+      tyokustannusKerroksittain: laskeTyokustannusKerroksittain(
+        kaikkiVaiheet.filter((v) => v.tarvitaan),
+        tuntiveloitukset,
+        asetukset.yleinen_tuntihinta
+      ),
       kategoriahinnat: kategoriahintaVastaus.data ?? [],
       varit: varitHinnoin,
       variKategoriat: variKategoriaVastaus.data ?? [],
@@ -158,7 +170,7 @@ export default async function OsaSivu({
               kateProsentti={kateProsentti}
               kateKiintea={osa.kate_kiintea ?? 0}
               lakkausLisahinta={osa.lakkaus_lisahinta}
-              perusTyokustannus={perusTyokustannus}
+              perusTyokustannusKerroksittain={perusTyokustannusKerroksittain}
               pesunKustannus={pesunKustannus}
               maalinpoistonKustannus={maalinpoistonKustannus}
               kategoriahinnat={kategoriahintaVastaus.data ?? []}
