@@ -81,7 +81,9 @@ function rakennaRivi(
   nimi: string,
   kustannukset: number[],
   osa: OsaRow,
-  asetukset: AsetuksetRow
+  asetukset: AsetuksetRow,
+  /** Kiinteä lisä asiakashintaan (esim. lakkauslisä) - ei osa kustannusta. */
+  asiakkaanLisahinta = 0
 ): KustannusarvioRivi | null {
   if (kustannukset.length === 0) return null;
   const kustannusMin = pyoristaSentteihin(Math.min(...kustannukset));
@@ -91,8 +93,12 @@ function rakennaRivi(
     nimi,
     kustannusMin,
     kustannusMax,
-    suositusMin: suositushinta(kustannusMin, osa, asetukset),
-    suositusMax: suositushinta(kustannusMax, osa, asetukset),
+    suositusMin: pyoristaSentteihin(
+      suositushinta(kustannusMin, osa, asetukset) + asiakkaanLisahinta
+    ),
+    suositusMax: pyoristaSentteihin(
+      suositushinta(kustannusMax, osa, asetukset) + asiakkaanLisahinta
+    ),
   };
 }
 
@@ -158,10 +164,10 @@ export function laskeKategoriaKustannukset({
 
   // Maalaus ja suojaus kertautuvat värikerroksittain: candy/illusion/metallic
   // ovat aina kahden värin töitä, perusväri yhden.
-  const tyokustannus = (kategoria: MyytavaMaaliTyyppi) => {
-    const maara = kategorianVarienMaara(kategoria);
-    return tyokustannusKerroksittain[maara - 1] ?? tyokustannusKerroksittain[0] ?? 0;
-  };
+  const tyokustannusVareilla = (maara: number) =>
+    tyokustannusKerroksittain[maara - 1] ?? tyokustannusKerroksittain[0] ?? 0;
+  const tyokustannus = (kategoria: MyytavaMaaliTyyppi) =>
+    tyokustannusVareilla(kategorianVarienMaara(kategoria));
 
   const rivit: KustannusarvioRivi[] = [];
 
@@ -172,6 +178,33 @@ export function laskeKategoriaKustannukset({
     );
     const rivi = rakennaRivi("solid", "Perusvärit", kustannukset, osa, asetukset);
     if (rivi) rivit.push(rivi);
+
+    // Perusvärille lakkaus on valinnainen lisä, joten se näytetään omana
+    // vaihtoehtonaan: kaksi värikerrosta (maalaus + suojaus kahdesti) ja
+    // lakan oma kulutus. Lakkauslisä lisätään asiakashintaan kuten Työt-sivulla.
+    const lakkaVarit = kategoriaVarit("transparent");
+    const lakkausKulutusG = osa.lakkaus_kulutus_g ?? 0;
+    if (lakkaVarit.length > 0 && (lakkausKulutusG > 0 || osa.lakkaus_lisahinta)) {
+      const lakatut: number[] = [];
+      for (const v of kategoriaVarit("solid")) {
+        for (const lakka of lakkaVarit) {
+          lakatut.push(
+            (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta +
+              (lakkausKulutusG / 1000) * lakka.kokonaishinta +
+              tyokustannusVareilla(2)
+          );
+        }
+      }
+      const lakattuRivi = rakennaRivi(
+        "solid-lakattu",
+        "Perusvärit + lakkaus",
+        lakatut,
+        osa,
+        asetukset,
+        osa.lakkaus_lisahinta ?? 0
+      );
+      if (lakattuRivi) rivit.push(lakattuRivi);
+    }
   }
 
   const metallicHinta = kategoriaHinta("metallic");
