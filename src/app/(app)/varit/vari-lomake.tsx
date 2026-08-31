@@ -426,9 +426,11 @@ export function VariLomake({
         hintaan automaattisesti Asetukset-sivun arvojen mukaan ({alkupera}
         {": "}
         {muotoileEuro(toimituskuluOletus)}/kg
+        {alkupera !== "EU" && `, tulli ${tullimaksuOletus} %, ALV ${alvOletus} %`}
+        ).{" "}
         {alkupera !== "EU" &&
-          `, tulli ${tullimaksuOletus} %, ALV ${alvOletus} %`}
-        ). Muuta arvoja Asetukset-sivulla, niin muutos vaikuttaa kaikkiin väreihin.
+          "Tulli ja ALV lasketaan myös toimituskulusta, koska rahti kuuluu tullausarvoon. "}
+        Muuta arvoja Asetukset-sivulla, niin muutos vaikuttaa kaikkiin väreihin.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
