@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database, MyytavaMaaliTyyppi } from "@/lib/supabase/database.types";
 import { AJONEUVOTYYPIT, VARI_TYYPIT, TYO_VAIHEET, MYYTAVAT_MAALI_TYYPIT } from "@/lib/vakiot";
 
 import type { OsaLomakeTila } from "./actions";
@@ -81,39 +81,90 @@ function VaiheRivi({
   );
 }
 
+const TOINEN_KULUTUS_LABEL: Partial<Record<MyytavaMaaliTyyppi, string>> = {
+  candy: "Pohjavärin kulutus (g)",
+  illusion: "Lakan kulutus (g)",
+};
+
 function KategoriaRivi({
   arvo,
   nimi,
   oletusKaytossa,
   oletusHinta,
+  oletusKulutus,
+  oletusToinenKulutus,
 }: {
-  arvo: string;
+  arvo: MyytavaMaaliTyyppi;
   nimi: string;
   oletusKaytossa: boolean;
   oletusHinta: number | null;
+  oletusKulutus: number | null;
+  oletusToinenKulutus: number | null;
 }) {
   const [kaytossa, setKaytossa] = useState(oletusKaytossa);
+  const toinenLabel = TOINEN_KULUTUS_LABEL[arvo];
 
   return (
-    <div className="grid grid-cols-[auto_1fr_8rem] items-center gap-3">
-      <Checkbox
-        id={`kategoria_${arvo}_kaytossa`}
-        name={`kategoria_${arvo}_kaytossa`}
-        checked={kaytossa}
-        onCheckedChange={(v) => setKaytossa(v === true)}
-      />
-      <Label htmlFor={`kategoria_${arvo}_kaytossa`} className="font-normal">
-        {nimi}
-      </Label>
-      <Input
-        name={`kategoria_${arvo}_hinta`}
-        type="number"
-        min="0"
-        step="0.01"
-        placeholder="€"
-        defaultValue={oletusHinta ?? ""}
-        disabled={!kaytossa}
-      />
+    <div className="grid gap-3 rounded-md border p-3">
+      <div className="flex items-center gap-3">
+        <Checkbox
+          id={`kategoria_${arvo}_kaytossa`}
+          name={`kategoria_${arvo}_kaytossa`}
+          checked={kaytossa}
+          onCheckedChange={(v) => setKaytossa(v === true)}
+        />
+        <Label htmlFor={`kategoria_${arvo}_kaytossa`} className="font-normal">
+          {nimi}
+        </Label>
+      </div>
+      {kaytossa && (
+        <div className={toinenLabel ? "grid gap-3 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}>
+          <div className="grid gap-1">
+            <Label htmlFor={`kategoria_${arvo}_hinta`} className="text-xs text-muted-foreground">
+              Hinta €
+            </Label>
+            <Input
+              id={`kategoria_${arvo}_hinta`}
+              name={`kategoria_${arvo}_hinta`}
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={oletusHinta ?? ""}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor={`kategoria_${arvo}_kulutus`} className="text-xs text-muted-foreground">
+              Maalinkulutus (g)
+            </Label>
+            <Input
+              id={`kategoria_${arvo}_kulutus`}
+              name={`kategoria_${arvo}_kulutus`}
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={oletusKulutus ?? ""}
+            />
+          </div>
+          {toinenLabel && (
+            <div className="grid gap-1">
+              <Label
+                htmlFor={`kategoria_${arvo}_toinen_kulutus`}
+                className="text-xs text-muted-foreground"
+              >
+                {toinenLabel}
+              </Label>
+              <Input
+                id={`kategoria_${arvo}_toinen_kulutus`}
+                name={`kategoria_${arvo}_toinen_kulutus`}
+                type="number"
+                min="0"
+                step="1"
+                defaultValue={oletusToinenKulutus ?? ""}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -126,23 +177,9 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
     <form action={kutsuAction} className="grid gap-6">
       <input type="hidden" name="kuva_url" value={kuvaUrl ?? ""} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="grid gap-2">
-          <Label htmlFor="nimi">Osan nimi *</Label>
-          <Input id="nimi" name="nimi" required defaultValue={osa?.nimi} />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="arvioitu_kulutus_g">Arvioitu maalinkulutus (g) *</Label>
-          <Input
-            id="arvioitu_kulutus_g"
-            name="arvioitu_kulutus_g"
-            type="number"
-            step="1"
-            min="0"
-            required
-            defaultValue={osa?.arvioitu_kulutus_g}
-          />
-        </div>
+      <div className="grid gap-2">
+        <Label htmlFor="nimi">Osan nimi *</Label>
+        <Input id="nimi" name="nimi" required defaultValue={osa?.nimi} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -235,22 +272,39 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
                 nimi={nimi}
                 oletusKaytossa={Boolean(olemassaOleva)}
                 oletusHinta={olemassaOleva?.hinta ?? null}
+                oletusKulutus={olemassaOleva?.arvioitu_kulutus_g ?? null}
+                oletusToinenKulutus={olemassaOleva?.toinen_arvioitu_kulutus_g ?? null}
               />
             );
           })}
         </div>
-        <div className="grid gap-2 sm:max-w-xs">
-          <Label htmlFor="lakkaus_lisahinta" className="text-xs text-muted-foreground">
-            Valinnaisen lakkauksen lisähinta € (Solid/RAL-väreille, tyhjä = lakkausta ei tarjota)
-          </Label>
-          <Input
-            id="lakkaus_lisahinta"
-            name="lakkaus_lisahinta"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={osa?.lakkaus_lisahinta ?? ""}
-          />
+        <div className="grid gap-3 rounded-md border p-3 sm:grid-cols-2 sm:max-w-md">
+          <div className="grid gap-1">
+            <Label htmlFor="lakkaus_lisahinta" className="text-xs text-muted-foreground">
+              Valinnaisen lakkauksen lisähinta € (Solid/RAL, tyhjä = ei tarjota)
+            </Label>
+            <Input
+              id="lakkaus_lisahinta"
+              name="lakkaus_lisahinta"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={osa?.lakkaus_lisahinta ?? ""}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="lakkaus_kulutus_g" className="text-xs text-muted-foreground">
+              Lakkauksen maalinkulutus (g)
+            </Label>
+            <Input
+              id="lakkaus_kulutus_g"
+              name="lakkaus_kulutus_g"
+              type="number"
+              step="1"
+              min="0"
+              defaultValue={osa?.lakkaus_kulutus_g ?? ""}
+            />
+          </div>
         </div>
       </div>
 

@@ -96,10 +96,6 @@ export default async function OsatSivu({
                   <span className="text-muted-foreground">Väri-/pintatyyppi</span>
                   <span>{variTyypinNimi(osa.vari_tyyppi)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Arvioitu kulutus</span>
-                  <span>{osa.arvioitu_kulutus_g.toLocaleString("fi-FI")} g</span>
-                </div>
               </CardContent>
             </Card>
           </Link>
