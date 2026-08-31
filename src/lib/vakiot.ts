@@ -182,21 +182,24 @@ export const VARISAVYN_VARIKOODI: Record<Varisavy, string> = {
 // admin voi aina korjata värin lomakkeella. Järjestys ratkaisee kun nimi
 // osuu useampaan sävyyn (esim. "Golden Bronze") - metallit ensin, sitten
 // akromaattiset, sitten kromaattiset sävyt.
+// Sama lista on Edge Functionissa (supabase/functions/hae-tuotetiedot) -
+// pidä ne synkassa, jotta "Hae tiedot" ja "Tunnista nimestä" päätyvät samaan
+// sävyyn. Monikot mukana valmistajien kategorianimiä varten ("Reds", "Blues").
 const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
-  ["hopea", /\b(silver|chrome|chromium|hopea|kromi)\b/i],
-  ["kultainen", /\b(gold|golden|kulta|kultainen)\b/i],
-  ["bronssi", /\b(bronze|copper|pronssi|kupari|bronssi)\b/i],
-  ["musta", /\b(black|musta|onyx|jet|ebony)\b/i],
-  ["valkoinen", /\b(white|valkoinen|pearl|ivory)\b/i],
-  ["harmaa", /\b(gr[ae]y|harmaa|graphite|gunmetal|charcoal|slate)\b/i],
-  ["ruskea", /\b(brown|ruskea|chocolate|coffee|mocha|tan|chestnut|beige)\b/i],
-  ["punainen", /\b(red|punainen|ruby|cherry|crimson|scarlet|maroon)\b/i],
-  ["oranssi", /\b(orange|oranssi|tangerine|amber)\b/i],
-  ["keltainen", /\b(yellow|keltainen|lemon|banana|sunflower)\b/i],
-  ["vihrea", /\b(green|vihre[äa]|lime|emerald|olive|mint|forest)\b/i],
-  ["sininen", /\b(blue|sininen|navy|azure|cobalt|teal|sky)\b/i],
-  ["liila", /\b(purple|violet|liila|lilac|lavender|plum|grape)\b/i],
-  ["pinkki", /\b(pink|pinkki|magenta|fuchsia|rose|salmon)\b/i],
+  ["hopea", /\b(silvers?|chrome|chromium|hopea|kromi)\b/i],
+  ["kultainen", /\b(golds?|golden|kulta|kultainen)\b/i],
+  ["bronssi", /\b(bronzes?|coppers?|pronssi|kupari|bronssi)\b/i],
+  ["musta", /\b(blacks?|musta|onyx|jet|ebony)\b/i],
+  ["valkoinen", /\b(whites?|valkoinen|pearl|ivory)\b/i],
+  ["harmaa", /\b(gr[ae]ys?|harmaa|graphite|gunmetal|charcoal|slate)\b/i],
+  ["ruskea", /\b(browns?|ruskea|chocolate|coffee|mocha|tan|chestnut|beige)\b/i],
+  ["punainen", /\b(reds?|punainen|ruby|cherry|crimson|scarlet|maroon)\b/i],
+  ["oranssi", /\b(oranges?|oranssi|tangerine|amber)\b/i],
+  ["keltainen", /\b(yellows?|keltainen|lemon|banana|sunflower)\b/i],
+  ["vihrea", /\b(greens?|vihre[äa]|lime|emerald|olive|mint|forest)\b/i],
+  ["sininen", /\b(blues?|sininen|navy|azure|cobalt|teal|sky)\b/i],
+  ["liila", /\b(purples?|violets?|liila|lilac|lavender|plum|grape)\b/i],
+  ["pinkki", /\b(pinks?|pinkki|magenta|fuchsia|rose|salmon)\b/i],
 ];
 
 export function paattelyVarisavy(nimi: string): Varisavy | null {
