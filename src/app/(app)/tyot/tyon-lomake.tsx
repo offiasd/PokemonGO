@@ -65,7 +65,6 @@ interface KoriRivi {
   avain: string;
   osaNimi: string;
   variNimi: string;
-  kappalemaara: number;
   yksikkohintaEur: number;
   toinenVariNimi: string | null;
   osaId: string;
@@ -126,12 +125,8 @@ export function TyonLomake({
   const [osaId, setOsaId] = useState("");
   const [kategoria, setKategoria] = useState<MyytavaMaaliTyyppi | "">("");
   const [variId, setVariId] = useState("");
-  const [kappalemaara, setKappalemaara] = useState("1");
   const [lakkausValittu, setLakkausValittu] = useState(false);
   const [toinenVariId, setToinenVariId] = useState("");
-  const [toinenArvioituYlikirjoitus, setToinenArvioituYlikirjoitus] = useState<string | null>(
-    null
-  );
 
   const valittuOsa = useMemo(() => osat.find((o) => o.id === osaId), [osat, osaId]);
   const valittuVari = useMemo(() => varit.find((v) => v.id === variId), [varit, variId]);
@@ -169,15 +164,10 @@ export function TyonLomake({
     [varit, variId, toisenVarinKategoria, variKategoriaKartta]
   );
 
-  const maara = Number(kappalemaara) || 0;
-  const arvioituKulutusG = valittuKategoriahinta
-    ? Math.round(valittuKategoriahinta.arvioitu_kulutus_g * maara)
-    : 0;
-  const toinenArvioituOletus = pakollinenRooli
-    ? Math.round((valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? 0) * maara)
-    : Math.round((valittuOsa?.lakkaus_kulutus_g ?? 0) * maara);
-  const toinenArvioituKulutusG =
-    toinenArvioituYlikirjoitus !== null ? Number(toinenArvioituYlikirjoitus) : toinenArvioituOletus;
+  const arvioituKulutusG = valittuKategoriahinta?.arvioitu_kulutus_g ?? 0;
+  const toinenArvioituKulutusG = pakollinenRooli
+    ? (valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? 0)
+    : (valittuOsa?.lakkaus_kulutus_g ?? 0);
 
   const yksikkohintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari) return null;
@@ -194,7 +184,6 @@ export function TyonLomake({
     setVariId("");
     setLakkausValittu(false);
     setToinenVariId("");
-    setToinenArvioituYlikirjoitus(null);
   }
 
   function vaihdaKategoria(v: string) {
@@ -202,17 +191,14 @@ export function TyonLomake({
     setVariId("");
     setLakkausValittu(false);
     setToinenVariId("");
-    setToinenArvioituYlikirjoitus(null);
   }
 
   function tyhjennaRivilomake() {
     setOsaId("");
     setKategoria("");
     setVariId("");
-    setKappalemaara("1");
     setLakkausValittu(false);
     setToinenVariId("");
-    setToinenArvioituYlikirjoitus(null);
   }
 
   function lisaaKoriin() {
@@ -231,7 +217,6 @@ export function TyonLomake({
       osaNimi: valittuOsa.nimi,
       variId: valittuVari.id,
       variNimi: valittuVari.nimi,
-      kappalemaara: Number(kappalemaara) || 1,
       arvioituKulutusG,
       yksikkohintaEur,
       toinenVariId: toinenVariAktiivinen ? toinenVariId : null,
@@ -247,7 +232,7 @@ export function TyonLomake({
     setKori((k) => k.filter((r) => r.avain !== avain));
   }
 
-  const koriYhteensa = kori.reduce((s, r) => s + r.yksikkohintaEur * r.kappalemaara, 0);
+  const koriYhteensa = kori.reduce((s, r) => s + r.yksikkohintaEur, 0);
 
   function kasitteleAloitus() {
     if (kori.length === 0) {
@@ -261,7 +246,7 @@ export function TyonLomake({
           kori.map((r) => ({
             osaId: r.osaId,
             variId: r.variId,
-            kappalemaara: r.kappalemaara,
+            kappalemaara: 1,
             arvioituKulutusG: r.arvioituKulutusG,
             yksikkohintaEur: r.yksikkohintaEur,
             toinenVariId: r.toinenVariId,
@@ -335,37 +320,21 @@ export function TyonLomake({
           </div>
 
           {kategoria && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="vari_id">Väri</Label>
-                <Select value={variId} onValueChange={setVariId}>
-                  <SelectTrigger id="vari_id">
-                    <SelectValue placeholder="Valitse väri" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kategorianVarit.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.nimi}
-                        {v.hintalisa_prosentti > 0 && ` (+${v.hintalisa_prosentti} %)`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="kappalemaara">Kappalemäärä</Label>
-                <Input
-                  id="kappalemaara"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={kappalemaara}
-                  onChange={(e) => {
-                    setKappalemaara(e.target.value);
-                    setToinenArvioituYlikirjoitus(null);
-                  }}
-                />
-              </div>
+            <div className="grid gap-2">
+              <Label htmlFor="vari_id">Väri</Label>
+              <Select value={variId} onValueChange={setVariId}>
+                <SelectTrigger id="vari_id" className="w-full">
+                  <SelectValue placeholder="Valitse väri" />
+                </SelectTrigger>
+                <SelectContent>
+                  {kategorianVarit.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.nimi}
+                      {v.hintalisa_prosentti > 0 && ` (+${v.hintalisa_prosentti} %)`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -386,52 +355,37 @@ export function TyonLomake({
           )}
 
           {toinenVariAktiivinen && toinenVariRooli && (
-            <div className="grid gap-4 rounded-md border bg-muted/30 p-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="toinen_vari_id">
-                  {ROOLIN_NIMI[toinenVariRooli]}
-                  {pakollinenRooli ? " *" : ""}
-                </Label>
-                <Select value={toinenVariId} onValueChange={setToinenVariId}>
-                  <SelectTrigger id="toinen_vari_id">
-                    <SelectValue
-                      placeholder={`Valitse ${ROOLIN_NIMI[toinenVariRooli].toLowerCase()}`}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {toisenVarinVaihtoehdot.length === 0 && (
-                      <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                        Ei värejä tässä kategoriassa - lisää lisäkategoria värille
-                      </p>
-                    )}
-                    {toisenVarinVaihtoehdot.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.nimi}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="toinen_arvioitu">Arvioitu kulutus (g)</Label>
-                <Input
-                  id="toinen_arvioitu"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={toinenArvioituKulutusG}
-                  onChange={(e) => setToinenArvioituYlikirjoitus(e.target.value)}
-                />
-              </div>
+            <div className="grid gap-2 rounded-md border bg-muted/30 p-4">
+              <Label htmlFor="toinen_vari_id">
+                {ROOLIN_NIMI[toinenVariRooli]}
+                {pakollinenRooli ? " *" : ""}
+              </Label>
+              <Select value={toinenVariId} onValueChange={setToinenVariId}>
+                <SelectTrigger id="toinen_vari_id" className="w-full">
+                  <SelectValue
+                    placeholder={`Valitse ${ROOLIN_NIMI[toinenVariRooli].toLowerCase()}`}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {toisenVarinVaihtoehdot.length === 0 && (
+                    <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                      Ei värejä tässä kategoriassa - lisää lisäkategoria värille
+                    </p>
+                  )}
+                  {toisenVarinVaihtoehdot.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.nimi}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
           {kategoria && valittuVari && yksikkohintaEur !== null && (
             <p className="text-sm text-muted-foreground">
-              Laskettu hinta: <span className="font-medium text-foreground">
-                {muotoileEuro(yksikkohintaEur)}
-              </span>{" "}
-              / kpl - arvioitu maalinkulutus {arvioituKulutusG.toLocaleString("fi-FI")} g
+              Laskettu hinta:{" "}
+              <span className="font-medium text-foreground">{muotoileEuro(yksikkohintaEur)}</span>
             </p>
           )}
 
@@ -462,7 +416,6 @@ export function TyonLomake({
                   <TableHead>Osa</TableHead>
                   <TableHead>Väri</TableHead>
                   <TableHead>Pohjaväri / lakka</TableHead>
-                  <TableHead>Kpl</TableHead>
                   <TableHead>Hinta</TableHead>
                   <TableHead />
                 </TableRow>
@@ -475,8 +428,7 @@ export function TyonLomake({
                     <TableCell className="text-muted-foreground">
                       {r.toinenVariNimi ?? "-"}
                     </TableCell>
-                    <TableCell>{r.kappalemaara}</TableCell>
-                    <TableCell>{muotoileEuro(r.yksikkohintaEur * r.kappalemaara)}</TableCell>
+                    <TableCell>{muotoileEuro(r.yksikkohintaEur)}</TableCell>
                     <TableCell>
                       <Button
                         type="button"
