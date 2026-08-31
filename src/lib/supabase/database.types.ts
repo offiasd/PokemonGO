@@ -14,6 +14,7 @@ export type TyoVaihe = "pesu" | "maalinpoisto" | "puhallus" | "teippaus" | "maal
 export type Alkupera = "EU" | "USA" | "muu";
 export type KayttajaRooli = "admin" | "maalaaja";
 export type MaaliTyyppi = "solid" | "transparent" | "candy" | "illusion" | "metallic" | "muu";
+export type ToinenVariRooli = "pohjavari" | "lakka";
 
 type EiSuhteita = [];
 
@@ -163,6 +164,10 @@ export interface Database {
           toteutunut_kulutus_g: number;
           kayttaja_id: string | null;
           luotu: string;
+          toinen_vari_id: string | null;
+          toinen_vari_rooli: ToinenVariRooli | null;
+          toinen_arvioitu_kulutus_g: number | null;
+          toinen_toteutunut_kulutus_g: number | null;
         };
         Insert: Partial<Database["public"]["Tables"]["maalaustapahtumat"]["Row"]> & {
           osa_id: string;
@@ -181,6 +186,13 @@ export interface Database {
           {
             foreignKeyName: "maalaustapahtumat_vari_id_fkey";
             columns: ["vari_id"];
+            isOneToOne: false;
+            referencedRelation: "varit";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maalaustapahtumat_toinen_vari_id_fkey";
+            columns: ["toinen_vari_id"];
             isOneToOne: false;
             referencedRelation: "varit";
             referencedColumns: ["id"];
@@ -235,6 +247,11 @@ export interface Database {
           toteutunut_kulutus_kg: number;
           maalikustannus_eur: number;
           kayttaja_id: string | null;
+          toinen_vari_id: string | null;
+          toinen_vari_nimi: string | null;
+          toinen_vari_rooli: ToinenVariRooli | null;
+          toinen_toteutunut_kulutus_g: number | null;
+          toinen_toteutunut_kulutus_kg: number | null;
         };
         Relationships: EiSuhteita;
       };
