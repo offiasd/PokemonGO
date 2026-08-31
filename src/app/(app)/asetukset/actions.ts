@@ -32,6 +32,10 @@ export async function paivitaAsetukset(
       kate_prosentti_oletus: parseNumero(formData, "kate_prosentti_oletus"),
       yleinen_tuntihinta: parseNumero(formData, "yleinen_tuntihinta"),
       nayta_hinnat_maalaajalle: formData.get("nayta_hinnat_maalaajalle") === "on",
+      yrityksen_osoite: String(formData.get("yrityksen_osoite") ?? "").trim() || null,
+      toimituskulu_per_kg_eu_oletus: parseNumero(formData, "toimituskulu_per_kg_eu_oletus"),
+      toimituskulu_per_kg_usa_oletus: parseNumero(formData, "toimituskulu_per_kg_usa_oletus"),
+      toimituskulu_per_kg_muu_oletus: parseNumero(formData, "toimituskulu_per_kg_muu_oletus"),
     })
     .eq("id", true);
 

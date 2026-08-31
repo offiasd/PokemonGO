@@ -8,6 +8,7 @@ import { Loader2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -18,11 +19,20 @@ import {
 } from "@/components/ui/select";
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import { createClient } from "@/lib/supabase/client";
-import type { Alkupera, Database } from "@/lib/supabase/database.types";
+import type { Alkupera, Database, MaaliTyyppi } from "@/lib/supabase/database.types";
 
 import type { VariLomakeTila } from "./actions";
 
 const TYHJA_VARI_TILA: VariLomakeTila = { virhe: null };
+
+const TYYPPI_NIMET: Record<MaaliTyyppi, string> = {
+  solid: "Solid (yksivärinen)",
+  transparent: "Transparent (läpikuultava)",
+  candy: "Candy",
+  illusion: "Illusion",
+  metallic: "Metallic",
+  muu: "Muu",
+};
 
 type VariRow = Database["public"]["Tables"]["varit"]["Row"];
 
@@ -30,6 +40,9 @@ interface VariLomakeProps {
   vari?: VariRow;
   formAction: (tila: VariLomakeTila, formData: FormData) => Promise<VariLomakeTila>;
   asetuksetOletusHalytysraja: number;
+  toimituskuluOletusEu: number;
+  toimituskuluOletusUsa: number;
+  toimituskuluOletusMuu: number;
 }
 
 function TallennaNappi({ uusi }: { uusi: boolean }) {
@@ -42,15 +55,45 @@ function TallennaNappi({ uusi }: { uusi: boolean }) {
   );
 }
 
-export function VariLomake({ vari, formAction, asetuksetOletusHalytysraja }: VariLomakeProps) {
+export function VariLomake({
+  vari,
+  formAction,
+  asetuksetOletusHalytysraja,
+  toimituskuluOletusEu,
+  toimituskuluOletusUsa,
+  toimituskuluOletusMuu,
+}: VariLomakeProps) {
   const [tila, kutsuAction] = useActionState(formAction, TYHJA_VARI_TILA);
+  const [nimi, setNimi] = useState(vari?.nimi ?? "");
+  const [valmistaja, setValmistaja] = useState(vari?.valmistaja ?? "");
   const [alkupera, setAlkupera] = useState<Alkupera>(vari?.alkupera ?? "EU");
+  const [ostohintaPerKg, setOstohintaPerKg] = useState<string>(
+    vari?.ostohinta_per_kg !== undefined && vari?.ostohinta_per_kg !== null
+      ? String(vari.ostohinta_per_kg)
+      : ""
+  );
   const [kuvaUrl, setKuvaUrl] = useState<string | null>(vari?.kuva_url ?? null);
   const [ohjeTiedostoUrl, setOhjeTiedostoUrl] = useState<string | null>(
     vari?.ohje_tiedosto_url ?? null
   );
+  const [kiiltoaste, setKiiltoaste] = useState(vari?.kiiltoaste ?? "");
+  const [tyyppi, setTyyppi] = useState<MaaliTyyppi>(vari?.tyyppi ?? "solid");
+  const [vaatiiPohjavarin, setVaatiiPohjavarin] = useState(vari?.vaatii_pohjavarin ?? false);
+  const [pohjavariKuvaus, setPohjavariKuvaus] = useState(vari?.pohjavari_kuvaus ?? "");
+  const [alkuperainenHinta, setAlkuperainenHinta] = useState<number | null>(
+    vari?.alkuperainen_hinta ?? null
+  );
+  const [alkuperainenValuutta, setAlkuperainenValuutta] = useState<string | null>(
+    vari?.alkuperainen_valuutta ?? null
+  );
+  const [alkuperainenYksikko, setAlkuperainenYksikko] = useState<string | null>(
+    vari?.alkuperainen_yksikko ?? null
+  );
   const [myyjaLinkki, setMyyjaLinkki] = useState(vari?.myyja_linkki ?? "");
   const [haetaan, setHaetaan] = useState(false);
+
+  const toimituskuluOletus =
+    alkupera === "EU" ? toimituskuluOletusEu : alkupera === "USA" ? toimituskuluOletusUsa : toimituskuluOletusMuu;
 
   async function haeTiedot() {
     if (!myyjaLinkki) {
@@ -71,14 +114,44 @@ export function VariLomake({ vari, formAction, asetuksetOletusHalytysraja }: Var
       if (data?.virhe) {
         toast.warning(data.virhe);
       }
+      if (data?.nimi && !nimi) {
+        setNimi(data.nimi);
+      }
+      if (data?.valmistaja && !valmistaja) {
+        setValmistaja(data.valmistaja);
+      }
       if (data?.kuva_url) {
         setKuvaUrl(data.kuva_url);
         toast.success("Kuva löytyi ja täytettiin.");
       }
       if (data?.ohje_tiedosto_url) {
         setOhjeTiedostoUrl(data.ohje_tiedosto_url);
-        toast.success("Ohjetiedosto löytyi ja täytettiin.");
+        toast.success("Ohjetiedosto (datasheet) löytyi ja täytettiin.");
       }
+      if (data?.kiiltoaste) {
+        setKiiltoaste(data.kiiltoaste);
+      }
+      if (data?.tyyppi) {
+        setTyyppi(data.tyyppi as MaaliTyyppi);
+      }
+      if (typeof data?.vaatii_pohjavarin === "boolean") {
+        setVaatiiPohjavarin(data.vaatii_pohjavarin);
+      }
+      if (data?.pohjavari_kuvaus) {
+        setPohjavariKuvaus(data.pohjavari_kuvaus);
+      }
+      if (data?.alkupera) {
+        setAlkupera(data.alkupera as Alkupera);
+      }
+      if (typeof data?.ostohinta_per_kg === "number") {
+        setOstohintaPerKg(String(data.ostohinta_per_kg));
+        toast.success(
+          `Hinta muunnettu: ${data.ostohinta_per_kg} €/kg (lähde: ${data.alkuperainen_hinta} ${data.alkuperainen_valuutta}/${data.alkuperainen_yksikko}).`
+        );
+      }
+      setAlkuperainenHinta(data?.alkuperainen_hinta ?? null);
+      setAlkuperainenValuutta(data?.alkuperainen_valuutta ?? null);
+      setAlkuperainenYksikko(data?.alkuperainen_yksikko ?? null);
     } catch {
       toast.error(
         "Haku epäonnistui - tarkista että Edge Function 'hae-tuotetiedot' on julkaistu Supabase-projektissa."
@@ -92,16 +165,85 @@ export function VariLomake({ vari, formAction, asetuksetOletusHalytysraja }: Var
     <form action={kutsuAction} className="grid gap-6">
       <input type="hidden" name="kuva_url" value={kuvaUrl ?? ""} />
       <input type="hidden" name="ohje_tiedosto_url" value={ohjeTiedostoUrl ?? ""} />
+      <input type="hidden" name="alkuperainen_hinta" value={alkuperainenHinta ?? ""} />
+      <input type="hidden" name="alkuperainen_valuutta" value={alkuperainenValuutta ?? ""} />
+      <input type="hidden" name="alkuperainen_yksikko" value={alkuperainenYksikko ?? ""} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
           <Label htmlFor="nimi">Nimi *</Label>
-          <Input id="nimi" name="nimi" required defaultValue={vari?.nimi} />
+          <Input
+            id="nimi"
+            name="nimi"
+            required
+            value={nimi}
+            onChange={(e) => setNimi(e.target.value)}
+          />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="valmistaja">Valmistaja</Label>
-          <Input id="valmistaja" name="valmistaja" defaultValue={vari?.valmistaja ?? ""} />
+          <Input
+            id="valmistaja"
+            name="valmistaja"
+            value={valmistaja}
+            onChange={(e) => setValmistaja(e.target.value)}
+          />
         </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <Label htmlFor="kiiltoaste">Kiiltoaste (Gloss unit)</Label>
+          <Input
+            id="kiiltoaste"
+            name="kiiltoaste"
+            placeholder="esim. High Gloss (85+ GU)"
+            value={kiiltoaste}
+            onChange={(e) => setKiiltoaste(e.target.value)}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="tyyppi">Maalin tyyppi</Label>
+          <Select name="tyyppi" value={tyyppi} onValueChange={(v) => setTyyppi(v as MaaliTyyppi)}>
+            <SelectTrigger id="tyyppi" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TYYPPI_NIMET).map(([arvo, nimi]) => (
+                <SelectItem key={arvo} value={arvo}>
+                  {nimi}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid gap-3 rounded-md border p-4">
+        <div className="flex items-center gap-3">
+          <Switch
+            id="vaatii_pohjavarin"
+            name="vaatii_pohjavarin"
+            checked={vaatiiPohjavarin}
+            onCheckedChange={setVaatiiPohjavarin}
+          />
+          <Label htmlFor="vaatii_pohjavarin" className="font-normal">
+            Väri vaatii pohjavärin (esim. candy/illusion aktivoituu topcoatista)
+          </Label>
+        </div>
+        {vaatiiPohjavarin && (
+          <div className="grid gap-2">
+            <Label htmlFor="pohjavari_kuvaus">Pohjavärin kuvaus / suositus</Label>
+            <Textarea
+              id="pohjavari_kuvaus"
+              name="pohjavari_kuvaus"
+              rows={2}
+              placeholder="esim. Kromi (Super Chrome Plus tms.) - tarkista valmistajan ohjeet"
+              value={pohjavariKuvaus}
+              onChange={(e) => setPohjavariKuvaus(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -131,18 +273,27 @@ export function VariLomake({ vari, formAction, asetuksetOletusHalytysraja }: Var
             step="0.01"
             min="0"
             required
-            defaultValue={vari?.ostohinta_per_kg}
+            value={ostohintaPerKg}
+            onChange={(e) => setOstohintaPerKg(e.target.value)}
           />
+          {alkuperainenHinta && (
+            <p className="text-xs text-muted-foreground">
+              Lähde: {alkuperainenHinta} {alkuperainenValuutta}/{alkuperainenYksikko} (haettu
+              automaattisesti, muunnettu ja pyöristetty ylöspäin - tarkista).
+            </p>
+          )}
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="toimituskulu_per_kg">Toimituskulu €/kg</Label>
+          <Label htmlFor="toimituskulu_per_kg">
+            Toimituskulu €/kg - tyhjä = oletus ({toimituskuluOletus} €/kg, {alkupera})
+          </Label>
           <Input
             id="toimituskulu_per_kg"
             name="toimituskulu_per_kg"
             type="number"
             step="0.01"
             min="0"
-            defaultValue={vari?.toimituskulu_per_kg ?? 0}
+            defaultValue={vari?.toimituskulu_per_kg ?? ""}
           />
         </div>
       </div>
@@ -217,8 +368,10 @@ export function VariLomake({ vari, formAction, asetuksetOletusHalytysraja }: Var
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Yrittää hakea tuotekuvan ja ohjeet sivun julkisesta sisällöstä. Jos haku ei onnistu,
-          lataa tiedostot käsin alta.
+          Yrittää hakea nimen, valmistajan, kuvan, kiiltoasteen, tyypin, pohjavärivaatimuksen,
+          tuotekohtaisen ohjetiedoston, hinnan (muunnettuna €/kg) ja alkuperän sivun julkisesta
+          sisällöstä. Kaikki kentät ovat parhaan yrityksen arvioita - tarkista ja muokkaa
+          tarvittaessa. Toimituskulua ei haeta automaattisesti, ks. Asetukset.
         </p>
       </div>
 
