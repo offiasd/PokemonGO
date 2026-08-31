@@ -236,6 +236,27 @@ export interface Database {
           },
         ];
       };
+      vari_kategoriat: {
+        Row: {
+          id: string;
+          vari_id: string;
+          maali_tyyppi: MaaliTyyppi;
+        };
+        Insert: Partial<Database["public"]["Tables"]["vari_kategoriat"]["Row"]> & {
+          vari_id: string;
+          maali_tyyppi: MaaliTyyppi;
+        };
+        Update: Partial<Database["public"]["Tables"]["vari_kategoriat"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "vari_kategoriat_vari_id_fkey";
+            columns: ["vari_id"];
+            isOneToOne: false;
+            referencedRelation: "varit";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       osa_kategoriahinnat: {
         Row: {
           id: string;

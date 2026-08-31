@@ -28,6 +28,14 @@ export default async function VariSivu({
   const { data: vari } = await supabase.from("varit").select("*").eq("id", id).single();
   if (!vari) notFound();
 
+  const { data: kategoriaRivit } = await supabase
+    .from("vari_kategoriat")
+    .select("maali_tyyppi")
+    .eq("vari_id", id);
+  const lisakategoriat = (kategoriaRivit ?? [])
+    .map((k) => k.maali_tyyppi)
+    .filter((t) => t !== vari.tyyppi);
+
   const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
 
   const { data: kokonaishinta } = naytaHinnat
@@ -72,6 +80,7 @@ export default async function VariSivu({
           <CardContent>
             <VariLomake
               vari={vari}
+              lisakategoriat={lisakategoriat}
               formAction={paivitaVari.bind(null, vari.id)}
               asetuksetOletusHalytysraja={asetukset.oletus_halytysraja_g}
               toimituskuluOletusEu={asetukset.toimituskulu_per_kg_eu_oletus}

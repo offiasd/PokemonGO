@@ -6,9 +6,43 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin, vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import type { Alkupera, MaaliTyyppi } from "@/lib/supabase/database.types";
+import { MAALI_TYYPIT } from "@/lib/vakiot";
 
 export interface VariLomakeTila {
   virhe: string | null;
+}
+
+// Tyyppi on aina yksi kategorioista - luetaan lisäkategoria-checkboxit erikseen
+// ja tallennetaan koko joukko (tyyppi + lisäkategoriat) vari_kategoriat-tauluun.
+async function tallennaVarinKategoriat(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  variId: string,
+  formData: FormData,
+  tyyppi: MaaliTyyppi
+) {
+  const kategoriat = new Set<MaaliTyyppi>([tyyppi]);
+  for (const { arvo } of MAALI_TYYPIT) {
+    if (formData.get(`lisakategoria_${arvo}`) === "on") {
+      kategoriat.add(arvo);
+    }
+  }
+
+  const { error: poistoVirhe } = await supabase
+    .from("vari_kategoriat")
+    .delete()
+    .eq("vari_id", variId)
+    .not("maali_tyyppi", "in", `(${[...kategoriat].join(",")})`);
+  if (poistoVirhe) return poistoVirhe.message;
+
+  const { error: upsertVirhe } = await supabase
+    .from("vari_kategoriat")
+    .upsert(
+      [...kategoriat].map((maali_tyyppi) => ({ vari_id: variId, maali_tyyppi })),
+      { onConflict: "vari_id,maali_tyyppi" }
+    );
+  if (upsertVirhe) return upsertVirhe.message;
+
+  return null;
 }
 
 function lueVariKentat(formData: FormData) {
@@ -65,6 +99,11 @@ export async function luoVari(
     return { virhe: error?.message ?? "Värin luonti epäonnistui." };
   }
 
+  const kategoriaVirhe = await tallennaVarinKategoriat(supabase, data.id, formData, kentat.tyyppi);
+  if (kategoriaVirhe) {
+    return { virhe: kategoriaVirhe };
+  }
+
   revalidatePath("/varit");
   redirect(`/varit/${data.id}`);
 }
@@ -86,6 +125,11 @@ export async function paivitaVari(
 
   if (error) {
     return { virhe: error.message };
+  }
+
+  const kategoriaVirhe = await tallennaVarinKategoriat(supabase, variId, formData, kentat.tyyppi);
+  if (kategoriaVirhe) {
+    return { virhe: kategoriaVirhe };
   }
 
   revalidatePath("/varit");
