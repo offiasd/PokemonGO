@@ -9,6 +9,34 @@ import type { Database } from "@/lib/supabase/database.types";
 
 type VariRow = Database["public"]["Tables"]["varit"]["Row"];
 
+// Kapealla kortilla (2 saraketta mobiilissa) otsikko + arvo eivät aina mahdu
+// samalle riville. Card on flex-pystysarake, jonka lasten min-width on
+// oletuksena auto - ilman min-w-0:aa lohko ei kutistu vaan piirtyy kortin
+// reunan yli. flex-wrap + ml-auto siirtää arvon tarvittaessa omalle
+// rivilleen oikeaan reunaan ylivuodon sijaan.
+function TietoRivi({
+  otsikko,
+  arvo,
+  pieni,
+}: {
+  otsikko: string;
+  arvo: string;
+  pieni?: boolean;
+}) {
+  return (
+    <div
+      className={
+        pieni
+          ? "flex min-w-0 flex-wrap items-center justify-between gap-x-2 text-xs text-muted-foreground"
+          : "flex min-w-0 flex-wrap items-center justify-between gap-x-2 text-sm"
+      }
+    >
+      <span className={pieni ? "shrink-0" : "shrink-0 text-muted-foreground"}>{otsikko}</span>
+      <span className={pieni ? "ml-auto shrink-0" : "ml-auto shrink-0 font-medium"}>{arvo}</span>
+    </div>
+  );
+}
+
 export function VariKortti({
   vari,
   oletusHalytysraja,
@@ -20,12 +48,16 @@ export function VariKortti({
 }) {
   return (
     <Link href={`/varit/${vari.id}`}>
-      <Card className={!vari.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"}>
-        <CardHeader className="grid gap-3">
+      <Card
+        className={`overflow-hidden ${
+          !vari.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"
+        }`}
+      >
+        <CardHeader className="grid min-w-0 gap-3 px-4 sm:px-6">
           <p className="truncate text-xs text-muted-foreground sm:hidden">
             {vari.valmistaja ?? "Valmistaja tuntematon"}
           </p>
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
               {vari.kuva_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -38,13 +70,13 @@ export function VariKortti({
                 <Paintbrush className="size-5 text-muted-foreground" />
               )}
             </div>
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex shrink-0 flex-col items-end gap-1">
               <Badge variant="outline">{vari.alkupera}</Badge>
               {!vari.aktiivinen && <Badge variant="secondary">Poistettu</Badge>}
             </div>
           </div>
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
+          <div className="min-w-0">
+            <CardTitle className="flex min-w-0 items-center gap-2 text-base">
               {vari.varisavy && (
                 <span
                   className="inline-block size-3 shrink-0 rounded-full border"
@@ -52,38 +84,35 @@ export function VariKortti({
                   title={varisavynNimi(vari.varisavy)}
                 />
               )}
-              {vari.nimi}
+              <span className="min-w-0 break-words">{vari.nimi}</span>
             </CardTitle>
             <CardDescription className="hidden sm:block">
               {vari.valmistaja ?? "Valmistaja tuntematon"}
             </CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="grid gap-1">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground">Saldo</span>
-              <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
-            </div>
+        <CardContent className="grid min-w-0 gap-3 px-4 sm:px-6">
+          <div className="grid min-w-0 gap-1">
+            <TietoRivi otsikko="Saldo" arvo={muotoileGrammat(vari.saldo_g)} />
             <SaldoPalkki
               saldoG={vari.saldo_g}
               halytysrajaG={vari.halytysraja_g ?? oletusHalytysraja}
             />
             {vari.varattu_g > 0 && (
-              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>Varattu keskeneräisiin töihin</span>
-                <span className="text-right">
-                  {muotoileGrammat(vari.varattu_g)} (käytettävissä{" "}
-                  {muotoileGrammat(vari.saldo_g - vari.varattu_g)})
-                </span>
-              </div>
+              <TietoRivi
+                pieni
+                otsikko="Varattu töihin"
+                arvo={`${muotoileGrammat(vari.varattu_g)} (vapaana ${muotoileGrammat(
+                  vari.saldo_g - vari.varattu_g
+                )})`}
+              />
             )}
           </div>
           {naytaHinnat && (
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground">Ostohinta</span>
-              <span className="font-medium">{muotoileEuro(vari.ostohinta_per_kg)}/kg</span>
-            </div>
+            <TietoRivi
+              otsikko="Ostohinta"
+              arvo={`${muotoileEuro(vari.ostohinta_per_kg)}/kg`}
+            />
           )}
         </CardContent>
       </Card>
