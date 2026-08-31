@@ -21,7 +21,13 @@ import {
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import { createClient } from "@/lib/supabase/client";
 import type { Alkupera, Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
-import { MAALI_TYYPIT, paattelyVarisavy, VARISAVYN_VARIKOODI, VARISAVYT } from "@/lib/vakiot";
+import {
+  MAALI_TYYPIT,
+  muotoileEuro,
+  paattelyVarisavy,
+  VARISAVYN_VARIKOODI,
+  VARISAVYT,
+} from "@/lib/vakiot";
 
 import type { VariLomakeTila } from "./actions";
 
@@ -37,6 +43,8 @@ interface VariLomakeProps {
   toimituskuluOletusEu: number;
   toimituskuluOletusUsa: number;
   toimituskuluOletusMuu: number;
+  tullimaksuOletus: number;
+  alvOletus: number;
 }
 
 function TallennaNappi({ uusi }: { uusi: boolean }) {
@@ -57,6 +65,8 @@ export function VariLomake({
   toimituskuluOletusEu,
   toimituskuluOletusUsa,
   toimituskuluOletusMuu,
+  tullimaksuOletus,
+  alvOletus,
 }: VariLomakeProps) {
   const [tila, kutsuAction] = useActionState(formAction, TYHJA_VARI_TILA);
   const [nimi, setNimi] = useState(vari?.nimi ?? "");
@@ -396,19 +406,6 @@ export function VariLomake({
           )}
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="toimituskulu_per_kg">
-            Toimituskulu €/kg - tyhjä = oletus ({toimituskuluOletus} €/kg, {alkupera})
-          </Label>
-          <Input
-            id="toimituskulu_per_kg"
-            name="toimituskulu_per_kg"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={vari?.toimituskulu_per_kg ?? ""}
-          />
-        </div>
-        <div className="grid gap-2">
           <Label htmlFor="hintalisa_prosentti">Asiakashinnan lisä-% (poikkeuksellisen kallis väri)</Label>
           <Input
             id="hintalisa_prosentti"
@@ -424,36 +421,15 @@ export function VariLomake({
         </div>
       </div>
 
-      {alkupera !== "EU" && (
-        <div className="grid gap-4 rounded-md border bg-muted/30 p-4 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label htmlFor="tullimaksu_prosentti">Tullimaksu-% (tyhjä = käytä oletusta)</Label>
-            <Input
-              id="tullimaksu_prosentti"
-              name="tullimaksu_prosentti"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={vari?.tullimaksu_prosentti ?? ""}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="alv_prosentti">ALV-% tuonnille (tyhjä = käytä oletusta)</Label>
-            <Input
-              id="alv_prosentti"
-              name="alv_prosentti"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={vari?.alv_prosentti ?? ""}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground sm:col-span-2">
-            Tarkat tulli- ja ALV-prosentit riippuvat tuotenimikkeestä - varmista kirjanpitäjältä
-            tai tullilta.
-          </p>
-        </div>
-      )}
+      <p className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+        Toimituskulu{alkupera !== "EU" ? ", tullimaksu ja ALV lisätään" : " lisätään"} värin
+        hintaan automaattisesti Asetukset-sivun arvojen mukaan ({alkupera}
+        {": "}
+        {muotoileEuro(toimituskuluOletus)}/kg
+        {alkupera !== "EU" &&
+          `, tulli ${tullimaksuOletus} %, ALV ${alvOletus} %`}
+        ). Muuta arvoja Asetukset-sivulla, niin muutos vaikuttaa kaikkiin väreihin.
+      </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
