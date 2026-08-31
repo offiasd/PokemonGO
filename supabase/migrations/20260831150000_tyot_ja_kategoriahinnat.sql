@@ -178,13 +178,21 @@ create trigger tyo_valmistuu_saldo_trg
 
 -- Hälytysnäkymä huomioi jatkossa varatun määrän - varattu maali ei ole
 -- oikeasti käytettävissä uusiin töihin.
-create or replace view varit_halytykset as
+-- HUOM: drop+create (ei create or replace) - näkymän sarakejärjestys on
+-- jäänyt jälkeen varit-taulun myöhemmistä ALTER TABLE -lisäyksistä
+-- (kiiltoaste ym.), eikä "create or replace view" salli sarakejärjestyksen
+-- muuttumista v.*-laajennuksen takia.
+drop view if exists varit_halytykset;
+
+create view varit_halytykset as
 select
   v.*,
   public.vari_halytysraja(v.id) as efektiivinen_halytysraja_g
 from varit v
 where v.aktiivinen
   and (v.saldo_g - v.varattu_g) <= public.vari_halytysraja(v.id);
+
+comment on view varit_halytykset is 'Värit joiden käytettävissä oleva saldo (saldo_g - varattu_g) on hälytysrajalla tai sen alle.';
 
 alter view varit_halytykset set (security_invoker = true);
 
