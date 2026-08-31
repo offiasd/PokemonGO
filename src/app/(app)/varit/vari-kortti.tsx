@@ -57,6 +57,15 @@ export function VariKortti({
               saldoG={vari.saldo_g}
               halytysrajaG={vari.halytysraja_g ?? oletusHalytysraja}
             />
+            {vari.varattu_g > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Varattu keskeneräisiin töihin</span>
+                <span>
+                  {muotoileGrammat(vari.varattu_g)} (käytettävissä{" "}
+                  {muotoileGrammat(vari.saldo_g - vari.varattu_g)})
+                </span>
+              </div>
+            )}
           </div>
           {naytaHinnat && (
             <div className="flex items-center justify-between text-sm">

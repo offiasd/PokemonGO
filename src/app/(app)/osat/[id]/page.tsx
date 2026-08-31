@@ -29,10 +29,11 @@ export default async function OsaSivu({
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
 
-  const [osaVastaus, tyovaiheetVastaus, variVastaus] = await Promise.all([
+  const [osaVastaus, tyovaiheetVastaus, variVastaus, kategoriahintaVastaus] = await Promise.all([
     supabase.from("osat").select("*").eq("id", id).single(),
     supabase.from("osa_tyovaiheet").select("*").eq("osa_id", id),
     supabase.from("varit").select("id, nimi").eq("aktiivinen", true).order("nimi"),
+    supabase.from("osa_kategoriahinnat").select("*").eq("osa_id", id),
   ]);
 
   const osa = osaVastaus.data;
@@ -203,6 +204,7 @@ export default async function OsaSivu({
           <OsaLomake
             osa={osa}
             tyovaiheet={tyovaiheetVastaus.data ?? []}
+            kategoriahinnat={kategoriahintaVastaus.data ?? []}
             formAction={paivitaOsa.bind(null, osa.id)}
           />
         </CardContent>

@@ -25,6 +25,7 @@ function lueVariKentat(formData: FormData) {
     tullimaksu_prosentti: tyhjaksiNumeroksi(formData.get("tullimaksu_prosentti")),
     alv_prosentti: tyhjaksiNumeroksi(formData.get("alv_prosentti")),
     toimituskulu_per_kg: tyhjaksiNumeroksi(formData.get("toimituskulu_per_kg")),
+    hintalisa_prosentti: Number(formData.get("hintalisa_prosentti") ?? 0),
     myyja_linkki: tyhjaksiTekstiksi(formData.get("myyja_linkki")),
     kuva_url: tyhjaksiTekstiksi(formData.get("kuva_url")),
     ohjeet: tyhjaksiTekstiksi(formData.get("ohjeet")),

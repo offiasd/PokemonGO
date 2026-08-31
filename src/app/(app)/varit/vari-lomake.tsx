@@ -238,7 +238,7 @@ export function VariLomake({
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-2">
           <Label htmlFor="alkupera">Alkuperä</Label>
           <Select
@@ -287,6 +287,20 @@ export function VariLomake({
             min="0"
             defaultValue={vari?.toimituskulu_per_kg ?? ""}
           />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="hintalisa_prosentti">Asiakashinnan lisä-% (poikkeuksellisen kallis väri)</Label>
+          <Input
+            id="hintalisa_prosentti"
+            name="hintalisa_prosentti"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={vari?.hintalisa_prosentti ?? 0}
+          />
+          <p className="text-xs text-muted-foreground">
+            Kertautuu automaattisesti osan kategoriahintaan Työt-sivulla (esim. 50 = +50 %).
+          </p>
         </div>
       </div>
 
