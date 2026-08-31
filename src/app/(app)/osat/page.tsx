@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
+import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,15 +13,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ajoneuvotyypinNimi, variTyypinNimi } from "@/lib/vakiot";
-import type { AjoneuvoTyyppi, VariTyyppi } from "@/lib/supabase/database.types";
+import { ajoneuvotyypinNimi, muotoileValiEuro } from "@/lib/vakiot";
+import type { AjoneuvoTyyppi, TyoVaihe } from "@/lib/supabase/database.types";
 
 import { OsienSuodattimet } from "./osien-suodattimet";
+import { laskeKategoriaKustannukset, laskeTyokustannus } from "./kustannusarvio";
 
 interface Hakuparametrit {
   q?: string;
   ajoneuvotyyppi?: string;
-  variTyyppi?: string;
   naytaPoistetut?: string;
 }
 
@@ -29,9 +30,10 @@ export default async function OsatSivu({
 }: {
   searchParams: Promise<Hakuparametrit>;
 }) {
-  const { q, ajoneuvotyyppi, variTyyppi, naytaPoistetut } = await searchParams;
+  const { q, ajoneuvotyyppi, naytaPoistetut } = await searchParams;
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
+  const asetukset = await haeAsetukset();
 
   let kysely = supabase.from("osat").select("*").order("nimi", { ascending: true });
 
@@ -41,14 +43,79 @@ export default async function OsatSivu({
   if (ajoneuvotyyppi) {
     kysely = kysely.eq("ajoneuvotyyppi", ajoneuvotyyppi as AjoneuvoTyyppi);
   }
-  if (variTyyppi) {
-    kysely = kysely.eq("vari_tyyppi", variTyyppi as VariTyyppi);
-  }
   if (q) {
     kysely = kysely.or(`nimi.ilike.%${q}%,merkki.ilike.%${q}%,malli.ilike.%${q}%`);
   }
 
-  const { data: osat } = await kysely;
+  const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
+
+  const [
+    osatVastaus,
+    variVastaus,
+    variKategoriaVastaus,
+    kategoriahintaVastaus,
+    tyovaiheetVastaus,
+    tuntiveloitusVastaus,
+  ] = await Promise.all([
+    kysely,
+    supabase.from("varit").select("id, nimi").eq("aktiivinen", true).order("nimi"),
+    supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
+    supabase.from("osa_kategoriahinnat").select("*"),
+    supabase
+      .from("osa_tyovaiheet")
+      .select("osa_id, vaihe, arvioitu_kesto_min")
+      .eq("tarvitaan", true),
+    supabase.from("tuntiveloitukset").select("vaihe, tuntihinta"),
+  ]);
+
+  const osat = osatVastaus.data ?? [];
+
+  // Näytetään korteissa asiakashinta-asteikko (halvin-kallein sellinen kategoria)
+  // samalla laskentaperusteella kuin osan omalla sivulla, mutta työkustannus
+  // lasketaan tässä JS:ssä RPC-kutsujen sijaan, jotta listasivu ei tee erillistä
+  // tietokantakutsua jokaiselle osalle.
+  const hintaskaalat = new Map<string, { min: number; max: number }>();
+  if (naytaHinnat && osat.length > 0) {
+    const varitHinnoin = await Promise.all(
+      (variVastaus.data ?? []).map(async (vari) => {
+        const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
+        return { id: vari.id, nimi: vari.nimi, kokonaishinta: data ?? 0 };
+      })
+    );
+
+    const tuntiveloitukset = new Map<TyoVaihe, number>();
+    for (const t of tuntiveloitusVastaus.data ?? []) {
+      if (t.vaihe) tuntiveloitukset.set(t.vaihe, t.tuntihinta);
+    }
+
+    for (const osa of osat) {
+      const omatVaiheet = (tyovaiheetVastaus.data ?? []).filter((v) => v.osa_id === osa.id);
+      const tyokustannus = laskeTyokustannus(
+        omatVaiheet,
+        tuntiveloitukset,
+        asetukset.yleinen_tuntihinta
+      );
+      const omatKategoriahinnat = (kategoriahintaVastaus.data ?? []).filter(
+        (k) => k.osa_id === osa.id
+      );
+
+      const rivit = laskeKategoriaKustannukset({
+        osa,
+        asetukset,
+        tyokustannus,
+        kategoriahinnat: omatKategoriahinnat,
+        varit: varitHinnoin,
+        variKategoriat: variKategoriaVastaus.data ?? [],
+      });
+
+      if (rivit.length > 0) {
+        hintaskaalat.set(osa.id, {
+          min: Math.min(...rivit.map((r) => r.suositusMin)),
+          max: Math.max(...rivit.map((r) => r.suositusMax)),
+        });
+      }
+    }
+  }
 
   return (
     <div className="grid gap-6">
@@ -72,35 +139,55 @@ export default async function OsatSivu({
       <OsienSuodattimet naytaPoistetutValinta={kayttaja.role === "admin"} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {(osat ?? []).map((osa) => (
-          <Link key={osa.id} href={`/osat/${osa.id}`}>
-            <Card
-              className={!osa.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"}
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base">{osa.nimi}</CardTitle>
-                    <CardDescription>
-                      {[osa.merkki, osa.malli].filter(Boolean).join(" ") || "Merkki/malli tuntematon"}
-                    </CardDescription>
+        {osat.map((osa) => {
+          const hinta = hintaskaalat.get(osa.id);
+          return (
+            <Link key={osa.id} href={`/osat/${osa.id}`}>
+              <Card
+                className={
+                  !osa.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"
+                }
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{osa.nimi}</CardTitle>
+                  <CardDescription>
+                    {[osa.merkki, osa.malli].filter(Boolean).join(" ") || "Merkki/malli tuntematon"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+                    {osa.kuva_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={osa.kuva_url}
+                        alt={osa.nimi}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+                        Ei kuvaa
+                      </div>
+                    )}
+                    <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                      <Badge variant="outline" className="bg-background/90">
+                        {ajoneuvotyypinNimi(osa.ajoneuvotyyppi)}
+                      </Badge>
+                      {!osa.aktiivinen && <Badge variant="secondary">Poistettu</Badge>}
+                    </div>
+                    {hinta && (
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 py-2 text-center">
+                        <span className="text-sm font-semibold text-white">
+                          {muotoileValiEuro(hinta.min, hinta.max)}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant="outline">{ajoneuvotyypinNimi(osa.ajoneuvotyyppi)}</Badge>
-                    {!osa.aktiivinen && <Badge variant="secondary">Poistettu</Badge>}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Väri-/pintatyyppi</span>
-                  <span>{variTyypinNimi(osa.vari_tyyppi)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-        {(osat ?? []).length === 0 && (
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
+        {osat.length === 0 && (
           <p className="text-muted-foreground">Ei osia hakuehdoilla.</p>
         )}
       </div>

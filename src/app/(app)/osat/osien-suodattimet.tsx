@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AJONEUVOTYYPIT, VARI_TYYPIT } from "@/lib/vakiot";
+import { AJONEUVOTYYPIT } from "@/lib/vakiot";
 
 export function OsienSuodattimet({
   naytaPoistetutValinta,
@@ -57,26 +57,6 @@ export function OsienSuodattimet({
           <SelectContent>
             <SelectItem value="kaikki">Kaikki</SelectItem>
             {AJONEUVOTYYPIT.map((t) => (
-              <SelectItem key={t.arvo} value={t.arvo}>
-                {t.nimi}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid gap-1.5">
-        <Label className="text-xs text-muted-foreground">Väri-/pintatyyppi</Label>
-        <Select
-          value={searchParams.get("variTyyppi") ?? "kaikki"}
-          onValueChange={(v) => paivitaParametri("variTyyppi", v === "kaikki" ? null : v)}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="kaikki">Kaikki</SelectItem>
-            {VARI_TYYPIT.map((t) => (
               <SelectItem key={t.arvo} value={t.arvo}>
                 {t.nimi}
               </SelectItem>

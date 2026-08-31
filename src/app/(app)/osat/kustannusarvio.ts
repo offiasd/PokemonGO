@@ -1,6 +1,11 @@
 import "server-only";
 
-import type { Database, MaaliTyyppi, MyytavaMaaliTyyppi } from "@/lib/supabase/database.types";
+import type {
+  Database,
+  MaaliTyyppi,
+  MyytavaMaaliTyyppi,
+  TyoVaihe,
+} from "@/lib/supabase/database.types";
 
 type OsaRow = Database["public"]["Tables"]["osat"]["Row"];
 type AsetuksetRow = Database["public"]["Tables"]["asetukset"]["Row"];
@@ -23,6 +28,21 @@ export interface KustannusarvioRivi {
 
 function pyoristaSentteihin(arvo: number): number {
   return Math.round(arvo * 100) / 100;
+}
+
+// Sama laskentaperuste kuin SQL-funktiolla osa_tyokustannus: vaihekohtainen
+// tuntihinta jos asetettu, muuten yleinen tuntihinta. Lasketaan JS:ssä eikä
+// RPC:llä, jotta listasivu ei tee erillistä kutsua jokaiselle osalle.
+export function laskeTyokustannus(
+  vaiheet: { vaihe: TyoVaihe; arvioitu_kesto_min: number }[],
+  tuntiveloitukset: Map<TyoVaihe, number>,
+  yleinenTuntihinta: number
+): number {
+  return vaiheet.reduce(
+    (summa, v) =>
+      summa + (v.arvioitu_kesto_min / 60) * (tuntiveloitukset.get(v.vaihe) ?? yleinenTuntihinta),
+    0
+  );
 }
 
 // Sama laskentaperuste kuin SQL-funktiolla osa_suositushinta: manuaalinen_hinta

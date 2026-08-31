@@ -17,6 +17,7 @@ import {
   ajoneuvotyypinNimi,
   maaliTyypinNimi,
   muotoileEuro,
+  muotoileValiEuro,
   tyoVaiheenNimi,
   variTyypinNimi,
 } from "@/lib/vakiot";
@@ -25,10 +26,6 @@ import { paivitaOsa } from "../actions";
 import { OsaLomake } from "../osa-lomake";
 import { laskeKategoriaKustannukset } from "../kustannusarvio";
 import { PoistaPalautaOsa } from "./poista-palauta-osa";
-
-function muotoileValiEuro(min: number, max: number): string {
-  return min === max ? muotoileEuro(min) : `${muotoileEuro(min)} - ${muotoileEuro(max)}`;
-}
 
 export default async function OsaSivu({
   params,

@@ -79,3 +79,7 @@ export function muotoileGrammat(arvo: number | null | undefined): string {
   if (arvo === null || arvo === undefined) return "-";
   return `${arvo.toLocaleString("fi-FI", { maximumFractionDigits: 0 })} g`;
 }
+
+export function muotoileValiEuro(min: number, max: number): string {
+  return min === max ? muotoileEuro(min) : `${muotoileEuro(min)} - ${muotoileEuro(max)}`;
+}
