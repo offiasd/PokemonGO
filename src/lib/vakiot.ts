@@ -1,4 +1,4 @@
-import type { AjoneuvoTyyppi, TyoVaihe, VariTyyppi } from "@/lib/supabase/database.types";
+import type { AjoneuvoTyyppi, MaaliTyyppi, TyoVaihe, VariTyyppi } from "@/lib/supabase/database.types";
 
 export const TYO_VAIHEET: { arvo: TyoVaihe; nimi: string }[] = [
   { arvo: "pesu", nimi: "Pesu" },
@@ -21,6 +21,20 @@ export const VARI_TYYPIT: { arvo: VariTyyppi; nimi: string }[] = [
   { arvo: "metallic", nimi: "Metallic" },
   { arvo: "muu_erikois", nimi: "Muu erikoisväri" },
 ];
+
+// Järjestys määrää myös värilistan kategoriajärjestyksen (/varit).
+export const MAALI_TYYPIT: { arvo: MaaliTyyppi; nimi: string }[] = [
+  { arvo: "solid", nimi: "Solid / RAL (yksivärinen)" },
+  { arvo: "metallic", nimi: "Metallic" },
+  { arvo: "candy", nimi: "Candy" },
+  { arvo: "illusion", nimi: "Illusion" },
+  { arvo: "transparent", nimi: "Lakat (kirkas topcoat)" },
+  { arvo: "muu", nimi: "Muu" },
+];
+
+export function maaliTyypinNimi(tyyppi: MaaliTyyppi): string {
+  return MAALI_TYYPIT.find((t) => t.arvo === tyyppi)?.nimi ?? tyyppi;
+}
 
 export function tyoVaiheenNimi(vaihe: TyoVaihe): string {
   return TYO_VAIHEET.find((v) => v.arvo === vaihe)?.nimi ?? vaihe;

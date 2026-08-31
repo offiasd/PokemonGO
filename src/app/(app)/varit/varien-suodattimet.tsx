@@ -6,6 +6,14 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { MAALI_TYYPIT } from "@/lib/vakiot";
 
 export function VarienSuodattimet({
   naytaPoistetutValinta,
@@ -36,6 +44,22 @@ export function VarienSuodattimet({
           onChange={(e) => paivitaParametri("q", e.target.value || null)}
         />
       </div>
+      <Select
+        value={searchParams.get("tyyppi") ?? "kaikki"}
+        onValueChange={(arvo) => paivitaParametri("tyyppi", arvo === "kaikki" ? null : arvo)}
+      >
+        <SelectTrigger className="w-[220px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="kaikki">Kaikki tyypit</SelectItem>
+          {MAALI_TYYPIT.map(({ arvo, nimi }) => (
+            <SelectItem key={arvo} value={arvo}>
+              {nimi}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {naytaPoistetutValinta && (
         <div className="flex items-center gap-2">
           <Checkbox

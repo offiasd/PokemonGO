@@ -20,19 +20,11 @@ import {
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import { createClient } from "@/lib/supabase/client";
 import type { Alkupera, Database, MaaliTyyppi } from "@/lib/supabase/database.types";
+import { MAALI_TYYPIT } from "@/lib/vakiot";
 
 import type { VariLomakeTila } from "./actions";
 
 const TYHJA_VARI_TILA: VariLomakeTila = { virhe: null };
-
-const TYYPPI_NIMET: Record<MaaliTyyppi, string> = {
-  solid: "Solid (yksivärinen)",
-  transparent: "Transparent (läpikuultava)",
-  candy: "Candy",
-  illusion: "Illusion",
-  metallic: "Metallic",
-  muu: "Muu",
-};
 
 type VariRow = Database["public"]["Tables"]["varit"]["Row"];
 
@@ -209,7 +201,7 @@ export function VariLomake({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(TYYPPI_NIMET).map(([arvo, nimi]) => (
+              {MAALI_TYYPIT.map(({ arvo, nimi }) => (
                 <SelectItem key={arvo} value={arvo}>
                   {nimi}
                 </SelectItem>
