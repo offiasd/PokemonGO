@@ -59,9 +59,8 @@ function rakennaRivi(
 // Laskee kustannusarvion (maali omalla todellisella hinnalla + työ) ja
 // suositushinnan asteikkona halvimmasta kalleimpaan kategoriassa olevien
 // värien mukaan - ei admin-asettamalla kiinteällä kategoriahinnalla.
-// Candy eritellään per pohjaväri (esim. kromi vs. hopea), koska pohjavärin
-// hinta vaikuttaa kokonaiskustannukseen paljon. Illusion sisältää aina
-// pakollisen lakan kulutuksen ja hinnan.
+// Candy ja Illusion sisältävät aina pakollisen pohjavärin/lakan kulutuksen
+// ja hinnan, ja niiden asteikko kattaa kaikki väri- ja pohjaväriyhdistelmät.
 export function laskeKategoriaKustannukset({
   osa,
   asetukset,
@@ -91,7 +90,7 @@ export function laskeKategoriaKustannukset({
   const rivit: KustannusarvioRivi[] = [];
 
   for (const [tyyppi, otsikko] of [
-    ["solid", "Perusvärit (Solid / RAL)"],
+    ["solid", "Perusvärit"],
     ["metallic", "Metallic"],
   ] as const) {
     const k = kategoriaHinta(tyyppi);
@@ -107,22 +106,18 @@ export function laskeKategoriaKustannukset({
   if (candyHinta) {
     const candyVarit = kategoriaVarit("candy");
     const pohjaVarit = kategoriaVarit("pohjavari");
-    for (const pohja of pohjaVarit) {
-      const kustannukset = candyVarit.map(
-        (c) =>
+    const kustannukset: number[] = [];
+    for (const c of candyVarit) {
+      for (const pohja of pohjaVarit) {
+        kustannukset.push(
           (candyHinta.arvioitu_kulutus_g / 1000) * c.kokonaishinta +
-          ((candyHinta.toinen_arvioitu_kulutus_g ?? 0) / 1000) * pohja.kokonaishinta +
-          tyokustannus
-      );
-      const rivi = rakennaRivi(
-        `candy-${pohja.id}`,
-        `Candy (${pohja.nimi})`,
-        kustannukset,
-        osa,
-        asetukset
-      );
-      if (rivi) rivit.push(rivi);
+            ((candyHinta.toinen_arvioitu_kulutus_g ?? 0) / 1000) * pohja.kokonaishinta +
+            tyokustannus
+        );
+      }
     }
+    const rivi = rakennaRivi("candy", "Candy", kustannukset, osa, asetukset);
+    if (rivi) rivit.push(rivi);
   }
 
   const illusionHinta = kategoriaHinta("illusion");
