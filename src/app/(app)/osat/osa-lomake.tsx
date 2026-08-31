@@ -17,18 +17,20 @@ import {
 } from "@/components/ui/select";
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import type { Database } from "@/lib/supabase/database.types";
-import { AJONEUVOTYYPIT, VARI_TYYPIT, TYO_VAIHEET } from "@/lib/vakiot";
+import { AJONEUVOTYYPIT, VARI_TYYPIT, TYO_VAIHEET, MYYTAVAT_MAALI_TYYPIT } from "@/lib/vakiot";
 
 import type { OsaLomakeTila } from "./actions";
 
 type OsaRow = Database["public"]["Tables"]["osat"]["Row"];
 type TyovaiheRow = Database["public"]["Tables"]["osa_tyovaiheet"]["Row"];
+type KategoriahintaRow = Database["public"]["Tables"]["osa_kategoriahinnat"]["Row"];
 
 const TYHJA_OSA_TILA: OsaLomakeTila = { virhe: null };
 
 interface OsaLomakeProps {
   osa?: OsaRow;
   tyovaiheet?: TyovaiheRow[];
+  kategoriahinnat?: KategoriahintaRow[];
   formAction: (tila: OsaLomakeTila, formData: FormData) => Promise<OsaLomakeTila>;
 }
 
@@ -79,7 +81,44 @@ function VaiheRivi({
   );
 }
 
-export function OsaLomake({ osa, tyovaiheet = [], formAction }: OsaLomakeProps) {
+function KategoriaRivi({
+  arvo,
+  nimi,
+  oletusKaytossa,
+  oletusHinta,
+}: {
+  arvo: string;
+  nimi: string;
+  oletusKaytossa: boolean;
+  oletusHinta: number | null;
+}) {
+  const [kaytossa, setKaytossa] = useState(oletusKaytossa);
+
+  return (
+    <div className="grid grid-cols-[auto_1fr_8rem] items-center gap-3">
+      <Checkbox
+        id={`kategoria_${arvo}_kaytossa`}
+        name={`kategoria_${arvo}_kaytossa`}
+        checked={kaytossa}
+        onCheckedChange={(v) => setKaytossa(v === true)}
+      />
+      <Label htmlFor={`kategoria_${arvo}_kaytossa`} className="font-normal">
+        {nimi}
+      </Label>
+      <Input
+        name={`kategoria_${arvo}_hinta`}
+        type="number"
+        min="0"
+        step="0.01"
+        placeholder="€"
+        defaultValue={oletusHinta ?? ""}
+        disabled={!kaytossa}
+      />
+    </div>
+  );
+}
+
+export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formAction }: OsaLomakeProps) {
   const [tila, kutsuAction] = useActionState(formAction, TYHJA_OSA_TILA);
   const [kuvaUrl, setKuvaUrl] = useState<string | null>(osa?.kuva_url ?? null);
 
@@ -175,6 +214,43 @@ export function OsaLomake({ osa, tyovaiheet = [], formAction }: OsaLomakeProps) 
               />
             );
           })}
+        </div>
+      </div>
+
+      <div className="grid gap-3 rounded-md border p-4">
+        <div>
+          <Label className="font-medium">Asiakashinta kategorioittain</Label>
+          <p className="text-xs text-muted-foreground">
+            Sama hinta koskee kaikkia kategorian värejä (ellei värille ole asetettu omaa
+            hintalisä-%:a). Vain valitut kategoriat ovat myytävissä tälle osalle Työt-sivulla.
+          </p>
+        </div>
+        <div className="grid gap-3">
+          {MYYTAVAT_MAALI_TYYPIT.map(({ arvo, nimi }) => {
+            const olemassaOleva = kategoriahinnat.find((k) => k.maali_tyyppi === arvo);
+            return (
+              <KategoriaRivi
+                key={arvo}
+                arvo={arvo}
+                nimi={nimi}
+                oletusKaytossa={Boolean(olemassaOleva)}
+                oletusHinta={olemassaOleva?.hinta ?? null}
+              />
+            );
+          })}
+        </div>
+        <div className="grid gap-2 sm:max-w-xs">
+          <Label htmlFor="lakkaus_lisahinta" className="text-xs text-muted-foreground">
+            Valinnaisen lakkauksen lisähinta € (Solid/RAL-väreille, tyhjä = lakkausta ei tarjota)
+          </Label>
+          <Input
+            id="lakkaus_lisahinta"
+            name="lakkaus_lisahinta"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={osa?.lakkaus_lisahinta ?? ""}
+          />
         </div>
       </div>
 

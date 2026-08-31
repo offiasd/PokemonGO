@@ -1,4 +1,11 @@
-import type { AjoneuvoTyyppi, MaaliTyyppi, TyoVaihe, VariTyyppi } from "@/lib/supabase/database.types";
+import type {
+  AjoneuvoTyyppi,
+  MaaliTyyppi,
+  MyytavaMaaliTyyppi,
+  ToinenVariRooli,
+  TyoVaihe,
+  VariTyyppi,
+} from "@/lib/supabase/database.types";
 
 export const TYO_VAIHEET: { arvo: TyoVaihe; nimi: string }[] = [
   { arvo: "pesu", nimi: "Pesu" },
@@ -35,6 +42,20 @@ export const MAALI_TYYPIT: { arvo: MaaliTyyppi; nimi: string }[] = [
 export function maaliTyypinNimi(tyyppi: MaaliTyyppi): string {
   return MAALI_TYYPIT.find((t) => t.arvo === tyyppi)?.nimi ?? tyyppi;
 }
+
+// Kategoriahinnoiteltavat tyypit (myydään aina omana työnä osalle) - alijoukko
+// MAALI_TYYPIT:istä. Lakat/Muu eivät ole tässä, koska niitä ei myydä yksinään
+// (lakka on candy/illusion-työn sisäänrakennettu osa tai solidin valinnainen lisä).
+export const MYYTAVAT_MAALI_TYYPIT: { arvo: MyytavaMaaliTyyppi; nimi: string }[] =
+  MAALI_TYYPIT.filter(
+    (t): t is { arvo: MyytavaMaaliTyyppi; nimi: string } =>
+      t.arvo === "solid" || t.arvo === "metallic" || t.arvo === "candy" || t.arvo === "illusion"
+  );
+
+export const TOINEN_VARI_ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
+  pohjavari: "Pohjaväri",
+  lakka: "Lakka",
+};
 
 export function tyoVaiheenNimi(vaihe: TyoVaihe): string {
   return TYO_VAIHEET.find((v) => v.arvo === vaihe)?.nimi ?? vaihe;

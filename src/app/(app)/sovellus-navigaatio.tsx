@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
   BarChart3,
-  ClipboardList,
+  ClipboardCheck,
   LayoutDashboard,
   LogOut,
   Paintbrush,
@@ -26,7 +26,7 @@ const LINKIT = [
   { href: "/", label: "Etusivu", icon: LayoutDashboard, adminVain: false },
   { href: "/varit", label: "Värit", icon: Paintbrush, adminVain: false },
   { href: "/osat", label: "Osat", icon: Wrench, adminVain: false },
-  { href: "/kirjaa", label: "Kirjaa maalaus", icon: ClipboardList, adminVain: false },
+  { href: "/tyot", label: "Työt", icon: ClipboardCheck, adminVain: false },
   { href: "/haku", label: "Haku", icon: Search, adminVain: false },
   { href: "/raportit", label: "Raportit", icon: BarChart3, adminVain: false },
   { href: "/halytykset", label: "Hälytykset", icon: AlertTriangle, adminVain: false },

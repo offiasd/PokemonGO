@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import type { AjoneuvoTyyppi, TyoVaihe, VariTyyppi } from "@/lib/supabase/database.types";
-import { TYO_VAIHEET } from "@/lib/vakiot";
+import { MYYTAVAT_MAALI_TYYPIT, TYO_VAIHEET } from "@/lib/vakiot";
 
 export interface OsaLomakeTila {
   virhe: string | null;
@@ -28,6 +28,7 @@ function lueOsaKentat(formData: FormData) {
     kate_prosentti: tyhjaksiNumeroksi(formData.get("kate_prosentti")),
     kate_kiintea: tyhjaksiNumeroksi(formData.get("kate_kiintea")),
     manuaalinen_hinta: tyhjaksiNumeroksi(formData.get("manuaalinen_hinta")),
+    lakkaus_lisahinta: tyhjaksiNumeroksi(formData.get("lakkaus_lisahinta")),
   };
 }
 
@@ -37,6 +38,51 @@ function lueTyovaiheet(formData: FormData) {
     tarvitaan: formData.get(`vaihe_${arvo}_tarvitaan`) === "on",
     arvioitu_kesto_min: Number(formData.get(`vaihe_${arvo}_kesto`) ?? 0),
   }));
+}
+
+// Palauttaa [käytössä-olevat kategoriahinnat, pois-jätettyjen kategorioiden tyypit].
+function lueKategoriahinnat(formData: FormData) {
+  const kaytossa: { maali_tyyppi: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"]; hinta: number }[] =
+    [];
+  const poistettavat: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"][] = [];
+
+  for (const { arvo } of MYYTAVAT_MAALI_TYYPIT) {
+    const kaytossaTama = formData.get(`kategoria_${arvo}_kaytossa`) === "on";
+    const hinta = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_hinta`));
+    if (kaytossaTama && hinta !== null && hinta >= 0) {
+      kaytossa.push({ maali_tyyppi: arvo, hinta });
+    } else {
+      poistettavat.push(arvo);
+    }
+  }
+  return { kaytossa, poistettavat };
+}
+
+async function tallennaKategoriahinnat(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  osaId: string,
+  formData: FormData
+) {
+  const { kaytossa, poistettavat } = lueKategoriahinnat(formData);
+
+  if (kaytossa.length > 0) {
+    const { error } = await supabase
+      .from("osa_kategoriahinnat")
+      .upsert(
+        kaytossa.map((k) => ({ ...k, osa_id: osaId })),
+        { onConflict: "osa_id,maali_tyyppi" }
+      );
+    if (error) return error.message;
+  }
+  if (poistettavat.length > 0) {
+    const { error } = await supabase
+      .from("osa_kategoriahinnat")
+      .delete()
+      .eq("osa_id", osaId)
+      .in("maali_tyyppi", poistettavat);
+    if (error) return error.message;
+  }
+  return null;
 }
 
 export async function luoOsa(
@@ -60,6 +106,11 @@ export async function luoOsa(
   const { error: vaiheVirhe } = await supabase.from("osa_tyovaiheet").insert(vaiheet);
   if (vaiheVirhe) {
     return { virhe: vaiheVirhe.message };
+  }
+
+  const kategoriaVirhe = await tallennaKategoriahinnat(supabase, data.id, formData);
+  if (kategoriaVirhe) {
+    return { virhe: kategoriaVirhe };
   }
 
   revalidatePath("/osat");
@@ -90,6 +141,11 @@ export async function paivitaOsa(
     .upsert(vaiheet, { onConflict: "osa_id,vaihe" });
   if (vaiheVirhe) {
     return { virhe: vaiheVirhe.message };
+  }
+
+  const kategoriaVirhe = await tallennaKategoriahinnat(supabase, osaId, formData);
+  if (kategoriaVirhe) {
+    return { virhe: kategoriaVirhe };
   }
 
   revalidatePath("/osat");

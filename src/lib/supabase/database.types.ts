@@ -15,6 +15,9 @@ export type Alkupera = "EU" | "USA" | "muu";
 export type KayttajaRooli = "admin" | "maalaaja";
 export type MaaliTyyppi = "solid" | "transparent" | "candy" | "illusion" | "metallic" | "muu";
 export type ToinenVariRooli = "pohjavari" | "lakka";
+// Kategoriahinnoiteltavat tyypit: myydään aina omana työnä (ei topcoat-lisänä).
+export type MyytavaMaaliTyyppi = "solid" | "metallic" | "candy" | "illusion";
+export type TyonTila = "vaiheessa" | "valmis";
 
 type EiSuhteita = [];
 
@@ -82,6 +85,8 @@ export interface Database {
           alkuperainen_hinta: number | null;
           alkuperainen_valuutta: string | null;
           alkuperainen_yksikko: string | null;
+          hintalisa_prosentti: number;
+          varattu_g: number;
           saldo_g: number;
           halytysraja_g: number | null;
           aktiivinen: boolean;
@@ -108,6 +113,7 @@ export interface Database {
           kate_prosentti: number | null;
           kate_kiintea: number | null;
           manuaalinen_hinta: number | null;
+          lakkaus_lisahinta: number | null;
           aktiivinen: boolean;
           created_at: string;
           updated_at: string;
@@ -216,6 +222,112 @@ export interface Database {
           {
             foreignKeyName: "varastotayennykset_vari_id_fkey";
             columns: ["vari_id"];
+            isOneToOne: false;
+            referencedRelation: "varit";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      osa_kategoriahinnat: {
+        Row: {
+          id: string;
+          osa_id: string;
+          maali_tyyppi: MyytavaMaaliTyyppi;
+          hinta: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["osa_kategoriahinnat"]["Row"]> & {
+          osa_id: string;
+          maali_tyyppi: MyytavaMaaliTyyppi;
+          hinta: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["osa_kategoriahinnat"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "osa_kategoriahinnat_osa_id_fkey";
+            columns: ["osa_id"];
+            isOneToOne: false;
+            referencedRelation: "osat";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tyot: {
+        Row: {
+          id: string;
+          asiakas: string | null;
+          tila: TyonTila;
+          aloitti_id: string | null;
+          aloitettu: string;
+          valmistui_id: string | null;
+          valmistunut: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["tyot"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["tyot"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "tyot_aloitti_id_fkey";
+            columns: ["aloitti_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tyot_valmistui_id_fkey";
+            columns: ["valmistui_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tyon_rivit: {
+        Row: {
+          id: string;
+          tyo_id: string;
+          osa_id: string;
+          vari_id: string;
+          toinen_vari_id: string | null;
+          toinen_vari_rooli: ToinenVariRooli | null;
+          kappalemaara: number;
+          arvioitu_kulutus_g: number;
+          toinen_arvioitu_kulutus_g: number | null;
+          toteutunut_kulutus_g: number | null;
+          toinen_toteutunut_kulutus_g: number | null;
+          yksikkohinta_eur: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["tyon_rivit"]["Row"]> & {
+          tyo_id: string;
+          osa_id: string;
+          vari_id: string;
+          arvioitu_kulutus_g: number;
+          yksikkohinta_eur: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["tyon_rivit"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "tyon_rivit_tyo_id_fkey";
+            columns: ["tyo_id"];
+            isOneToOne: false;
+            referencedRelation: "tyot";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tyon_rivit_osa_id_fkey";
+            columns: ["osa_id"];
+            isOneToOne: false;
+            referencedRelation: "osat";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tyon_rivit_vari_id_fkey";
+            columns: ["vari_id"];
+            isOneToOne: false;
+            referencedRelation: "varit";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tyon_rivit_toinen_vari_id_fkey";
+            columns: ["toinen_vari_id"];
             isOneToOne: false;
             referencedRelation: "varit";
             referencedColumns: ["id"];
