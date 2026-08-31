@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    branch: main
+    branch: claude/new-session-mdxkfp
     buildCommand: npm ci && npm run build
     startCommand: npm start
     envVars:
