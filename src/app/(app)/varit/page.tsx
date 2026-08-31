@@ -5,8 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Button } from "@/components/ui/button";
-import { MAALI_TYYPIT } from "@/lib/vakiot";
-import type { Database, MaaliTyyppi } from "@/lib/supabase/database.types";
+import { MAALI_TYYPIT, VARISAVYT } from "@/lib/vakiot";
+import type { Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
 
 import { VarienSuodattimet } from "./varien-suodattimet";
 import { VariKortti } from "./vari-kortti";
@@ -16,9 +16,9 @@ type VariRow = Database["public"]["Tables"]["varit"]["Row"];
 export default async function VaritSivu({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; naytaPoistetut?: string; tyyppi?: string }>;
+  searchParams: Promise<{ q?: string; naytaPoistetut?: string; tyyppi?: string; savy?: string }>;
 }) {
-  const { q, naytaPoistetut, tyyppi } = await searchParams;
+  const { q, naytaPoistetut, tyyppi, savy } = await searchParams;
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
@@ -27,6 +27,7 @@ export default async function VaritSivu({
   const tyyppiSuodatin = MAALI_TYYPIT.some((t) => t.arvo === tyyppi)
     ? (tyyppi as MaaliTyyppi)
     : null;
+  const savySuodatin = VARISAVYT.some((s) => s.arvo === savy) ? (savy as Varisavy) : null;
 
   let kysely = supabase
     .from("varit")
@@ -41,6 +42,9 @@ export default async function VaritSivu({
   }
   if (tyyppiSuodatin) {
     kysely = kysely.eq("tyyppi", tyyppiSuodatin);
+  }
+  if (savySuodatin) {
+    kysely = kysely.eq("varisavy", savySuodatin);
   }
 
   const { data: varit } = await kysely;

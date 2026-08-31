@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin, vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
-import type { Alkupera, MaaliTyyppi } from "@/lib/supabase/database.types";
+import type { Alkupera, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
 import { MAALI_TYYPIT } from "@/lib/vakiot";
 
 export interface VariLomakeTila {
@@ -45,6 +45,11 @@ async function tallennaVarinKategoriat(
   return null;
 }
 
+function lueVarisavy(formData: FormData): Varisavy | null {
+  const arvo = String(formData.get("varisavy") ?? "");
+  return arvo && arvo !== "ei_asetettu" ? (arvo as Varisavy) : null;
+}
+
 function lueVariKentat(formData: FormData) {
   const tyhjaksiNumeroksi = (arvo: FormDataEntryValue | null) =>
     arvo === null || arvo === "" ? null : Number(arvo);
@@ -66,6 +71,7 @@ function lueVariKentat(formData: FormData) {
     ohje_tiedosto_url: tyhjaksiTekstiksi(formData.get("ohje_tiedosto_url")),
     kiiltoaste: tyhjaksiTekstiksi(formData.get("kiiltoaste")),
     tyyppi: String(formData.get("tyyppi") ?? "solid") as MaaliTyyppi,
+    varisavy: lueVarisavy(formData),
     vaatii_pohjavarin: formData.get("vaatii_pohjavarin") === "on",
     pohjavari_kuvaus: tyhjaksiTekstiksi(formData.get("pohjavari_kuvaus")),
     alkuperainen_hinta: tyhjaksiNumeroksi(formData.get("alkuperainen_hinta")),

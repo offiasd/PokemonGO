@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { Loader2, Wand2 } from "lucide-react";
+import { Loader2, Palette, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,8 @@ import {
 } from "@/components/ui/select";
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import { createClient } from "@/lib/supabase/client";
-import type { Alkupera, Database, MaaliTyyppi } from "@/lib/supabase/database.types";
-import { MAALI_TYYPIT } from "@/lib/vakiot";
+import type { Alkupera, Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
+import { MAALI_TYYPIT, paattelyVarisavy, VARISAVYN_VARIKOODI, VARISAVYT } from "@/lib/vakiot";
 
 import type { VariLomakeTila } from "./actions";
 
@@ -73,6 +73,7 @@ export function VariLomake({
   );
   const [kiiltoaste, setKiiltoaste] = useState(vari?.kiiltoaste ?? "");
   const [tyyppi, setTyyppi] = useState<MaaliTyyppi>(vari?.tyyppi ?? "solid");
+  const [varisavy, setVarisavy] = useState<Varisavy | "">(vari?.varisavy ?? "");
   const [lisakategoriat, setLisakategoriat] = useState<MaaliTyyppi[]>(alkuLisakategoriat);
   const [vaatiiPohjavarin, setVaatiiPohjavarin] = useState(vari?.vaatii_pohjavarin ?? false);
   const [pohjavariKuvaus, setPohjavariKuvaus] = useState(vari?.pohjavari_kuvaus ?? "");
@@ -104,6 +105,7 @@ export function VariLomake({
       setOhjeTiedostoUrl(null);
       setKiiltoaste("");
       setTyyppi("solid");
+      setVarisavy("");
       setLisakategoriat([]);
       setVaatiiPohjavarin(false);
       setPohjavariKuvaus("");
@@ -254,6 +256,52 @@ export function VariLomake({
           </Select>
         </div>
       </div>
+
+      {tyyppi !== "transparent" && (
+        <div className="grid gap-2 sm:max-w-sm">
+          <Label htmlFor="varisavy">Värisävy (suodatusta varten)</Label>
+          <div className="flex gap-2">
+            <Select
+              name="varisavy"
+              value={varisavy || "ei_asetettu"}
+              onValueChange={(v) => setVarisavy(v === "ei_asetettu" ? "" : (v as Varisavy))}
+            >
+              <SelectTrigger id="varisavy" className="w-full">
+                <SelectValue placeholder="Ei asetettu" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ei_asetettu">Ei asetettu</SelectItem>
+                {VARISAVYT.map(({ arvo, nimi }) => (
+                  <SelectItem key={arvo} value={arvo}>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block size-3 rounded-full border"
+                        style={{ backgroundColor: VARISAVYN_VARIKOODI[arvo] }}
+                      />
+                      {nimi}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const paatelty = paattelyVarisavy(nimi);
+                if (paatelty) {
+                  setVarisavy(paatelty);
+                } else {
+                  toast.warning("Värisävyä ei tunnistettu nimestä - valitse manuaalisesti.");
+                }
+              }}
+            >
+              <Palette className="size-4" />
+              Tunnista nimestä
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-2 rounded-md border p-4">
         <Label className="font-medium">Lisäkategoriat (valinnainen)</Label>

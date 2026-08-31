@@ -22,6 +22,23 @@ export type MaaliTyyppi =
   | "pohjavari"
   | "muu";
 export type ToinenVariRooli = "pohjavari" | "lakka";
+// Silmämääräinen värisävy suodatusta varten - ei koske lakkoja (transparent),
+// koska ne ovat kirkkaita eikä niillä ole omaa sävyä.
+export type Varisavy =
+  | "punainen"
+  | "oranssi"
+  | "keltainen"
+  | "vihrea"
+  | "sininen"
+  | "liila"
+  | "pinkki"
+  | "musta"
+  | "harmaa"
+  | "valkoinen"
+  | "hopea"
+  | "kultainen"
+  | "bronssi"
+  | "ruskea";
 // Kategoriahinnoiteltavat tyypit: myydään aina omana työnä (ei topcoat-lisänä).
 export type MyytavaMaaliTyyppi = "solid" | "metallic" | "candy" | "illusion";
 export type TyonTila = "vaiheessa" | "valmis";
@@ -96,6 +113,7 @@ export interface Database {
           varattu_g: number;
           saldo_g: number;
           halytysraja_g: number | null;
+          varisavy: Varisavy | null;
           aktiivinen: boolean;
           created_at: string;
           updated_at: string;
