@@ -5,6 +5,7 @@ import type {
   ToinenVariRooli,
   TyoVaihe,
   VariTyyppi,
+  Varisavy,
 } from "@/lib/supabase/database.types";
 
 export const TYO_VAIHEET: { arvo: TyoVaihe; nimi: string }[] = [
@@ -99,4 +100,73 @@ export function muotoileGrammat(arvo: number | null | undefined): string {
 
 export function muotoileValiEuro(min: number, max: number): string {
   return min === max ? muotoileEuro(min) : `${muotoileEuro(min)} - ${muotoileEuro(max)}`;
+}
+
+// Silmämääräinen värisävy värien suodatusta varten - ei koske lakkoja
+// (transparent), koska ne ovat kirkkaita eikä niillä ole omaa sävyä.
+export const VARISAVYT: { arvo: Varisavy; nimi: string }[] = [
+  { arvo: "punainen", nimi: "Punainen" },
+  { arvo: "oranssi", nimi: "Oranssi" },
+  { arvo: "keltainen", nimi: "Keltainen" },
+  { arvo: "vihrea", nimi: "Vihreä" },
+  { arvo: "sininen", nimi: "Sininen" },
+  { arvo: "liila", nimi: "Liila" },
+  { arvo: "pinkki", nimi: "Pinkki" },
+  { arvo: "musta", nimi: "Musta" },
+  { arvo: "harmaa", nimi: "Harmaa" },
+  { arvo: "valkoinen", nimi: "Valkoinen" },
+  { arvo: "hopea", nimi: "Hopea" },
+  { arvo: "kultainen", nimi: "Kultainen" },
+  { arvo: "bronssi", nimi: "Bronssi" },
+  { arvo: "ruskea", nimi: "Ruskea" },
+];
+
+export function varisavynNimi(savy: Varisavy): string {
+  return VARISAVYT.find((s) => s.arvo === savy)?.nimi ?? savy;
+}
+
+// Havainnollistava CSS-väri per värisävy - käytössä suodattimen ja
+// värikorttien pienessä väripallukassa.
+export const VARISAVYN_VARIKOODI: Record<Varisavy, string> = {
+  punainen: "#dc2626",
+  oranssi: "#ea580c",
+  keltainen: "#eab308",
+  vihrea: "#16a34a",
+  sininen: "#2563eb",
+  liila: "#9333ea",
+  pinkki: "#db2777",
+  musta: "#262626",
+  harmaa: "#6b7280",
+  valkoinen: "#f8fafc",
+  hopea: "#c0c0c0",
+  kultainen: "#d4af37",
+  bronssi: "#cd7f32",
+  ruskea: "#78350f",
+};
+
+// Paras yritys päätellä värisävy värin nimestä avainsanoilla (englanti +
+// suomi, alan yleiset tuotenimet). Ei täydellinen - vain lähtöarvaus, jonka
+// admin voi aina korjata värin lomakkeella. Järjestys ratkaisee kun nimi
+// osuu useampaan sävyyn (esim. "Golden Bronze") - metallit ensin, sitten
+// akromaattiset, sitten kromaattiset sävyt.
+const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
+  ["hopea", /\b(silver|chrome|chromium|hopea|kromi)\b/i],
+  ["kultainen", /\b(gold|golden|kulta|kultainen)\b/i],
+  ["bronssi", /\b(bronze|copper|pronssi|kupari|bronssi)\b/i],
+  ["musta", /\b(black|musta|onyx|jet|ebony)\b/i],
+  ["valkoinen", /\b(white|valkoinen|pearl|ivory)\b/i],
+  ["harmaa", /\b(gr[ae]y|harmaa|graphite|gunmetal|charcoal|slate)\b/i],
+  ["ruskea", /\b(brown|ruskea|chocolate|coffee|mocha|tan|chestnut|beige)\b/i],
+  ["punainen", /\b(red|punainen|ruby|cherry|crimson|scarlet|maroon)\b/i],
+  ["oranssi", /\b(orange|oranssi|tangerine|amber)\b/i],
+  ["keltainen", /\b(yellow|keltainen|lemon|banana|sunflower)\b/i],
+  ["vihrea", /\b(green|vihre[äa]|lime|emerald|olive|mint|forest)\b/i],
+  ["sininen", /\b(blue|sininen|navy|azure|cobalt|teal|sky)\b/i],
+  ["liila", /\b(purple|violet|liila|lilac|lavender|plum|grape)\b/i],
+  ["pinkki", /\b(pink|pinkki|magenta|fuchsia|rose|salmon)\b/i],
+];
+
+export function paattelyVarisavy(nimi: string): Varisavy | null {
+  const osuma = VARISAVY_AVAINSANAT.find(([, avainsana]) => avainsana.test(nimi));
+  return osuma ? osuma[0] : null;
 }

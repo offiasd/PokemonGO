@@ -4,7 +4,7 @@ import { Paintbrush } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SaldoPalkki } from "@/components/saldo-palkki";
-import { muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
+import { muotoileEuro, muotoileGrammat, varisavynNimi, VARISAVYN_VARIKOODI } from "@/lib/vakiot";
 import type { Database } from "@/lib/supabase/database.types";
 
 type VariRow = Database["public"]["Tables"]["varit"]["Row"];
@@ -37,7 +37,16 @@ export function VariKortti({
             </div>
             <div className="flex flex-1 items-start justify-between gap-2">
               <div>
-                <CardTitle className="text-base">{vari.nimi}</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  {vari.varisavy && (
+                    <span
+                      className="inline-block size-3 shrink-0 rounded-full border"
+                      style={{ backgroundColor: VARISAVYN_VARIKOODI[vari.varisavy] }}
+                      title={varisavynNimi(vari.varisavy)}
+                    />
+                  )}
+                  {vari.nimi}
+                </CardTitle>
                 <CardDescription>{vari.valmistaja ?? "Valmistaja tuntematon"}</CardDescription>
               </div>
               <div className="flex flex-col items-end gap-1">

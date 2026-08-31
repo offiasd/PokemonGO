@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MAALI_TYYPIT } from "@/lib/vakiot";
+import { MAALI_TYYPIT, VARISAVYN_VARIKOODI, VARISAVYT } from "@/lib/vakiot";
 
 export function VarienSuodattimet({
   naytaPoistetutValinta,
@@ -56,6 +56,28 @@ export function VarienSuodattimet({
           {MAALI_TYYPIT.map(({ arvo, nimi }) => (
             <SelectItem key={arvo} value={arvo}>
               {nimi}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={searchParams.get("savy") ?? "kaikki"}
+        onValueChange={(arvo) => paivitaParametri("savy", arvo === "kaikki" ? null : arvo)}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="kaikki">Kaikki värit</SelectItem>
+          {VARISAVYT.map(({ arvo, nimi }) => (
+            <SelectItem key={arvo} value={arvo}>
+              <span className="flex items-center gap-2">
+                <span
+                  className="inline-block size-3 rounded-full border"
+                  style={{ backgroundColor: VARISAVYN_VARIKOODI[arvo] }}
+                />
+                {nimi}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
