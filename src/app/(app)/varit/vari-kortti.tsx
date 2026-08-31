@@ -47,9 +47,9 @@ export function VariKortti({
   naytaHinnat: boolean;
 }) {
   return (
-    <Link href={`/varit/${vari.id}`}>
+    <Link href={`/varit/${vari.id}`} className="block h-full">
       <Card
-        className={`overflow-hidden ${
+        className={`h-full overflow-hidden ${
           !vari.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"
         }`}
       >
@@ -91,7 +91,7 @@ export function VariKortti({
             </CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="grid min-w-0 gap-3 px-4 sm:px-6">
+        <CardContent className="mt-auto grid min-w-0 gap-3 px-4 sm:px-6">
           <div className="grid min-w-0 gap-1">
             <TietoRivi otsikko="Saldo" arvo={muotoileGrammat(vari.saldo_g)} />
             <SaldoPalkki
