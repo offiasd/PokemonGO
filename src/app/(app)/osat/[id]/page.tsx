@@ -23,7 +23,12 @@ import {
 
 import { paivitaOsa } from "../actions";
 import { OsaLomake } from "../osa-lomake";
+import { laskeKategoriaKustannukset } from "../kustannusarvio";
 import { PoistaPalautaOsa } from "./poista-palauta-osa";
+
+function muotoileValiEuro(min: number, max: number): string {
+  return min === max ? muotoileEuro(min) : `${muotoileEuro(min)} - ${muotoileEuro(max)}`;
+}
 
 export default async function OsaSivu({
   params,
@@ -35,12 +40,14 @@ export default async function OsaSivu({
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
 
-  const [osaVastaus, tyovaiheetVastaus, variVastaus, kategoriahintaVastaus] = await Promise.all([
-    supabase.from("osat").select("*").eq("id", id).single(),
-    supabase.from("osa_tyovaiheet").select("*").eq("osa_id", id),
-    supabase.from("varit").select("id, nimi").eq("aktiivinen", true).order("nimi"),
-    supabase.from("osa_kategoriahinnat").select("*").eq("osa_id", id),
-  ]);
+  const [osaVastaus, tyovaiheetVastaus, variVastaus, kategoriahintaVastaus, variKategoriaVastaus] =
+    await Promise.all([
+      supabase.from("osat").select("*").eq("id", id).single(),
+      supabase.from("osa_tyovaiheet").select("*").eq("osa_id", id),
+      supabase.from("varit").select("id, nimi").eq("aktiivinen", true).order("nimi"),
+      supabase.from("osa_kategoriahinnat").select("*").eq("osa_id", id),
+      supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
+    ]);
 
   const osa = osaVastaus.data;
   if (!osa) notFound();
@@ -50,12 +57,7 @@ export default async function OsaSivu({
 
   let tyoaikaMin = 0;
   let tyokustannus = 0;
-  let variKustannukset: {
-    variId: string;
-    nimi: string;
-    kustannusarvio: number;
-    suositushinta: number;
-  }[] = [];
+  let kategoriaKustannukset: ReturnType<typeof laskeKategoriaKustannukset> = [];
 
   if (naytaHinnat) {
     const [tyoaikaVastaus, tyokustannusVastaus] = await Promise.all([
@@ -65,20 +67,21 @@ export default async function OsaSivu({
     tyoaikaMin = tyoaikaVastaus.data ?? 0;
     tyokustannus = tyokustannusVastaus.data ?? 0;
 
-    variKustannukset = await Promise.all(
+    const varitHinnoin = await Promise.all(
       (variVastaus.data ?? []).map(async (vari) => {
-        const [kustannusVastaus, hintaVastaus] = await Promise.all([
-          supabase.rpc("osa_kustannusarvio", { p_osa_id: id, p_vari_id: vari.id }),
-          supabase.rpc("osa_suositushinta", { p_osa_id: id, p_vari_id: vari.id }),
-        ]);
-        return {
-          variId: vari.id,
-          nimi: vari.nimi,
-          kustannusarvio: kustannusVastaus.data ?? 0,
-          suositushinta: hintaVastaus.data ?? 0,
-        };
+        const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
+        return { id: vari.id, nimi: vari.nimi, kokonaishinta: data ?? 0 };
       })
     );
+
+    kategoriaKustannukset = laskeKategoriaKustannukset({
+      osa,
+      asetukset,
+      tyokustannus,
+      kategoriahinnat: kategoriahintaVastaus.data ?? [],
+      varit: varitHinnoin,
+      variKategoriat: variKategoriaVastaus.data ?? [],
+    });
   }
 
   if (kayttaja.role !== "admin") {
@@ -190,29 +193,29 @@ export default async function OsaSivu({
             )}
           </div>
 
-          {variKustannukset.length > 0 && (
+          {kategoriaKustannukset.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Väri</TableHead>
+                  <TableHead>Kategoria</TableHead>
                   <TableHead>Kustannusarvio (maali + työ)</TableHead>
                   <TableHead>Suositushinta asiakkaalle</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {variKustannukset.map((v) => (
-                  <TableRow key={v.variId}>
-                    <TableCell className="font-medium">{v.nimi}</TableCell>
-                    <TableCell>{muotoileEuro(v.kustannusarvio)}</TableCell>
-                    <TableCell>{muotoileEuro(v.suositushinta)}</TableCell>
+                {kategoriaKustannukset.map((k) => (
+                  <TableRow key={k.avain}>
+                    <TableCell className="font-medium">{k.nimi}</TableCell>
+                    <TableCell>{muotoileValiEuro(k.kustannusMin, k.kustannusMax)}</TableCell>
+                    <TableCell>{muotoileValiEuro(k.suositusMin, k.suositusMax)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
-          {variKustannukset.length === 0 && (
+          {kategoriaKustannukset.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Ei aktiivisia värejä kustannusarvion laskentaan.
+              Ei hinnoiteltuja kategorioita tai värejä kustannusarvion laskentaan.
             </p>
           )}
         </CardContent>
