@@ -2,7 +2,7 @@ services:
   - type: web
     name: jauhemaalaamo
     runtime: node
-    plan: starter
+    plan: free
     region: frankfurt
     branch: claude/new-session-mdxkfp
     buildCommand: npm ci && npm run build
