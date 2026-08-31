@@ -40,8 +40,8 @@ function lueTyovaiheet(formData: FormData) {
   }));
 }
 
-// Candy vaatii pohjavärin kulutuksen, illusion lakan kulutuksen.
-const TOISEN_KULUTUKSEN_KATEGORIAT = new Set(["candy", "illusion"]);
+// Candy vaatii pohjavärin kulutuksen, metallic ja illusion lakan kulutuksen.
+const TOISEN_KULUTUKSEN_KATEGORIAT = new Set(["candy", "metallic", "illusion"]);
 
 interface KategoriahintaSyote {
   maali_tyyppi: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"];

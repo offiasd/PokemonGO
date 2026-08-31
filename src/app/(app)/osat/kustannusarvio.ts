@@ -76,11 +76,39 @@ function rakennaRivi(
   };
 }
 
+// Kategoria, jolla on pakollinen lakkaus (Metallic, Illusion) - kustannusasteikko
+// kattaa kaikki pääväri- ja lakkayhdistelmät.
+function laskeLakatunKategorianRivi(
+  avain: string,
+  nimi: string,
+  hinta: KategoriahintaRow,
+  paavarit: VariHinta[],
+  lakkaVarit: VariHinta[],
+  tyokustannus: number,
+  osa: OsaRow,
+  asetukset: AsetuksetRow
+): KustannusarvioRivi | null {
+  const kustannukset: number[] = [];
+  for (const paavari of paavarit) {
+    for (const lakka of lakkaVarit) {
+      kustannukset.push(
+        (hinta.arvioitu_kulutus_g / 1000) * paavari.kokonaishinta +
+          ((hinta.toinen_arvioitu_kulutus_g ?? 0) / 1000) * lakka.kokonaishinta +
+          tyokustannus
+      );
+    }
+  }
+  return rakennaRivi(avain, nimi, kustannukset, osa, asetukset);
+}
+
 // Laskee kustannusarvion (maali omalla todellisella hinnalla + työ) ja
 // suositushinnan asteikkona halvimmasta kalleimpaan kategoriassa olevien
 // värien mukaan - ei admin-asettamalla kiinteällä kategoriahinnalla.
-// Candy ja Illusion sisältävät aina pakollisen pohjavärin/lakan kulutuksen
-// ja hinnan, ja niiden asteikko kattaa kaikki väri- ja pohjaväriyhdistelmät.
+// Candy, Metallic ja Illusion sisältävät aina pakollisen pohjavärin/lakan
+// kulutuksen ja hinnan, ja niiden asteikko kattaa kaikki väri- ja
+// pohjaväri-/lakkayhdistelmät. Metallic vaatii lakkauksen aina kun sitä
+// käytetään omana värinään - ei kuitenkaan kun sitä käytetään candyn
+// pohjavärinä, koska silloin candy-työn oma lakkaus riittää.
 export function laskeKategoriaKustannukset({
   osa,
   asetukset,
@@ -109,16 +137,27 @@ export function laskeKategoriaKustannukset({
 
   const rivit: KustannusarvioRivi[] = [];
 
-  for (const [tyyppi, otsikko] of [
-    ["solid", "Perusvärit"],
-    ["metallic", "Metallic"],
-  ] as const) {
-    const k = kategoriaHinta(tyyppi);
-    if (!k) continue;
-    const kustannukset = kategoriaVarit(tyyppi).map(
-      (v) => (k.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus
+  const solidHinta = kategoriaHinta("solid");
+  if (solidHinta) {
+    const kustannukset = kategoriaVarit("solid").map(
+      (v) => (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus
     );
-    const rivi = rakennaRivi(tyyppi, otsikko, kustannukset, osa, asetukset);
+    const rivi = rakennaRivi("solid", "Perusvärit", kustannukset, osa, asetukset);
+    if (rivi) rivit.push(rivi);
+  }
+
+  const metallicHinta = kategoriaHinta("metallic");
+  if (metallicHinta) {
+    const rivi = laskeLakatunKategorianRivi(
+      "metallic",
+      "Metallic",
+      metallicHinta,
+      kategoriaVarit("metallic"),
+      kategoriaVarit("transparent"),
+      tyokustannus,
+      osa,
+      asetukset
+    );
     if (rivi) rivit.push(rivi);
   }
 
@@ -142,19 +181,16 @@ export function laskeKategoriaKustannukset({
 
   const illusionHinta = kategoriaHinta("illusion");
   if (illusionHinta) {
-    const illusionVarit = kategoriaVarit("illusion");
-    const lakkaVarit = kategoriaVarit("transparent");
-    const kustannukset: number[] = [];
-    for (const illuusio of illusionVarit) {
-      for (const lakka of lakkaVarit) {
-        kustannukset.push(
-          (illusionHinta.arvioitu_kulutus_g / 1000) * illuusio.kokonaishinta +
-            ((illusionHinta.toinen_arvioitu_kulutus_g ?? 0) / 1000) * lakka.kokonaishinta +
-            tyokustannus
-        );
-      }
-    }
-    const rivi = rakennaRivi("illusion", "Illusion", kustannukset, osa, asetukset);
+    const rivi = laskeLakatunKategorianRivi(
+      "illusion",
+      "Illusion",
+      illusionHinta,
+      kategoriaVarit("illusion"),
+      kategoriaVarit("transparent"),
+      tyokustannus,
+      osa,
+      asetukset
+    );
     if (rivi) rivit.push(rivi);
   }
 
