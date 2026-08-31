@@ -17,7 +17,7 @@ import { ajoneuvotyypinNimi, muotoileValiEuro } from "@/lib/vakiot";
 import type { AjoneuvoTyyppi, TyoVaihe } from "@/lib/supabase/database.types";
 
 import { OsienSuodattimet } from "./osien-suodattimet";
-import { laskeKategoriaKustannukset, laskeTyokustannus } from "./kustannusarvio";
+import { laskeKategoriaKustannukset, laskeTyokustannusKerroksittain } from "./kustannusarvio";
 
 interface Hakuparametrit {
   q?: string;
@@ -89,7 +89,7 @@ export default async function OsatSivu({
 
     for (const osa of osat) {
       const omatVaiheet = (tyovaiheetVastaus.data ?? []).filter((v) => v.osa_id === osa.id);
-      const tyokustannus = laskeTyokustannus(
+      const tyokustannusKerroksittain = laskeTyokustannusKerroksittain(
         omatVaiheet,
         tuntiveloitukset,
         asetukset.yleinen_tuntihinta
@@ -101,7 +101,7 @@ export default async function OsatSivu({
       const rivit = laskeKategoriaKustannukset({
         osa,
         asetukset,
-        tyokustannus,
+        tyokustannusKerroksittain,
         kategoriahinnat: omatKategoriahinnat,
         varit: varitHinnoin,
         variKategoriat: variKategoriaVastaus.data ?? [],

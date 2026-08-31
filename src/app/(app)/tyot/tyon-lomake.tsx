@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  kategorianVarienMaara,
   muotoileEuro,
   myytavaMaaliTyypinNimi,
   PAKOLLINEN_TOINEN_VARI_ROOLI,
@@ -43,7 +44,7 @@ interface Osa {
   malli: string | null;
   lakkaus_lisahinta: number | null;
   lakkaus_kulutus_g: number | null;
-  tyokustannus: number;
+  tyokustannusKerroksittain: number[];
   kateProsentti: number;
   kateKiintea: number;
   manuaalinen_hinta: number | null;
@@ -165,7 +166,13 @@ export function TyonLomake({
   // kuin osan omalla sivulla näkyvässä kustannusarviossa.
   const yksikkohintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari || !valittuOsa) return null;
-    let kustannus = (arvioituKulutusG / 1000) * valittuVari.kokonaishinta + valittuOsa.tyokustannus;
+    // Maalaus ja suojaus tehdään jokaiselle värikerrokselle erikseen.
+    const varienMaara = kategoria ? kategorianVarienMaara(kategoria, lakkausValittu) : 1;
+    const tyokustannus =
+      valittuOsa.tyokustannusKerroksittain[varienMaara - 1] ??
+      valittuOsa.tyokustannusKerroksittain[0] ??
+      0;
+    let kustannus = (arvioituKulutusG / 1000) * valittuVari.kokonaishinta + tyokustannus;
     if (pakollinenRooli && valittuToinenVari) {
       kustannus += (toinenArvioituKulutusG / 1000) * valittuToinenVari.kokonaishinta;
     }

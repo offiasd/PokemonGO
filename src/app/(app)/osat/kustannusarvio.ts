@@ -6,6 +6,10 @@ import type {
   MyytavaMaaliTyyppi,
   TyoVaihe,
 } from "@/lib/supabase/database.types";
+import {
+  kategorianVarienMaara,
+  VARIKERROKSITTAIN_KERTAUTUVAT_VAIHEET,
+} from "@/lib/vakiot";
 
 type OsaRow = Database["public"]["Tables"]["osat"]["Row"];
 type AsetuksetRow = Database["public"]["Tables"]["asetukset"]["Row"];
@@ -30,18 +34,34 @@ function pyoristaSentteihin(arvo: number): number {
   return Math.round(arvo * 100) / 100;
 }
 
-// Sama laskentaperuste kuin SQL-funktiolla osa_tyokustannus: vaihekohtainen
-// tuntihinta jos asetettu, muuten yleinen tuntihinta. Lasketaan JS:ssä eikä
-// RPC:llä, jotta listasivu ei tee erillistä kutsua jokaiselle osalle.
+// Vaihekohtainen tuntihinta jos asetettu, muuten yleinen tuntihinta.
+// Lasketaan JS:ssä eikä RPC:llä, jotta listasivu ei tee erillistä kutsua
+// jokaiselle osalle.
+//
+// Monikerrosmaalauksessa (candy, illusion, metallic, solid + lakkaus) maalaus
+// ja suojaus tehdään jokaiselle värikerrokselle erikseen, joten niiden kesto
+// kerrotaan värien lukumäärällä. Pesu, maalinpoisto ja puhallus tehdään kerran.
 export function laskeTyokustannus(
   vaiheet: { vaihe: TyoVaihe; arvioitu_kesto_min: number }[],
   tuntiveloitukset: Map<TyoVaihe, number>,
-  yleinenTuntihinta: number
+  yleinenTuntihinta: number,
+  varienMaara = 1
 ): number {
-  return vaiheet.reduce(
-    (summa, v) =>
-      summa + (v.arvioitu_kesto_min / 60) * (tuntiveloitukset.get(v.vaihe) ?? yleinenTuntihinta),
-    0
+  return vaiheet.reduce((summa, v) => {
+    const kerroin = VARIKERROKSITTAIN_KERTAUTUVAT_VAIHEET.includes(v.vaihe) ? varienMaara : 1;
+    const tuntihinta = tuntiveloitukset.get(v.vaihe) ?? yleinenTuntihinta;
+    return summa + ((v.arvioitu_kesto_min * kerroin) / 60) * tuntihinta;
+  }, 0);
+}
+
+/** Työkustannus värien lukumäärän mukaan: [1 väri, 2 väriä]. */
+export function laskeTyokustannusKerroksittain(
+  vaiheet: { vaihe: TyoVaihe; arvioitu_kesto_min: number }[],
+  tuntiveloitukset: Map<TyoVaihe, number>,
+  yleinenTuntihinta: number
+): number[] {
+  return [1, 2].map((maara) =>
+    laskeTyokustannus(vaiheet, tuntiveloitukset, yleinenTuntihinta, maara)
   );
 }
 
@@ -112,14 +132,15 @@ function laskeLakatunKategorianRivi(
 export function laskeKategoriaKustannukset({
   osa,
   asetukset,
-  tyokustannus,
+  tyokustannusKerroksittain,
   kategoriahinnat,
   varit,
   variKategoriat,
 }: {
   osa: OsaRow;
   asetukset: AsetuksetRow;
-  tyokustannus: number;
+  /** Työkustannus värien lukumäärän mukaan: [1 väri, 2 väriä]. */
+  tyokustannusKerroksittain: number[];
   kategoriahinnat: KategoriahintaRow[];
   varit: VariHinta[];
   variKategoriat: { vari_id: string; maali_tyyppi: MaaliTyyppi }[];
@@ -135,12 +156,19 @@ export function laskeKategoriaKustannukset({
   const kategoriaHinta = (tyyppi: MyytavaMaaliTyyppi) =>
     kategoriahinnat.find((k) => k.maali_tyyppi === tyyppi) ?? null;
 
+  // Maalaus ja suojaus kertautuvat värikerroksittain: candy/illusion/metallic
+  // ovat aina kahden värin töitä, perusväri yhden.
+  const tyokustannus = (kategoria: MyytavaMaaliTyyppi) => {
+    const maara = kategorianVarienMaara(kategoria);
+    return tyokustannusKerroksittain[maara - 1] ?? tyokustannusKerroksittain[0] ?? 0;
+  };
+
   const rivit: KustannusarvioRivi[] = [];
 
   const solidHinta = kategoriaHinta("solid");
   if (solidHinta) {
     const kustannukset = kategoriaVarit("solid").map(
-      (v) => (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus
+      (v) => (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("solid")
     );
     const rivi = rakennaRivi("solid", "Perusvärit", kustannukset, osa, asetukset);
     if (rivi) rivit.push(rivi);
@@ -154,7 +182,7 @@ export function laskeKategoriaKustannukset({
       metallicHinta,
       kategoriaVarit("metallic"),
       kategoriaVarit("transparent"),
-      tyokustannus,
+      tyokustannus("metallic"),
       osa,
       asetukset
     );
@@ -171,7 +199,7 @@ export function laskeKategoriaKustannukset({
         kustannukset.push(
           (candyHinta.arvioitu_kulutus_g / 1000) * c.kokonaishinta +
             ((candyHinta.toinen_arvioitu_kulutus_g ?? 0) / 1000) * pohja.kokonaishinta +
-            tyokustannus
+            tyokustannus("candy")
         );
       }
     }
@@ -187,7 +215,7 @@ export function laskeKategoriaKustannukset({
       illusionHinta,
       kategoriaVarit("illusion"),
       kategoriaVarit("transparent"),
-      tyokustannus,
+      tyokustannus("illusion"),
       osa,
       asetukset
     );

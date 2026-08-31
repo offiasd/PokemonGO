@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  kategorianVarienMaara,
   muotoileEuro,
   myytavaMaaliTyypinNimi,
   MYYTAVAT_MAALI_TYYPIT,
@@ -46,7 +47,7 @@ export function OsanHinnoittelu({
   kateProsentti,
   kateKiintea,
   lakkausLisahinta,
-  perusTyokustannus,
+  perusTyokustannusKerroksittain,
   pesunKustannus,
   maalinpoistonKustannus,
   kategoriahinnat,
@@ -57,7 +58,8 @@ export function OsanHinnoittelu({
   kateProsentti: number;
   kateKiintea: number;
   lakkausLisahinta: number | null;
-  perusTyokustannus: number;
+  /** Työkustannus värien lukumäärän mukaan: [1 väri, 2 väriä]. */
+  perusTyokustannusKerroksittain: number[];
   pesunKustannus: number;
   maalinpoistonKustannus: number;
   kategoriahinnat: Kategoriahinta[];
@@ -125,7 +127,11 @@ export function OsanHinnoittelu({
   // päälle omana kustannuksenaan riippumatta kategorian hinnoitteluperusteesta.
   const hintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari) return null;
-    let kustannus = (arvioituKulutusG / 1000) * valittuVari.kokonaishinta + perusTyokustannus;
+    // Maalaus ja suojaus tehdään jokaiselle värikerrokselle erikseen.
+    const varienMaara = kategoria ? kategorianVarienMaara(kategoria, lakkausValittu) : 1;
+    const tyokustannus =
+      perusTyokustannusKerroksittain[varienMaara - 1] ?? perusTyokustannusKerroksittain[0] ?? 0;
+    let kustannus = (arvioituKulutusG / 1000) * valittuVari.kokonaishinta + tyokustannus;
     if (pakollinenRooli && valittuToinenVari) {
       kustannus += (toinenArvioituKulutusG / 1000) * valittuToinenVari.kokonaishinta;
     }
@@ -147,7 +153,7 @@ export function OsanHinnoittelu({
     pakollinenRooli,
     arvioituKulutusG,
     toinenArvioituKulutusG,
-    perusTyokustannus,
+    perusTyokustannusKerroksittain,
     manuaalinenHinta,
     kateProsentti,
     kateKiintea,
