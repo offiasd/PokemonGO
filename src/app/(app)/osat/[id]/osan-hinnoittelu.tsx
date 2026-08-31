@@ -182,7 +182,7 @@ export function OsanHinnoittelu({
               onCheckedChange={(v) => setPesuValittu(v === true)}
             />
             <Label htmlFor="pesu_valittu" className="font-normal">
-              Osa tarvitsee pesun
+              Pesu
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -192,7 +192,7 @@ export function OsanHinnoittelu({
               onCheckedChange={(v) => setMaalinpoistoValittu(v === true)}
             />
             <Label htmlFor="maalinpoisto_valittu" className="font-normal">
-              Osa tarvitsee maalinpoiston
+              Maalinpoisto
             </Label>
           </div>
         </div>
