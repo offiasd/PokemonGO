@@ -13,6 +13,7 @@ export type VariTyyppi =
 export type TyoVaihe = "pesu" | "maalinpoisto" | "puhallus" | "teippaus" | "maalaus";
 export type Alkupera = "EU" | "USA" | "muu";
 export type KayttajaRooli = "admin" | "maalaaja";
+export type MaaliTyyppi = "solid" | "transparent" | "candy" | "illusion" | "metallic" | "muu";
 
 type EiSuhteita = [];
 
@@ -49,6 +50,10 @@ export interface Database {
           kate_prosentti_oletus: number;
           nayta_hinnat_maalaajalle: boolean;
           yleinen_tuntihinta: number;
+          yrityksen_osoite: string | null;
+          toimituskulu_per_kg_eu_oletus: number;
+          toimituskulu_per_kg_usa_oletus: number;
+          toimituskulu_per_kg_muu_oletus: number;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["asetukset"]["Row"]>;
@@ -64,11 +69,18 @@ export interface Database {
           ostohinta_per_kg: number;
           tullimaksu_prosentti: number | null;
           alv_prosentti: number | null;
-          toimituskulu_per_kg: number;
+          toimituskulu_per_kg: number | null;
           myyja_linkki: string | null;
           kuva_url: string | null;
           ohjeet: string | null;
           ohje_tiedosto_url: string | null;
+          kiiltoaste: string | null;
+          tyyppi: MaaliTyyppi;
+          vaatii_pohjavarin: boolean;
+          pohjavari_kuvaus: string | null;
+          alkuperainen_hinta: number | null;
+          alkuperainen_valuutta: string | null;
+          alkuperainen_yksikko: string | null;
           saldo_g: number;
           halytysraja_g: number | null;
           aktiivinen: boolean;

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { paivitaAsetukset, type AsetuksetTila } from "./actions";
@@ -88,6 +89,60 @@ export function AsetuksetLomake({
         <Label htmlFor="nayta_hinnat_maalaajalle" className="font-normal">
           Näytä kilohinnat ja tuntiveloitukset myös maalaaja-roolille
         </Label>
+      </div>
+
+      <div className="grid gap-4 rounded-md border p-4">
+        <div>
+          <h2 className="font-medium">Toimituskuluarviot</h2>
+          <p className="text-sm text-muted-foreground">
+            Ei live-hakua myyjän sivulta - arvioidut kulut alkuperittäin, käytetään kun väriltä
+            puuttuu oma ylikirjoitus.
+          </p>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="yrityksen_osoite">Yrityksen toimitusosoite</Label>
+          <Textarea
+            id="yrityksen_osoite"
+            name="yrityksen_osoite"
+            rows={2}
+            defaultValue={asetukset.yrityksen_osoite ?? ""}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-2">
+            <Label htmlFor="toimituskulu_per_kg_eu_oletus">Toimituskulu €/kg (EU)</Label>
+            <Input
+              id="toimituskulu_per_kg_eu_oletus"
+              name="toimituskulu_per_kg_eu_oletus"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={asetukset.toimituskulu_per_kg_eu_oletus}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="toimituskulu_per_kg_usa_oletus">Toimituskulu €/kg (USA)</Label>
+            <Input
+              id="toimituskulu_per_kg_usa_oletus"
+              name="toimituskulu_per_kg_usa_oletus"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={asetukset.toimituskulu_per_kg_usa_oletus}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="toimituskulu_per_kg_muu_oletus">Toimituskulu €/kg (muu)</Label>
+            <Input
+              id="toimituskulu_per_kg_muu_oletus"
+              name="toimituskulu_per_kg_muu_oletus"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={asetukset.toimituskulu_per_kg_muu_oletus}
+            />
+          </div>
+        </div>
       </div>
 
       {tila.virhe && (

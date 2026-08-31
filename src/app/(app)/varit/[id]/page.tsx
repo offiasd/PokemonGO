@@ -74,6 +74,9 @@ export default async function VariSivu({
               vari={vari}
               formAction={paivitaVari.bind(null, vari.id)}
               asetuksetOletusHalytysraja={asetukset.oletus_halytysraja_g}
+              toimituskuluOletusEu={asetukset.toimituskulu_per_kg_eu_oletus}
+              toimituskuluOletusUsa={asetukset.toimituskulu_per_kg_usa_oletus}
+              toimituskuluOletusMuu={asetukset.toimituskulu_per_kg_muu_oletus}
             />
           </CardContent>
         </Card>
@@ -88,7 +91,11 @@ export default async function VariSivu({
           <h1 className="text-2xl font-semibold">{vari.nimi}</h1>
           <p className="text-muted-foreground">{vari.valmistaja ?? "Valmistaja tuntematon"}</p>
         </div>
-        <Badge variant="outline">{vari.alkupera}</Badge>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">{vari.alkupera}</Badge>
+          <Badge variant="outline">{vari.tyyppi}</Badge>
+          {vari.kiiltoaste && <Badge variant="outline">{vari.kiiltoaste}</Badge>}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -145,12 +152,18 @@ export default async function VariSivu({
         </Card>
       )}
 
-      {(vari.ohjeet || vari.ohje_tiedosto_url || vari.myyja_linkki) && (
+      {(vari.ohjeet ||
+        vari.ohje_tiedosto_url ||
+        vari.myyja_linkki ||
+        (vari.vaatii_pohjavarin && vari.pohjavari_kuvaus)) && (
         <Card>
           <CardHeader>
             <CardTitle>Maalausohjeet</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm">
+            {vari.vaatii_pohjavarin && vari.pohjavari_kuvaus && (
+              <p className="rounded-md border bg-muted/30 p-3">{vari.pohjavari_kuvaus}</p>
+            )}
             {vari.ohjeet && <p className="whitespace-pre-wrap">{vari.ohjeet}</p>}
             {vari.ohje_tiedosto_url && (
               <Link

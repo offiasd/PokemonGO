@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin, vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
-import type { Alkupera } from "@/lib/supabase/database.types";
+import type { Alkupera, MaaliTyyppi } from "@/lib/supabase/database.types";
 
 export interface VariLomakeTila {
   virhe: string | null;
@@ -14,19 +14,28 @@ export interface VariLomakeTila {
 function lueVariKentat(formData: FormData) {
   const tyhjaksiNumeroksi = (arvo: FormDataEntryValue | null) =>
     arvo === null || arvo === "" ? null : Number(arvo);
+  const tyhjaksiTekstiksi = (arvo: FormDataEntryValue | null) =>
+    String(arvo ?? "").trim() || null;
 
   return {
     nimi: String(formData.get("nimi") ?? "").trim(),
-    valmistaja: String(formData.get("valmistaja") ?? "").trim() || null,
+    valmistaja: tyhjaksiTekstiksi(formData.get("valmistaja")),
     alkupera: String(formData.get("alkupera") ?? "EU") as Alkupera,
     ostohinta_per_kg: Number(formData.get("ostohinta_per_kg") ?? 0),
     tullimaksu_prosentti: tyhjaksiNumeroksi(formData.get("tullimaksu_prosentti")),
     alv_prosentti: tyhjaksiNumeroksi(formData.get("alv_prosentti")),
-    toimituskulu_per_kg: Number(formData.get("toimituskulu_per_kg") ?? 0),
-    myyja_linkki: String(formData.get("myyja_linkki") ?? "").trim() || null,
-    kuva_url: String(formData.get("kuva_url") ?? "").trim() || null,
-    ohjeet: String(formData.get("ohjeet") ?? "").trim() || null,
-    ohje_tiedosto_url: String(formData.get("ohje_tiedosto_url") ?? "").trim() || null,
+    toimituskulu_per_kg: tyhjaksiNumeroksi(formData.get("toimituskulu_per_kg")),
+    myyja_linkki: tyhjaksiTekstiksi(formData.get("myyja_linkki")),
+    kuva_url: tyhjaksiTekstiksi(formData.get("kuva_url")),
+    ohjeet: tyhjaksiTekstiksi(formData.get("ohjeet")),
+    ohje_tiedosto_url: tyhjaksiTekstiksi(formData.get("ohje_tiedosto_url")),
+    kiiltoaste: tyhjaksiTekstiksi(formData.get("kiiltoaste")),
+    tyyppi: String(formData.get("tyyppi") ?? "solid") as MaaliTyyppi,
+    vaatii_pohjavarin: formData.get("vaatii_pohjavarin") === "on",
+    pohjavari_kuvaus: tyhjaksiTekstiksi(formData.get("pohjavari_kuvaus")),
+    alkuperainen_hinta: tyhjaksiNumeroksi(formData.get("alkuperainen_hinta")),
+    alkuperainen_valuutta: tyhjaksiTekstiksi(formData.get("alkuperainen_valuutta")),
+    alkuperainen_yksikko: tyhjaksiTekstiksi(formData.get("alkuperainen_yksikko")),
     halytysraja_g: tyhjaksiNumeroksi(formData.get("halytysraja_g")),
   };
 }

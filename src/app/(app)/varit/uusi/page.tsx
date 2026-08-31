@@ -24,6 +24,9 @@ export default async function UusiVariSivu() {
           <VariLomake
             formAction={luoVari}
             asetuksetOletusHalytysraja={asetukset.oletus_halytysraja_g}
+            toimituskuluOletusEu={asetukset.toimituskulu_per_kg_eu_oletus}
+            toimituskuluOletusUsa={asetukset.toimituskulu_per_kg_usa_oletus}
+            toimituskuluOletusMuu={asetukset.toimituskulu_per_kg_muu_oletus}
           />
         </CardContent>
       </Card>
