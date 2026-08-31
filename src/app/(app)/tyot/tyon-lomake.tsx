@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Plus, ShoppingCart, Trash2 } from "lucide-react";
@@ -35,8 +35,8 @@ interface Osa {
   nimi: string;
   merkki: string | null;
   malli: string | null;
-  arvioitu_kulutus_g: number;
   lakkaus_lisahinta: number | null;
+  lakkaus_kulutus_g: number | null;
 }
 
 interface Vari {
@@ -52,6 +52,8 @@ interface Kategoriahinta {
   osa_id: string;
   maali_tyyppi: MyytavaMaaliTyyppi;
   hinta: number;
+  arvioitu_kulutus_g: number;
+  toinen_arvioitu_kulutus_g: number | null;
 }
 
 interface KoriRivi {
@@ -99,6 +101,7 @@ export function TyonLomake({
 }) {
   const router = useRouter();
   const [kaynnissa, aloita] = useTransition();
+  const seuraavaAvain = useRef(0);
 
   const [asiakas, setAsiakas] = useState("");
   const [kori, setKori] = useState<KoriRivi[]>([]);
@@ -124,8 +127,8 @@ export function TyonLomake({
     () => kategoriahinnat.filter((k) => k.osa_id === osaId),
     [kategoriahinnat, osaId]
   );
-  const kategorianHinta = useMemo(
-    () => osanKategoriat.find((k) => k.maali_tyyppi === kategoria)?.hinta ?? null,
+  const valittuKategoriahinta = useMemo(
+    () => osanKategoriat.find((k) => k.maali_tyyppi === kategoria) ?? null,
     [osanKategoriat, kategoria]
   );
   const kategorianVarit = useMemo(
@@ -138,19 +141,24 @@ export function TyonLomake({
   const toinenVariRooli = pakollinenRooli ?? (lakkausValittu ? valinnainenRooli : undefined);
   const toinenVariAktiivinen = Boolean(toinenVariRooli);
 
-  const arvioituKulutusG = valittuOsa
-    ? Math.round(valittuOsa.arvioitu_kulutus_g * (Number(kappalemaara) || 0))
+  const maara = Number(kappalemaara) || 0;
+  const arvioituKulutusG = valittuKategoriahinta
+    ? Math.round(valittuKategoriahinta.arvioitu_kulutus_g * maara)
     : 0;
+  const toinenArvioituOletus = pakollinenRooli
+    ? Math.round((valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? 0) * maara)
+    : Math.round((valittuOsa?.lakkaus_kulutus_g ?? 0) * maara);
   const toinenArvioituKulutusG =
-    toinenArvioituYlikirjoitus !== null ? Number(toinenArvioituYlikirjoitus) : arvioituKulutusG;
+    toinenArvioituYlikirjoitus !== null ? Number(toinenArvioituYlikirjoitus) : toinenArvioituOletus;
 
   const yksikkohintaEur = useMemo(() => {
-    if (kategorianHinta === null || !valittuVari) return null;
+    if (!valittuKategoriahinta || !valittuVari) return null;
+    const kategorianHinta = valittuKategoriahinta.hinta;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
     const lakkausLisa =
       kategoria === "solid" && lakkausValittu ? (valittuOsa?.lakkaus_lisahinta ?? 0) : 0;
     return Math.round((kategorianHinta + lisa + lakkausLisa) * 100) / 100;
-  }, [kategorianHinta, valittuVari, kategoria, lakkausValittu, valittuOsa]);
+  }, [valittuKategoriahinta, valittuVari, kategoria, lakkausValittu, valittuOsa]);
 
   function vaihdaOsa(v: string) {
     setOsaId(v);
@@ -190,7 +198,7 @@ export function TyonLomake({
     }
 
     const rivi: KoriRivi = {
-      avain: `${Date.now()}-${Math.random()}`,
+      avain: String(seuraavaAvain.current++),
       osaId: valittuOsa.id,
       osaNimi: valittuOsa.nimi,
       variId: valittuVari.id,
@@ -324,7 +332,10 @@ export function TyonLomake({
                   min="1"
                   step="1"
                   value={kappalemaara}
-                  onChange={(e) => setKappalemaara(e.target.value)}
+                  onChange={(e) => {
+                    setKappalemaara(e.target.value);
+                    setToinenArvioituYlikirjoitus(null);
+                  }}
                 />
               </div>
             </div>

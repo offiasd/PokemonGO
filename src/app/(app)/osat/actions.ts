@@ -23,12 +23,12 @@ function lueOsaKentat(formData: FormData) {
     merkki: String(formData.get("merkki") ?? "").trim() || null,
     malli: String(formData.get("malli") ?? "").trim() || null,
     vari_tyyppi: String(formData.get("vari_tyyppi") ?? "yksivarinen") as VariTyyppi,
-    arvioitu_kulutus_g: Number(formData.get("arvioitu_kulutus_g") ?? 0),
     kuva_url: String(formData.get("kuva_url") ?? "").trim() || null,
     kate_prosentti: tyhjaksiNumeroksi(formData.get("kate_prosentti")),
     kate_kiintea: tyhjaksiNumeroksi(formData.get("kate_kiintea")),
     manuaalinen_hinta: tyhjaksiNumeroksi(formData.get("manuaalinen_hinta")),
     lakkaus_lisahinta: tyhjaksiNumeroksi(formData.get("lakkaus_lisahinta")),
+    lakkaus_kulutus_g: tyhjaksiNumeroksi(formData.get("lakkaus_kulutus_g")),
   };
 }
 
@@ -40,17 +40,42 @@ function lueTyovaiheet(formData: FormData) {
   }));
 }
 
+// Candy vaatii pohjavärin kulutuksen, illusion lakan kulutuksen.
+const TOISEN_KULUTUKSEN_KATEGORIAT = new Set(["candy", "illusion"]);
+
+interface KategoriahintaSyote {
+  maali_tyyppi: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"];
+  hinta: number;
+  arvioitu_kulutus_g: number;
+  toinen_arvioitu_kulutus_g: number | null;
+}
+
 // Palauttaa [käytössä-olevat kategoriahinnat, pois-jätettyjen kategorioiden tyypit].
 function lueKategoriahinnat(formData: FormData) {
-  const kaytossa: { maali_tyyppi: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"]; hinta: number }[] =
-    [];
+  const kaytossa: KategoriahintaSyote[] = [];
   const poistettavat: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"][] = [];
 
   for (const { arvo } of MYYTAVAT_MAALI_TYYPIT) {
     const kaytossaTama = formData.get(`kategoria_${arvo}_kaytossa`) === "on";
     const hinta = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_hinta`));
-    if (kaytossaTama && hinta !== null && hinta >= 0) {
-      kaytossa.push({ maali_tyyppi: arvo, hinta });
+    const kulutus = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_kulutus`));
+    const toinenKulutus = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_toinen_kulutus`));
+    const toinenVaadittu = TOISEN_KULUTUKSEN_KATEGORIAT.has(arvo);
+
+    if (
+      kaytossaTama &&
+      hinta !== null &&
+      hinta >= 0 &&
+      kulutus !== null &&
+      kulutus >= 0 &&
+      (!toinenVaadittu || (toinenKulutus !== null && toinenKulutus >= 0))
+    ) {
+      kaytossa.push({
+        maali_tyyppi: arvo,
+        hinta,
+        arvioitu_kulutus_g: kulutus,
+        toinen_arvioitu_kulutus_g: toinenVaadittu ? toinenKulutus : null,
+      });
     } else {
       poistettavat.push(arvo);
     }

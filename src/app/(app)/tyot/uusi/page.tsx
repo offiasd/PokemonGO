@@ -11,7 +11,7 @@ export default async function UusiTyoSivu() {
   const [osatVastaus, varitVastaus, kategoriahintaVastaus] = await Promise.all([
     supabase
       .from("osat")
-      .select("id, nimi, merkki, malli, arvioitu_kulutus_g, lakkaus_lisahinta")
+      .select("id, nimi, merkki, malli, lakkaus_lisahinta, lakkaus_kulutus_g")
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase
@@ -19,7 +19,9 @@ export default async function UusiTyoSivu() {
       .select("id, nimi, tyyppi, saldo_g, varattu_g, hintalisa_prosentti")
       .eq("aktiivinen", true)
       .order("nimi"),
-    supabase.from("osa_kategoriahinnat").select("osa_id, maali_tyyppi, hinta"),
+    supabase
+      .from("osa_kategoriahinnat")
+      .select("osa_id, maali_tyyppi, hinta, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"),
   ]);
 
   return (

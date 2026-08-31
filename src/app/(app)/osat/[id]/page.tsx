@@ -13,7 +13,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ajoneuvotyypinNimi, muotoileEuro, tyoVaiheenNimi, variTyypinNimi } from "@/lib/vakiot";
+import {
+  ajoneuvotyypinNimi,
+  maaliTyypinNimi,
+  muotoileEuro,
+  tyoVaiheenNimi,
+  variTyypinNimi,
+} from "@/lib/vakiot";
 
 import { paivitaOsa } from "../actions";
 import { OsaLomake } from "../osa-lomake";
@@ -124,9 +130,25 @@ export default async function OsaSivu({
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Arvioitu maalinkulutus: {osa.arvioitu_kulutus_g.toLocaleString("fi-FI")} g
-              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Hinta kategorioittain</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(kategoriahintaVastaus.data ?? []).length === 0 && (
+                <p className="text-sm text-muted-foreground">Ei hinnoiteltuja kategorioita.</p>
+              )}
+              <ul className="grid gap-1 text-sm">
+                {(kategoriahintaVastaus.data ?? []).map((k) => (
+                  <li key={k.maali_tyyppi} className="flex justify-between">
+                    <span>{maaliTyypinNimi(k.maali_tyyppi)}</span>
+                    <span className="text-muted-foreground">{muotoileEuro(k.hinta)}</span>
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
         </div>

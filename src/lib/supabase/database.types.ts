@@ -108,12 +108,13 @@ export interface Database {
           merkki: string | null;
           malli: string | null;
           vari_tyyppi: VariTyyppi;
-          arvioitu_kulutus_g: number;
+          arvioitu_kulutus_g: number | null;
           kuva_url: string | null;
           kate_prosentti: number | null;
           kate_kiintea: number | null;
           manuaalinen_hinta: number | null;
           lakkaus_lisahinta: number | null;
+          lakkaus_kulutus_g: number | null;
           aktiivinen: boolean;
           created_at: string;
           updated_at: string;
@@ -234,11 +235,14 @@ export interface Database {
           osa_id: string;
           maali_tyyppi: MyytavaMaaliTyyppi;
           hinta: number;
+          arvioitu_kulutus_g: number;
+          toinen_arvioitu_kulutus_g: number | null;
         };
         Insert: Partial<Database["public"]["Tables"]["osa_kategoriahinnat"]["Row"]> & {
           osa_id: string;
           maali_tyyppi: MyytavaMaaliTyyppi;
           hinta: number;
+          arvioitu_kulutus_g: number;
         };
         Update: Partial<Database["public"]["Tables"]["osa_kategoriahinnat"]["Row"]>;
         Relationships: [
