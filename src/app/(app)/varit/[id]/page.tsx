@@ -8,7 +8,7 @@ import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SaldoPalkki } from "@/components/saldo-palkki";
-import { muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
+import { maaliTyypinNimi, muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
 
 import { paivitaVari } from "../actions";
 import { VariLomake } from "../vari-lomake";
@@ -93,7 +93,7 @@ export default async function VariSivu({
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">{vari.alkupera}</Badge>
-          <Badge variant="outline">{vari.tyyppi}</Badge>
+          <Badge variant="outline">{maaliTyypinNimi(vari.tyyppi)}</Badge>
           {vari.kiiltoaste && <Badge variant="outline">{vari.kiiltoaste}</Badge>}
         </div>
       </div>

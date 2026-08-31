@@ -5,30 +5,28 @@ import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { SaldoPalkki } from "@/components/saldo-palkki";
-import { muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
+import { MAALI_TYYPIT } from "@/lib/vakiot";
+import type { Database, MaaliTyyppi } from "@/lib/supabase/database.types";
 
 import { VarienSuodattimet } from "./varien-suodattimet";
+import { VariKortti } from "./vari-kortti";
+
+type VariRow = Database["public"]["Tables"]["varit"]["Row"];
 
 export default async function VaritSivu({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; naytaPoistetut?: string }>;
+  searchParams: Promise<{ q?: string; naytaPoistetut?: string; tyyppi?: string }>;
 }) {
-  const { q, naytaPoistetut } = await searchParams;
+  const { q, naytaPoistetut, tyyppi } = await searchParams;
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
 
   const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
+  const tyyppiSuodatin = MAALI_TYYPIT.some((t) => t.arvo === tyyppi)
+    ? (tyyppi as MaaliTyyppi)
+    : null;
 
   let kysely = supabase
     .from("varit")
@@ -41,8 +39,22 @@ export default async function VaritSivu({
   if (q) {
     kysely = kysely.or(`nimi.ilike.%${q}%,valmistaja.ilike.%${q}%`);
   }
+  if (tyyppiSuodatin) {
+    kysely = kysely.eq("tyyppi", tyyppiSuodatin);
+  }
 
   const { data: varit } = await kysely;
+
+  const ryhmat = new Map<MaaliTyyppi, VariRow[]>();
+  for (const vari of varit ?? []) {
+    const lista = ryhmat.get(vari.tyyppi) ?? [];
+    lista.push(vari);
+    ryhmat.set(vari.tyyppi, lista);
+  }
+
+  const naytettavatTyypit = tyyppiSuodatin
+    ? MAALI_TYYPIT.filter((t) => t.arvo === tyyppiSuodatin)
+    : MAALI_TYYPIT;
 
   return (
     <div className="grid gap-6">
@@ -63,50 +75,35 @@ export default async function VaritSivu({
 
       <VarienSuodattimet naytaPoistetutValinta={kayttaja.role === "admin"} />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {(varit ?? []).map((vari) => (
-          <Link key={vari.id} href={`/varit/${vari.id}`}>
-            <Card
-              className={
-                !vari.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"
-              }
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base">{vari.nimi}</CardTitle>
-                    <CardDescription>{vari.valmistaja ?? "Valmistaja tuntematon"}</CardDescription>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant="outline">{vari.alkupera}</Badge>
-                    {!vari.aktiivinen && <Badge variant="secondary">Poistettu</Badge>}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                <div className="grid gap-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Saldo</span>
-                    <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
-                  </div>
-                  <SaldoPalkki
-                    saldoG={vari.saldo_g}
-                    halytysrajaG={vari.halytysraja_g ?? asetukset.oletus_halytysraja_g}
+      {(varit ?? []).length === 0 && (
+        <p className="text-muted-foreground">Ei värejä hakuehdoilla.</p>
+      )}
+
+      <div className="grid gap-8">
+        {naytettavatTyypit.map(({ arvo, nimi }) => {
+          const ryhmanVarit = ryhmat.get(arvo);
+          if (!ryhmanVarit || ryhmanVarit.length === 0) return null;
+          return (
+            <section key={arvo} className="grid gap-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                {nimi}
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({ryhmanVarit.length})
+                </span>
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {ryhmanVarit.map((vari) => (
+                  <VariKortti
+                    key={vari.id}
+                    vari={vari}
+                    oletusHalytysraja={asetukset.oletus_halytysraja_g}
+                    naytaHinnat={naytaHinnat}
                   />
-                </div>
-                {naytaHinnat && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Ostohinta</span>
-                    <span className="font-medium">{muotoileEuro(vari.ostohinta_per_kg)}/kg</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-        {(varit ?? []).length === 0 && (
-          <p className="text-muted-foreground">Ei värejä hakuehdoilla.</p>
-        )}
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );
