@@ -56,6 +56,11 @@ interface Kategoriahinta {
   toinen_arvioitu_kulutus_g: number | null;
 }
 
+interface VariKategoria {
+  vari_id: string;
+  maali_tyyppi: MaaliTyyppi;
+}
+
 interface KoriRivi {
   avain: string;
   osaNimi: string;
@@ -94,14 +99,26 @@ export function TyonLomake({
   osat,
   varit,
   kategoriahinnat,
+  variKategoriat,
 }: {
   osat: Osa[];
   varit: Vari[];
   kategoriahinnat: Kategoriahinta[];
+  variKategoriat: VariKategoria[];
 }) {
   const router = useRouter();
   const [kaynnissa, aloita] = useTransition();
   const seuraavaAvain = useRef(0);
+
+  const variKategoriaKartta = useMemo(() => {
+    const kartta = new Map<string, Set<MaaliTyyppi>>();
+    for (const { vari_id, maali_tyyppi } of variKategoriat) {
+      const joukko = kartta.get(vari_id) ?? new Set<MaaliTyyppi>();
+      joukko.add(maali_tyyppi);
+      kartta.set(vari_id, joukko);
+    }
+    return kartta;
+  }, [variKategoriat]);
 
   const [asiakas, setAsiakas] = useState("");
   const [kori, setKori] = useState<KoriRivi[]>([]);
@@ -132,14 +149,25 @@ export function TyonLomake({
     [osanKategoriat, kategoria]
   );
   const kategorianVarit = useMemo(
-    () => varit.filter((v) => v.tyyppi === kategoria),
-    [varit, kategoria]
+    () => (kategoria ? varit.filter((v) => variKategoriaKartta.get(v.id)?.has(kategoria)) : []),
+    [varit, kategoria, variKategoriaKartta]
   );
 
   const pakollinenRooli = kategoria ? PAKOLLINEN_ROOLI[kategoria] : undefined;
   const valinnainenRooli = kategoria ? VALINNAINEN_ROOLI[kategoria] : undefined;
   const toinenVariRooli = pakollinenRooli ?? (lakkausValittu ? valinnainenRooli : undefined);
   const toinenVariAktiivinen = Boolean(toinenVariRooli);
+  const toisenVarinKategoria: MaaliTyyppi | undefined =
+    toinenVariRooli === "pohjavari" ? "pohjavari" : toinenVariRooli === "lakka" ? "transparent" : undefined;
+  const toisenVarinVaihtoehdot = useMemo(
+    () =>
+      varit.filter(
+        (v) =>
+          v.id !== variId &&
+          (!toisenVarinKategoria || variKategoriaKartta.get(v.id)?.has(toisenVarinKategoria))
+      ),
+    [varit, variId, toisenVarinKategoria, variKategoriaKartta]
+  );
 
   const maara = Number(kappalemaara) || 0;
   const arvioituKulutusG = valittuKategoriahinta
@@ -371,13 +399,16 @@ export function TyonLomake({
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {varit
-                      .filter((v) => v.id !== variId)
-                      .map((v) => (
-                        <SelectItem key={v.id} value={v.id}>
-                          {v.nimi}
-                        </SelectItem>
-                      ))}
+                    {toisenVarinVaihtoehdot.length === 0 && (
+                      <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                        Ei värejä tässä kategoriassa - lisää lisäkategoria värille
+                      </p>
+                    )}
+                    {toisenVarinVaihtoehdot.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.nimi}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

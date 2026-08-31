@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -30,6 +31,7 @@ type VariRow = Database["public"]["Tables"]["varit"]["Row"];
 
 interface VariLomakeProps {
   vari?: VariRow;
+  lisakategoriat?: MaaliTyyppi[];
   formAction: (tila: VariLomakeTila, formData: FormData) => Promise<VariLomakeTila>;
   asetuksetOletusHalytysraja: number;
   toimituskuluOletusEu: number;
@@ -49,6 +51,7 @@ function TallennaNappi({ uusi }: { uusi: boolean }) {
 
 export function VariLomake({
   vari,
+  lisakategoriat: alkuLisakategoriat = [],
   formAction,
   asetuksetOletusHalytysraja,
   toimituskuluOletusEu,
@@ -70,6 +73,7 @@ export function VariLomake({
   );
   const [kiiltoaste, setKiiltoaste] = useState(vari?.kiiltoaste ?? "");
   const [tyyppi, setTyyppi] = useState<MaaliTyyppi>(vari?.tyyppi ?? "solid");
+  const [lisakategoriat, setLisakategoriat] = useState<MaaliTyyppi[]>(alkuLisakategoriat);
   const [vaatiiPohjavarin, setVaatiiPohjavarin] = useState(vari?.vaatii_pohjavarin ?? false);
   const [pohjavariKuvaus, setPohjavariKuvaus] = useState(vari?.pohjavari_kuvaus ?? "");
   const [alkuperainenHinta, setAlkuperainenHinta] = useState<number | null>(
@@ -196,7 +200,14 @@ export function VariLomake({
         </div>
         <div className="grid gap-2">
           <Label htmlFor="tyyppi">Maalin tyyppi</Label>
-          <Select name="tyyppi" value={tyyppi} onValueChange={(v) => setTyyppi(v as MaaliTyyppi)}>
+          <Select
+            name="tyyppi"
+            value={tyyppi}
+            onValueChange={(v) => {
+              setTyyppi(v as MaaliTyyppi);
+              setLisakategoriat((l) => l.filter((k) => k !== v));
+            }}
+          >
             <SelectTrigger id="tyyppi" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -208,6 +219,34 @@ export function VariLomake({
               ))}
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      <div className="grid gap-2 rounded-md border p-4">
+        <Label className="font-medium">Lisäkategoriat (valinnainen)</Label>
+        <p className="text-xs text-muted-foreground">
+          Käytä kun sama väri myydään useamman kategorian alla - esim. kromiväri on sekä Metallic
+          että Pohjavärit (käytetään myös candyn pohjana). Työt-sivun värivalinnat suodattuvat
+          näiden mukaan.
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {MAALI_TYYPIT.filter(({ arvo }) => arvo !== tyyppi).map(({ arvo, nimi }) => (
+            <div key={arvo} className="flex items-center gap-2">
+              <Checkbox
+                id={`lisakategoria_${arvo}`}
+                name={`lisakategoria_${arvo}`}
+                checked={lisakategoriat.includes(arvo)}
+                onCheckedChange={(v) =>
+                  setLisakategoriat((l) =>
+                    v === true ? [...l, arvo] : l.filter((k) => k !== arvo)
+                  )
+                }
+              />
+              <Label htmlFor={`lisakategoria_${arvo}`} className="font-normal">
+                {nimi}
+              </Label>
+            </div>
+          ))}
         </div>
       </div>
 
