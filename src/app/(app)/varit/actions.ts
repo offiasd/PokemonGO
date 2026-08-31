@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin, vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import type { Alkupera, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
-import { MAALI_TYYPIT } from "@/lib/vakiot";
+import { MAALI_TYYPIT, varinLisavaatimus, varinVaatiiPohjavarin } from "@/lib/vakiot";
 
 export interface VariLomakeTila {
   virhe: string | null;
@@ -56,6 +56,8 @@ function lueVariKentat(formData: FormData) {
   const tyhjaksiTekstiksi = (arvo: FormDataEntryValue | null) =>
     String(arvo ?? "").trim() || null;
 
+  const tyyppi = String(formData.get("tyyppi") ?? "solid") as MaaliTyyppi;
+
   return {
     nimi: String(formData.get("nimi") ?? "").trim(),
     valmistaja: tyhjaksiTekstiksi(formData.get("valmistaja")),
@@ -72,10 +74,11 @@ function lueVariKentat(formData: FormData) {
     ohjeet: tyhjaksiTekstiksi(formData.get("ohjeet")),
     ohje_tiedosto_url: tyhjaksiTekstiksi(formData.get("ohje_tiedosto_url")),
     kiiltoaste: tyhjaksiTekstiksi(formData.get("kiiltoaste")),
-    tyyppi: String(formData.get("tyyppi") ?? "solid") as MaaliTyyppi,
+    tyyppi,
     varisavy: lueVarisavy(formData),
-    vaatii_pohjavarin: formData.get("vaatii_pohjavarin") === "on",
-    pohjavari_kuvaus: tyhjaksiTekstiksi(formData.get("pohjavari_kuvaus")),
+    // Pohjaväri-/lakkavaatimus johdetaan maalityypistä, ei syötetä käsin.
+    vaatii_pohjavarin: varinVaatiiPohjavarin(tyyppi),
+    pohjavari_kuvaus: varinLisavaatimus(tyyppi),
     alkuperainen_hinta: tyhjaksiNumeroksi(formData.get("alkuperainen_hinta")),
     alkuperainen_valuutta: tyhjaksiTekstiksi(formData.get("alkuperainen_valuutta")),
     alkuperainen_yksikko: tyhjaksiTekstiksi(formData.get("alkuperainen_yksikko")),

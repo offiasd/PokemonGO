@@ -8,7 +8,6 @@ import { Loader2, Palette, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -26,6 +25,7 @@ import {
   muotoileEuro,
   paattelyVarisavy,
   VARISAVYN_VARIKOODI,
+  varinLisavaatimus,
   VARISAVYT,
 } from "@/lib/vakiot";
 
@@ -85,8 +85,6 @@ export function VariLomake({
   const [tyyppi, setTyyppi] = useState<MaaliTyyppi>(vari?.tyyppi ?? "solid");
   const [varisavy, setVarisavy] = useState<Varisavy | "">(vari?.varisavy ?? "");
   const [lisakategoriat, setLisakategoriat] = useState<MaaliTyyppi[]>(alkuLisakategoriat);
-  const [vaatiiPohjavarin, setVaatiiPohjavarin] = useState(vari?.vaatii_pohjavarin ?? false);
-  const [pohjavariKuvaus, setPohjavariKuvaus] = useState(vari?.pohjavari_kuvaus ?? "");
   const [alkuperainenHinta, setAlkuperainenHinta] = useState<number | null>(
     vari?.alkuperainen_hinta ?? null
   );
@@ -117,8 +115,6 @@ export function VariLomake({
       setTyyppi("solid");
       setVarisavy("");
       setLisakategoriat([]);
-      setVaatiiPohjavarin(false);
-      setPohjavariKuvaus("");
       setAlkuperainenHinta(null);
       setAlkuperainenValuutta(null);
       setAlkuperainenYksikko(null);
@@ -174,12 +170,6 @@ export function VariLomake({
       }
       if (data?.tyyppi) {
         setTyyppi(data.tyyppi as MaaliTyyppi);
-      }
-      if (typeof data?.vaatii_pohjavarin === "boolean") {
-        setVaatiiPohjavarin(data.vaatii_pohjavarin);
-      }
-      if (data?.pohjavari_kuvaus) {
-        setPohjavariKuvaus(data.pohjavari_kuvaus);
       }
       if (data?.alkupera) {
         setAlkupera(data.alkupera as Alkupera);
@@ -341,32 +331,12 @@ export function VariLomake({
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-md border p-4">
-        <div className="flex items-center gap-3">
-          <Switch
-            id="vaatii_pohjavarin"
-            name="vaatii_pohjavarin"
-            checked={vaatiiPohjavarin}
-            onCheckedChange={setVaatiiPohjavarin}
-          />
-          <Label htmlFor="vaatii_pohjavarin" className="font-normal">
-            Väri vaatii pohjavärin (esim. candy/illusion aktivoituu topcoatista)
-          </Label>
-        </div>
-        {vaatiiPohjavarin && (
-          <div className="grid gap-2">
-            <Label htmlFor="pohjavari_kuvaus">Pohjavärin kuvaus / suositus</Label>
-            <Textarea
-              id="pohjavari_kuvaus"
-              name="pohjavari_kuvaus"
-              rows={2}
-              placeholder="esim. Kromi (Super Chrome Plus tms.) - tarkista valmistajan ohjeet"
-              value={pohjavariKuvaus}
-              onChange={(e) => setPohjavariKuvaus(e.target.value)}
-            />
-          </div>
-        )}
-      </div>
+      {varinLisavaatimus(tyyppi) && (
+        <p className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+          {varinLisavaatimus(tyyppi)} Tieto lisätään värin sivulle automaattisesti
+          maalityypin perusteella.
+        </p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-2">
