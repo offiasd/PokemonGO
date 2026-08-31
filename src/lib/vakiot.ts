@@ -24,11 +24,11 @@ export const VARI_TYYPIT: { arvo: VariTyyppi; nimi: string }[] = [
 
 // Järjestys määrää myös värilistan kategoriajärjestyksen (/varit).
 export const MAALI_TYYPIT: { arvo: MaaliTyyppi; nimi: string }[] = [
-  { arvo: "solid", nimi: "Solid / RAL (yksivärinen)" },
+  { arvo: "solid", nimi: "Solid / RAL" },
   { arvo: "metallic", nimi: "Metallic" },
   { arvo: "candy", nimi: "Candy" },
   { arvo: "illusion", nimi: "Illusion" },
-  { arvo: "transparent", nimi: "Lakat (kirkas topcoat)" },
+  { arvo: "transparent", nimi: "Lakat" },
   { arvo: "muu", nimi: "Muu" },
 ];
 
