@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { Loader2, Wand2 } from "lucide-react";
@@ -25,7 +25,7 @@ import { MAALI_TYYPIT } from "@/lib/vakiot";
 
 import type { VariLomakeTila } from "./actions";
 
-const TYHJA_VARI_TILA: VariLomakeTila = { virhe: null };
+const TYHJA_VARI_TILA: VariLomakeTila = { virhe: null, viesti: null };
 
 type VariRow = Database["public"]["Tables"]["varit"]["Row"];
 
@@ -87,6 +87,39 @@ export function VariLomake({
   );
   const [myyjaLinkki, setMyyjaLinkki] = useState(vari?.myyja_linkki ?? "");
   const [haetaan, setHaetaan] = useState(false);
+  const lomakeRef = useRef<HTMLFormElement>(null);
+
+  // Uuden värin luonnin jälkeen nollataan koko lomake (kontrolloidut kentät tässä,
+  // ei-kontrolloidut alla olevassa effektissä lomakkeen resetin kautta), jotta
+  // seuraavan värin lisääminen onnistuu heti ilman sivun uudelleenlatausta.
+  const [edellinenTila, setEdellinenTila] = useState(tila);
+  if (tila !== edellinenTila) {
+    setEdellinenTila(tila);
+    if (!vari && tila.viesti) {
+      setNimi("");
+      setValmistaja("");
+      setAlkupera("EU");
+      setOstohintaPerKg("");
+      setKuvaUrl(null);
+      setOhjeTiedostoUrl(null);
+      setKiiltoaste("");
+      setTyyppi("solid");
+      setLisakategoriat([]);
+      setVaatiiPohjavarin(false);
+      setPohjavariKuvaus("");
+      setAlkuperainenHinta(null);
+      setAlkuperainenValuutta(null);
+      setAlkuperainenYksikko(null);
+      setMyyjaLinkki("");
+    }
+  }
+
+  useEffect(() => {
+    if (!vari && tila.viesti) {
+      toast.success(tila.viesti);
+      lomakeRef.current?.reset();
+    }
+  }, [tila, vari]);
 
   const toimituskuluOletus =
     alkupera === "EU" ? toimituskuluOletusEu : alkupera === "USA" ? toimituskuluOletusUsa : toimituskuluOletusMuu;
@@ -158,7 +191,7 @@ export function VariLomake({
   }
 
   return (
-    <form action={kutsuAction} className="grid gap-6">
+    <form ref={lomakeRef} action={kutsuAction} className="grid gap-6">
       <input type="hidden" name="kuva_url" value={kuvaUrl ?? ""} />
       <input type="hidden" name="ohje_tiedosto_url" value={ohjeTiedostoUrl ?? ""} />
       <input type="hidden" name="alkuperainen_hinta" value={alkuperainenHinta ?? ""} />

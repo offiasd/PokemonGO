@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
@@ -10,6 +9,7 @@ import { MAALI_TYYPIT } from "@/lib/vakiot";
 
 export interface VariLomakeTila {
   virhe: string | null;
+  viesti?: string | null;
 }
 
 // Tyyppi on aina yksi kategorioista - luetaan lisäkategoria-checkboxit erikseen
@@ -84,7 +84,7 @@ export async function luoVari(
 
   const kentat = lueVariKentat(formData);
   if (!kentat.nimi) {
-    return { virhe: "Nimi vaaditaan." };
+    return { virhe: "Nimi vaaditaan.", viesti: null };
   }
 
   const alkuSaldo = Number(formData.get("saldo_g") ?? 0);
@@ -96,16 +96,17 @@ export async function luoVari(
     .single();
 
   if (error || !data) {
-    return { virhe: error?.message ?? "Värin luonti epäonnistui." };
+    return { virhe: error?.message ?? "Värin luonti epäonnistui.", viesti: null };
   }
 
   const kategoriaVirhe = await tallennaVarinKategoriat(supabase, data.id, formData, kentat.tyyppi);
   if (kategoriaVirhe) {
-    return { virhe: kategoriaVirhe };
+    return { virhe: kategoriaVirhe, viesti: null };
   }
 
   revalidatePath("/varit");
-  redirect(`/varit/${data.id}`);
+  revalidatePath(`/varit/${data.id}`);
+  return { virhe: null, viesti: "Väri tallennettu." };
 }
 
 export async function paivitaVari(
