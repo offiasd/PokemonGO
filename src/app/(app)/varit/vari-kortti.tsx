@@ -22,6 +22,9 @@ export function VariKortti({
     <Link href={`/varit/${vari.id}`}>
       <Card className={!vari.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"}>
         <CardHeader className="grid gap-3">
+          <p className="truncate text-xs text-muted-foreground sm:hidden">
+            {vari.valmistaja ?? "Valmistaja tuntematon"}
+          </p>
           <div className="flex items-start justify-between gap-2">
             <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
               {vari.kuva_url ? (
@@ -51,7 +54,9 @@ export function VariKortti({
               )}
               {vari.nimi}
             </CardTitle>
-            <CardDescription>{vari.valmistaja ?? "Valmistaja tuntematon"}</CardDescription>
+            <CardDescription className="hidden sm:block">
+              {vari.valmistaja ?? "Valmistaja tuntematon"}
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="grid gap-3">
