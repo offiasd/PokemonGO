@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import type { Database, MyytavaMaaliTyyppi } from "@/lib/supabase/database.types";
-import { AJONEUVOTYYPIT, VARI_TYYPIT, TYO_VAIHEET, MYYTAVAT_MAALI_TYYPIT } from "@/lib/vakiot";
+import { AJONEUVOTYYPIT, TYO_VAIHEET, MYYTAVAT_MAALI_TYYPIT } from "@/lib/vakiot";
 
 import type { OsaLomakeTila } from "./actions";
 
@@ -206,22 +206,6 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
           <Label htmlFor="malli">Malli</Label>
           <Input id="malli" name="malli" defaultValue={osa?.malli ?? ""} />
         </div>
-      </div>
-
-      <div className="grid gap-2 sm:max-w-xs">
-        <Label htmlFor="vari_tyyppi">Väri-/pintatyyppi</Label>
-        <Select name="vari_tyyppi" defaultValue={osa?.vari_tyyppi ?? "yksivarinen"}>
-          <SelectTrigger id="vari_tyyppi">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {VARI_TYYPIT.map((t) => (
-              <SelectItem key={t.arvo} value={t.arvo}>
-                {t.nimi}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="grid gap-2">
