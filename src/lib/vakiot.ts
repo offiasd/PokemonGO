@@ -92,6 +92,23 @@ export function kategorianVarienMaara(
   return VALINNAINEN_TOINEN_VARI_ROOLI[kategoria] && lakkausValittu ? 2 : 1;
 }
 
+// Maalityypistä johtuva vaatimus, joka näytetään värin tiedoissa
+// automaattisesti - ei erikseen asetettava tieto.
+export const VARIN_LISAVAATIMUS: Partial<Record<MaaliTyyppi, string>> = {
+  candy: "Candy vaatii aina pohjavärin - yleisimmin Super Chrome.",
+  illusion: "Illusion vaatii aina lakan aktivoituakseen.",
+  metallic: "Metallic vaatii lakkauksen UV-suojaksi.",
+};
+
+export function varinLisavaatimus(tyyppi: MaaliTyyppi): string | null {
+  return VARIN_LISAVAATIMUS[tyyppi] ?? null;
+}
+
+/** Vain candy tarvitsee varsinaisen pohjavärin; illusion ja metallic lakan. */
+export function varinVaatiiPohjavarin(tyyppi: MaaliTyyppi): boolean {
+  return tyyppi === "candy";
+}
+
 export function tyoVaiheenNimi(vaihe: TyoVaihe): string {
   return TYO_VAIHEET.find((v) => v.arvo === vaihe)?.nimi ?? vaihe;
 }

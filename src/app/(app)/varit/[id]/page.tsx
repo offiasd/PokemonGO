@@ -8,7 +8,7 @@ import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SaldoPalkki } from "@/components/saldo-palkki";
-import { maaliTyypinNimi, muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
+import { maaliTyypinNimi, muotoileEuro, muotoileGrammat, varinLisavaatimus } from "@/lib/vakiot";
 import { laskeVarinHintaerittely } from "@/lib/hinnat";
 
 import { paivitaVari } from "../actions";
@@ -42,6 +42,8 @@ export default async function VariSivu({
   const halytysraja = vari.halytysraja_g ?? asetukset.oletus_halytysraja_g;
 
   const hinta = laskeVarinHintaerittely(vari, asetukset);
+  // Pohjaväri-/lakkavaatimus johdetaan maalityypistä, ei tallennetusta tekstistä.
+  const lisavaatimus = varinLisavaatimus(vari.tyyppi);
 
   const hinnoitteluKortti = (
     <Card>
@@ -199,17 +201,14 @@ export default async function VariSivu({
 
       {naytaHinnat && hinnoitteluKortti}
 
-      {(vari.ohjeet ||
-        vari.ohje_tiedosto_url ||
-        vari.myyja_linkki ||
-        (vari.vaatii_pohjavarin && vari.pohjavari_kuvaus)) && (
+      {(vari.ohjeet || vari.ohje_tiedosto_url || vari.myyja_linkki || lisavaatimus) && (
         <Card>
           <CardHeader>
             <CardTitle>Maalausohjeet</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm">
-            {vari.vaatii_pohjavarin && vari.pohjavari_kuvaus && (
-              <p className="rounded-md border bg-muted/30 p-3">{vari.pohjavari_kuvaus}</p>
+            {lisavaatimus && (
+              <p className="rounded-md border bg-muted/30 p-3">{lisavaatimus}</p>
             )}
             {vari.ohjeet && <p className="whitespace-pre-wrap">{vari.ohjeet}</p>}
             {vari.ohje_tiedosto_url && (
