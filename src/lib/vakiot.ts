@@ -33,6 +33,7 @@ export const VARI_TYYPIT: { arvo: VariTyyppi; nimi: string }[] = [
 export const MAALI_TYYPIT: { arvo: MaaliTyyppi; nimi: string }[] = [
   { arvo: "solid", nimi: "Solid / RAL" },
   { arvo: "metallic", nimi: "Metallic" },
+  { arvo: "pohjavari", nimi: "Pohjavärit" },
   { arvo: "candy", nimi: "Candy" },
   { arvo: "illusion", nimi: "Illusion" },
   { arvo: "transparent", nimi: "Lakat" },
