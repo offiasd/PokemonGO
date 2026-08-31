@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { MaaliTyyppi, ToinenVariRooli } from "@/lib/supabase/database.types";
 
 import { kirjaaMaalaustapahtuma } from "./actions";
 
@@ -29,7 +31,21 @@ interface Vari {
   id: string;
   nimi: string;
   saldo_g: number;
+  tyyppi: MaaliTyyppi;
 }
+
+// Candy vaatii aina pohjavärin, illusion aina lakan. Solid-väreille lakkaus on valinnainen.
+const TOINEN_VARI_PAKOLLINEN: Partial<Record<MaaliTyyppi, ToinenVariRooli>> = {
+  candy: "pohjavari",
+  illusion: "lakka",
+};
+const TOINEN_VARI_VALINNAINEN: Partial<Record<MaaliTyyppi, ToinenVariRooli>> = {
+  solid: "lakka",
+};
+const ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
+  pohjavari: "Pohjaväri",
+  lakka: "Lakka",
+};
 
 export function KirjaaLomake({ osat, varit }: { osat: Osa[]; varit: Vari[] }) {
   const lomakeRef = useRef<HTMLFormElement>(null);
@@ -41,8 +57,28 @@ export function KirjaaLomake({ osat, varit }: { osat: Osa[]; varit: Vari[] }) {
   const [kappalemaara, setKappalemaara] = useState("1");
   const [toteutunutYlikirjoitus, setToteutunutYlikirjoitus] = useState<string | null>(null);
 
+  const [lakkausKytketty, setLakkausKytketty] = useState(false);
+  const [toinenVariId, setToinenVariId] = useState<string>("");
+  const [toinenToteutunut, setToinenToteutunut] = useState<string>("");
+
   const valittuOsa = useMemo(() => osat.find((o) => o.id === osaId), [osat, osaId]);
   const valittuVari = useMemo(() => varit.find((v) => v.id === variId), [varit, variId]);
+  const valittuToinenVari = useMemo(
+    () => varit.find((v) => v.id === toinenVariId),
+    [varit, toinenVariId]
+  );
+
+  const pakollinenRooli = valittuVari ? TOINEN_VARI_PAKOLLINEN[valittuVari.tyyppi] : undefined;
+  const valinnainenRooli = valittuVari ? TOINEN_VARI_VALINNAINEN[valittuVari.tyyppi] : undefined;
+  const toinenVariRooli = pakollinenRooli ?? (lakkausKytketty ? valinnainenRooli : undefined);
+  const toinenVariAktiivinen = Boolean(toinenVariRooli);
+
+  function vaihdaVari(v: string) {
+    setVariId(v);
+    setToinenVariId("");
+    setToinenToteutunut("");
+    setLakkausKytketty(false);
+  }
 
   const arvioituKulutus = useMemo(() => {
     if (!valittuOsa) return 0;
@@ -58,13 +94,27 @@ export function KirjaaLomake({ osat, varit }: { osat: Osa[]; varit: Vari[] }) {
     setVariId("");
     setKappalemaara("1");
     setToteutunutYlikirjoitus(null);
+    setLakkausKytketty(false);
+    setToinenVariId("");
+    setToinenToteutunut("");
   }
 
   function kasitteleLahetys(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
     setVirhe(null);
 
+    if (toinenVariAktiivinen && !toinenVariId) {
+      setVirhe(`Valitse ${(toinenVariRooli && ROOLIN_NIMI[toinenVariRooli]) ?? "toinen väri"}.`);
+      return;
+    }
+    if (toinenVariAktiivinen && Number(toinenToteutunut) <= 0) {
+      setVirhe(
+        `Syötä ${(toinenVariRooli && ROOLIN_NIMI[toinenVariRooli]) ?? "toisen värin"} kulutus.`
+      );
+      return;
+    }
+
+    const formData = new FormData(e.currentTarget);
     aloita(async () => {
       const tulos = await kirjaaMaalaustapahtuma({ virhe: null, viesti: null }, formData);
       if (tulos.virhe) {
@@ -77,10 +127,21 @@ export function KirjaaLomake({ osat, varit }: { osat: Osa[]; varit: Vari[] }) {
   }
 
   const riittaakoSaldo = !valittuVari || Number(toteutunutKulutus) <= valittuVari.saldo_g;
+  const riittaakoToisenSaldo =
+    !toinenVariAktiivinen ||
+    !valittuToinenVari ||
+    Number(toinenToteutunut || 0) <= valittuToinenVari.saldo_g;
 
   return (
     <form ref={lomakeRef} onSubmit={kasitteleLahetys} className="grid gap-4">
       <input type="hidden" name="arvioitu_kulutus_g" value={arvioituKulutus} />
+      {toinenVariAktiivinen && (
+        <>
+          <input type="hidden" name="toinen_vari_id" value={toinenVariId} />
+          <input type="hidden" name="toinen_vari_rooli" value={toinenVariRooli} />
+          <input type="hidden" name="toinen_toteutunut_kulutus_g" value={toinenToteutunut} />
+        </>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
@@ -110,7 +171,7 @@ export function KirjaaLomake({ osat, varit }: { osat: Osa[]; varit: Vari[] }) {
 
         <div className="grid gap-2">
           <Label htmlFor="vari_id">Väri *</Label>
-          <Select name="vari_id" value={variId} onValueChange={setVariId}>
+          <Select name="vari_id" value={variId} onValueChange={vaihdaVari}>
             <SelectTrigger id="vari_id">
               <SelectValue placeholder="Valitse väri" />
             </SelectTrigger>
@@ -164,6 +225,64 @@ export function KirjaaLomake({ osat, varit }: { osat: Osa[]; varit: Vari[] }) {
           Huom: värin saldo ({valittuVari?.saldo_g.toLocaleString("fi-FI")} g) on pienempi kuin
           kirjattava kulutus. Saldo menee negatiiviseksi.
         </p>
+      )}
+
+      {valinnainenRooli && !pakollinenRooli && (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="lakkaus_kytketty"
+            checked={lakkausKytketty}
+            onCheckedChange={(tila) => setLakkausKytketty(tila === true)}
+          />
+          <Label htmlFor="lakkaus_kytketty" className="font-normal">
+            Lisää lakkaus (kirkas topcoat)
+          </Label>
+        </div>
+      )}
+
+      {toinenVariAktiivinen && toinenVariRooli && (
+        <div className="grid gap-4 rounded-md border bg-muted/30 p-4 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="toinen_vari_id_select">
+              {ROOLIN_NIMI[toinenVariRooli]}
+              {pakollinenRooli ? " *" : ""}
+            </Label>
+            <Select value={toinenVariId} onValueChange={setToinenVariId}>
+              <SelectTrigger id="toinen_vari_id_select">
+                <SelectValue placeholder={`Valitse ${ROOLIN_NIMI[toinenVariRooli].toLowerCase()}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {varit
+                  .filter((v) => v.id !== variId)
+                  .map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.nimi} ({v.saldo_g.toLocaleString("fi-FI")} g)
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="toinen_toteutunut">
+              {ROOLIN_NIMI[toinenVariRooli]}: kulutus (g){pakollinenRooli ? " *" : ""}
+            </Label>
+            <Input
+              id="toinen_toteutunut"
+              type="number"
+              min="1"
+              step="1"
+              value={toinenToteutunut}
+              onChange={(e) => setToinenToteutunut(e.target.value)}
+            />
+          </div>
+          {!riittaakoToisenSaldo && (
+            <p className="text-sm text-warning-foreground sm:col-span-2">
+              Huom: {ROOLIN_NIMI[toinenVariRooli].toLowerCase()}n saldo (
+              {valittuToinenVari?.saldo_g.toLocaleString("fi-FI")} g) on pienempi kuin kirjattava
+              kulutus. Saldo menee negatiiviseksi.
+            </p>
+          )}
+        </div>
       )}
 
       {virhe && (

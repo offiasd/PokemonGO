@@ -30,7 +30,7 @@ export default async function KirjaaSivu() {
       .order("nimi"),
     supabase
       .from("varit")
-      .select("id, nimi, saldo_g")
+      .select("id, nimi, saldo_g, tyyppi")
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase
@@ -75,6 +75,7 @@ export default async function KirjaaSivu() {
                 <TableHead>Väri</TableHead>
                 <TableHead>Kpl</TableHead>
                 <TableHead>Toteutunut kulutus</TableHead>
+                <TableHead>Pohjaväri / lakka</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -87,11 +88,16 @@ export default async function KirjaaSivu() {
                   <TableCell>{t.vari_nimi}</TableCell>
                   <TableCell>{t.kappalemaara}</TableCell>
                   <TableCell>{t.toteutunut_kulutus_g.toLocaleString("fi-FI")} g</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {t.toinen_vari_nimi
+                      ? `${t.toinen_vari_nimi} (${t.toinen_vari_rooli === "pohjavari" ? "pohjaväri" : "lakka"}, ${t.toinen_toteutunut_kulutus_g?.toLocaleString("fi-FI")} g)`
+                      : "-"}
+                  </TableCell>
                 </TableRow>
               ))}
               {(tapahtumatVastaus.data ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     Ei vielä tapahtumia.
                   </TableCell>
                 </TableRow>

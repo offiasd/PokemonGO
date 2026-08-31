@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
+import type { ToinenVariRooli } from "@/lib/supabase/database.types";
 
 export interface KirjaaTila {
   virhe: string | null;
@@ -23,6 +24,13 @@ export async function kirjaaMaalaustapahtuma(
   const arvioituKulutusG = Number(formData.get("arvioitu_kulutus_g") ?? 0);
   const toteutunutKulutusG = Number(formData.get("toteutunut_kulutus_g") ?? 0);
 
+  const toinenVariId = String(formData.get("toinen_vari_id") ?? "").trim() || null;
+  const toinenVariRooli =
+    (String(formData.get("toinen_vari_rooli") ?? "").trim() as ToinenVariRooli) || null;
+  const toinenToteutunutKulutusG = toinenVariId
+    ? Number(formData.get("toinen_toteutunut_kulutus_g") ?? 0)
+    : null;
+
   if (!osaId || !variId) {
     return { virhe: "Valitse sekä osa että väri.", viesti: null };
   }
@@ -32,6 +40,12 @@ export async function kirjaaMaalaustapahtuma(
   if (toteutunutKulutusG <= 0) {
     return { virhe: "Toteutunut kulutus tulee olla suurempi kuin 0.", viesti: null };
   }
+  if (toinenVariId && (!toinenVariRooli || !toinenToteutunutKulutusG || toinenToteutunutKulutusG <= 0)) {
+    return { virhe: "Täytä toisen värin rooli ja kulutus, tai poista toinen väri.", viesti: null };
+  }
+  if (toinenVariId && toinenVariId === variId) {
+    return { virhe: "Toinen väri ei voi olla sama kuin päämaali.", viesti: null };
+  }
 
   const { error } = await supabase.from("maalaustapahtumat").insert({
     osa_id: osaId,
@@ -40,6 +54,9 @@ export async function kirjaaMaalaustapahtuma(
     arvioitu_kulutus_g: arvioituKulutusG,
     toteutunut_kulutus_g: toteutunutKulutusG,
     kayttaja_id: kayttaja.id,
+    toinen_vari_id: toinenVariId,
+    toinen_vari_rooli: toinenVariRooli,
+    toinen_toteutunut_kulutus_g: toinenToteutunutKulutusG,
   });
 
   if (error) {
