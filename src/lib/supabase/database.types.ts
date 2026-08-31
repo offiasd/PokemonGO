@@ -13,7 +13,14 @@ export type VariTyyppi =
 export type TyoVaihe = "pesu" | "maalinpoisto" | "puhallus" | "teippaus" | "maalaus";
 export type Alkupera = "EU" | "USA" | "muu";
 export type KayttajaRooli = "admin" | "maalaaja";
-export type MaaliTyyppi = "solid" | "transparent" | "candy" | "illusion" | "metallic" | "muu";
+export type MaaliTyyppi =
+  | "solid"
+  | "transparent"
+  | "candy"
+  | "illusion"
+  | "metallic"
+  | "pohjavari"
+  | "muu";
 export type ToinenVariRooli = "pohjavari" | "lakka";
 // Kategoriahinnoiteltavat tyypit: myydään aina omana työnä (ei topcoat-lisänä).
 export type MyytavaMaaliTyyppi = "solid" | "metallic" | "candy" | "illusion";
