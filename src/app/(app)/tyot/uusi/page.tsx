@@ -1,30 +1,72 @@
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
+import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { TyoVaihe } from "@/lib/supabase/database.types";
 
+import { laskeTyokustannus } from "../../osat/kustannusarvio";
 import { TyonLomake } from "../tyon-lomake";
 
 export default async function UusiTyoSivu() {
   await vaaditaanKayttaja();
   const supabase = await createClient();
+  const asetukset = await haeAsetukset();
 
-  const [osatVastaus, varitVastaus, kategoriahintaVastaus, variKategoriaVastaus] =
-    await Promise.all([
-      supabase
-        .from("osat")
-        .select("id, nimi, merkki, malli, lakkaus_lisahinta, lakkaus_kulutus_g")
-        .eq("aktiivinen", true)
-        .order("nimi"),
-      supabase
-        .from("varit")
-        .select("id, nimi, tyyppi, saldo_g, varattu_g, hintalisa_prosentti")
-        .eq("aktiivinen", true)
-        .order("nimi"),
-      supabase
-        .from("osa_kategoriahinnat")
-        .select("osa_id, maali_tyyppi, hinta, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"),
-      supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
-    ]);
+  const [
+    osatVastaus,
+    varitVastaus,
+    kategoriahintaVastaus,
+    variKategoriaVastaus,
+    tyovaiheetVastaus,
+    tuntiveloitusVastaus,
+  ] = await Promise.all([
+    supabase
+      .from("osat")
+      .select(
+        "id, nimi, merkki, malli, lakkaus_lisahinta, lakkaus_kulutus_g, kate_prosentti, kate_kiintea, manuaalinen_hinta"
+      )
+      .eq("aktiivinen", true)
+      .order("nimi"),
+    supabase
+      .from("varit")
+      .select("id, nimi, tyyppi, saldo_g, varattu_g, hintalisa_prosentti")
+      .eq("aktiivinen", true)
+      .order("nimi"),
+    supabase
+      .from("osa_kategoriahinnat")
+      .select("osa_id, maali_tyyppi, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"),
+    supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
+    supabase
+      .from("osa_tyovaiheet")
+      .select("osa_id, vaihe, arvioitu_kesto_min")
+      .eq("tarvitaan", true),
+    supabase.from("tuntiveloitukset").select("vaihe, tuntihinta"),
+  ]);
+
+  const tuntiveloitukset = new Map<TyoVaihe, number>();
+  for (const t of tuntiveloitusVastaus.data ?? []) {
+    if (t.vaihe) tuntiveloitukset.set(t.vaihe, t.tuntihinta);
+  }
+
+  // Asiakashinta lasketaan värin ostohinnasta + katteesta, ei kiinteästä
+  // kategoriahinnasta - siksi jokaiselle värille lasketaan todellinen
+  // kokonaishinta ja jokaiselle osalle sen työkustannus + kateasetukset.
+  const osat = (osatVastaus.data ?? []).map((osa) => {
+    const omatVaiheet = (tyovaiheetVastaus.data ?? []).filter((v) => v.osa_id === osa.id);
+    return {
+      ...osa,
+      tyokustannus: laskeTyokustannus(omatVaiheet, tuntiveloitukset, asetukset.yleinen_tuntihinta),
+      kateProsentti: osa.kate_prosentti ?? asetukset.kate_prosentti_oletus,
+      kateKiintea: osa.kate_kiintea ?? 0,
+    };
+  });
+
+  const varitHinnoin = await Promise.all(
+    (varitVastaus.data ?? []).map(async (vari) => {
+      const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
+      return { ...vari, kokonaishinta: data ?? 0 };
+    })
+  );
 
   return (
     <div className="grid gap-6">
@@ -41,8 +83,8 @@ export default async function UusiTyoSivu() {
         </CardHeader>
         <CardContent>
           <TyonLomake
-            osat={osatVastaus.data ?? []}
-            varit={varitVastaus.data ?? []}
+            osat={osat}
+            varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
           />

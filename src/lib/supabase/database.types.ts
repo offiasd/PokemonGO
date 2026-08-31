@@ -262,14 +262,13 @@ export interface Database {
           id: string;
           osa_id: string;
           maali_tyyppi: MyytavaMaaliTyyppi;
-          hinta: number;
+          hinta: number | null;
           arvioitu_kulutus_g: number;
           toinen_arvioitu_kulutus_g: number | null;
         };
         Insert: Partial<Database["public"]["Tables"]["osa_kategoriahinnat"]["Row"]> & {
           osa_id: string;
           maali_tyyppi: MyytavaMaaliTyyppi;
-          hinta: number;
           arvioitu_kulutus_g: number;
         };
         Update: Partial<Database["public"]["Tables"]["osa_kategoriahinnat"]["Row"]>;

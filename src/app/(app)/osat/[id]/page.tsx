@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/table";
 import {
   ajoneuvotyypinNimi,
-  maaliTyypinNimi,
   muotoileEuro,
   muotoileValiEuro,
   tyoVaiheenNimi,
@@ -133,24 +132,30 @@ export default async function OsaSivu({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Hinta kategorioittain</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(kategoriahintaVastaus.data ?? []).length === 0 && (
-                <p className="text-sm text-muted-foreground">Ei hinnoiteltuja kategorioita.</p>
-              )}
-              <ul className="grid gap-1 text-sm">
-                {(kategoriahintaVastaus.data ?? []).map((k) => (
-                  <li key={k.maali_tyyppi} className="flex justify-between">
-                    <span>{maaliTyypinNimi(k.maali_tyyppi)}</span>
-                    <span className="text-muted-foreground">{muotoileEuro(k.hinta)}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          {naytaHinnat && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Suositushinta kategorioittain</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {kategoriaKustannukset.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Ei hinnoiteltuja kategorioita.
+                  </p>
+                )}
+                <ul className="grid gap-1 text-sm">
+                  {kategoriaKustannukset.map((k) => (
+                    <li key={k.avain} className="flex justify-between">
+                      <span>{k.nimi}</span>
+                      <span className="text-muted-foreground">
+                        {muotoileValiEuro(k.suositusMin, k.suositusMax)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     );
