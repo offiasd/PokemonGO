@@ -6,6 +6,7 @@ import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Button } from "@/components/ui/button";
 import { MAALI_TYYPIT, VARISAVYT } from "@/lib/vakiot";
+import { laskeVarinKokonaishinta } from "@/lib/hinnat";
 import type { Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
 
 import { VarienSuodattimet } from "./varien-suodattimet";
@@ -102,6 +103,7 @@ export default async function VaritSivu({
                     vari={vari}
                     oletusHalytysraja={asetukset.oletus_halytysraja_g}
                     naytaHinnat={naytaHinnat}
+                    kokonaishinta={laskeVarinKokonaishinta(vari, asetukset)}
                   />
                 ))}
               </div>
