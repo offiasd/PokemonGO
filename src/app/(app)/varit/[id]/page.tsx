@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SaldoPalkki } from "@/components/saldo-palkki";
 import { maaliTyypinNimi, muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
-import { laskeVarinKokonaishinta, toimituskuluOletus } from "@/lib/hinnat";
+import { laskeVarinHintaerittely } from "@/lib/hinnat";
 
 import { paivitaVari } from "../actions";
 import { VariLomake } from "../vari-lomake";
@@ -41,11 +41,7 @@ export default async function VariSivu({
 
   const halytysraja = vari.halytysraja_g ?? asetukset.oletus_halytysraja_g;
 
-  const kulut = {
-    toimituskulu: vari.toimituskulu_per_kg ?? toimituskuluOletus(vari.alkupera, asetukset),
-    tulli: vari.tullimaksu_prosentti ?? asetukset.tullimaksu_prosentti_oletus,
-    alv: vari.alv_prosentti ?? asetukset.alv_prosentti_oletus,
-  };
+  const hinta = laskeVarinHintaerittely(vari, asetukset);
 
   const hinnoitteluKortti = (
     <Card>
@@ -55,33 +51,44 @@ export default async function VariSivu({
       <CardContent className="grid gap-2 text-sm sm:max-w-md">
         <div className="flex justify-between gap-2">
           <span className="text-muted-foreground">Ostohinta myyjältä (netto)</span>
-          <span>{muotoileEuro(vari.ostohinta_per_kg)}/kg</span>
+          <span>{muotoileEuro(hinta.ostohinta)}/kg</span>
         </div>
         <div className="flex justify-between gap-2">
           <span className="text-muted-foreground">
             Toimituskulu ({vari.alkupera}, asetuksista)
           </span>
-          <span>+{muotoileEuro(kulut.toimituskulu)}/kg</span>
+          <span>+{muotoileEuro(hinta.toimituskulu)}/kg</span>
         </div>
         {vari.alkupera !== "EU" && (
           <>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Tullimaksu (asetuksista)</span>
-              <span>+{kulut.tulli} %</span>
+            <div className="flex justify-between gap-2 border-t pt-2">
+              <span className="text-muted-foreground">Tullausarvo (sis. rahdin)</span>
+              <span>{muotoileEuro(hinta.tullausarvo)}/kg</span>
             </div>
             <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Maahantuonnin ALV (asetuksista)</span>
-              <span>+{kulut.alv} %</span>
+              <span className="text-muted-foreground">
+                Tullimaksu {hinta.tullimaksuProsentti} %
+              </span>
+              <span>+{muotoileEuro(hinta.tulli)}/kg</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">
+                Maahantuonnin ALV {hinta.alvProsentti} %
+              </span>
+              <span>+{muotoileEuro(hinta.alv)}/kg</span>
             </div>
           </>
         )}
         <div className="mt-1 flex justify-between gap-2 border-t pt-2 font-medium">
           <span>Kokonaishinta</span>
-          <span>{muotoileEuro(laskeVarinKokonaishinta(vari, asetukset))}/kg</span>
+          <span>{muotoileEuro(hinta.kokonaishinta)}/kg</span>
         </div>
         <p className="text-xs text-muted-foreground">
           Toimituskulu, tulli ja ALV tulevat Asetukset-sivulta ja lisätään hintaan
-          automaattisesti. Kokonaishintaa käytetään kaikissa kustannus- ja hinta-arvioissa.
+          automaattisesti.
+          {vari.alkupera !== "EU" &&
+            " Tulli ja ALV lasketaan myös rahdista, koska rahti kuuluu tullausarvoon."}{" "}
+          Kokonaishintaa käytetään kaikissa kustannus- ja hinta-arvioissa.
         </p>
       </CardContent>
     </Card>
