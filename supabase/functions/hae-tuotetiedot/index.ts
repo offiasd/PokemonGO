@@ -164,10 +164,15 @@ interface RaakaHinta {
 // Suositaan sivulle upotettua hinnoittelutaulukkoa (pricePerBaseQuantity +
 // startingQuantity), otetaan pienimmän aloitusmäärän mukainen (perushinta).
 // Fallbackina schema.org-tyylinen "priceCurrency"/"price"-pari.
+//
+// HUOM: monet sivustot (mm. Prismatic Powders) upottavat tämän JSON:in
+// palvelinkomponenttien striimauspayloadiin uudelleen JSON-merkkijonona,
+// jolloin lainausmerkit tulevat backslash-paettuina (\"pricePerBaseQuantity\").
+// Siksi jokainen " on regexissä valinnainen \? ennen sitä - matchaa molemmat.
 function poimiHinta(html: string): RaakaHinta | null {
   const tasoMatchit = [
     ...html.matchAll(
-      /"pricePerBaseQuantity":\{"currency":"([A-Z]{3})","amount":"([\d.]+)"[^}]*\},"startingQuantity":\{"value":([\d.]+),"unit":"([a-zA-Z]+)"/g
+      /\\?"pricePerBaseQuantity\\?":\{\\?"currency\\?":\\?"([A-Z]{3})\\?",\\?"amount\\?":\\?"([\d.]+)\\?"[^}]*\},\\?"startingQuantity\\?":\{\\?"value\\?":([\d.]+),\\?"unit\\?":\\?"([a-zA-Z]+)\\?"/g
     ),
   ];
   if (tasoMatchit.length > 0) {
@@ -176,8 +181,8 @@ function poimiHinta(html: string): RaakaHinta | null {
     return { hinta: Number(hintaStr), valuutta, yksikko };
   }
 
-  const currencyMatch = html.match(/"priceCurrency"\s*:\s*"([A-Z]{3})"/);
-  const priceMatch = html.match(/"price"\s*:\s*"([\d.]+)"/);
+  const currencyMatch = html.match(/\\?"priceCurrency\\?"\s*:\s*\\?"([A-Z]{3})\\?"/);
+  const priceMatch = html.match(/\\?"price\\?"\s*:\s*\\?"([\d.]+)\\?"/);
   if (currencyMatch && priceMatch) {
     return { hinta: Number(priceMatch[1]), valuutta: currencyMatch[1], yksikko: "kpl" };
   }
