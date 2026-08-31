@@ -95,7 +95,7 @@ export default async function VaritSivu({
                   ({ryhmanVarit.length})
                 </span>
               </h2>
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+              <div className="grid auto-rows-fr grid-cols-2 gap-4 lg:grid-cols-3">
                 {ryhmanVarit.map((vari) => (
                   <VariKortti
                     key={vari.id}
