@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SaldoPalkki } from "@/components/saldo-palkki";
 import { maaliTyypinNimi, muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
+import { laskeVarinKokonaishinta, toimituskuluOletus } from "@/lib/hinnat";
 
 import { paivitaVari } from "../actions";
 import { VariLomake } from "../vari-lomake";
@@ -38,11 +39,53 @@ export default async function VariSivu({
 
   const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
 
-  const { data: kokonaishinta } = naytaHinnat
-    ? await supabase.rpc("vari_kokonaishinta", { p_vari_id: id })
-    : { data: null };
-
   const halytysraja = vari.halytysraja_g ?? asetukset.oletus_halytysraja_g;
+
+  const kulut = {
+    toimituskulu: vari.toimituskulu_per_kg ?? toimituskuluOletus(vari.alkupera, asetukset),
+    tulli: vari.tullimaksu_prosentti ?? asetukset.tullimaksu_prosentti_oletus,
+    alv: vari.alv_prosentti ?? asetukset.alv_prosentti_oletus,
+  };
+
+  const hinnoitteluKortti = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Hinnoittelu</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-2 text-sm sm:max-w-md">
+        <div className="flex justify-between gap-2">
+          <span className="text-muted-foreground">Ostohinta myyjältä (netto)</span>
+          <span>{muotoileEuro(vari.ostohinta_per_kg)}/kg</span>
+        </div>
+        <div className="flex justify-between gap-2">
+          <span className="text-muted-foreground">
+            Toimituskulu ({vari.alkupera}, asetuksista)
+          </span>
+          <span>+{muotoileEuro(kulut.toimituskulu)}/kg</span>
+        </div>
+        {vari.alkupera !== "EU" && (
+          <>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Tullimaksu (asetuksista)</span>
+              <span>+{kulut.tulli} %</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Maahantuonnin ALV (asetuksista)</span>
+              <span>+{kulut.alv} %</span>
+            </div>
+          </>
+        )}
+        <div className="mt-1 flex justify-between gap-2 border-t pt-2 font-medium">
+          <span>Kokonaishinta</span>
+          <span>{muotoileEuro(laskeVarinKokonaishinta(vari, asetukset))}/kg</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Toimituskulu, tulli ja ALV tulevat Asetukset-sivulta ja lisätään hintaan
+          automaattisesti. Kokonaishintaa käytetään kaikissa kustannus- ja hinta-arvioissa.
+        </p>
+      </CardContent>
+    </Card>
+  );
 
   if (kayttaja.role === "admin") {
     return (
@@ -72,6 +115,8 @@ export default async function VariSivu({
             <TaydennaVarastoa variId={vari.id} />
           </CardContent>
         </Card>
+
+        {naytaHinnat && hinnoitteluKortti}
 
         <Card>
           <CardHeader>
@@ -145,23 +190,7 @@ export default async function VariSivu({
         )}
       </div>
 
-      {naytaHinnat && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Hinnoittelu</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 text-sm sm:max-w-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Ostohinta/kg</span>
-              <span>{muotoileEuro(vari.ostohinta_per_kg)}</span>
-            </div>
-            <div className="flex justify-between font-medium">
-              <span>Todellinen kokonaishinta/kg</span>
-              <span>{muotoileEuro(kokonaishinta ?? undefined)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {naytaHinnat && hinnoitteluKortti}
 
       {(vari.ohjeet ||
         vari.ohje_tiedosto_url ||

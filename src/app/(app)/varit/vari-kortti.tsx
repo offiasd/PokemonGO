@@ -41,10 +41,13 @@ export function VariKortti({
   vari,
   oletusHalytysraja,
   naytaHinnat,
+  kokonaishinta,
 }: {
   vari: VariRow;
   oletusHalytysraja: number;
   naytaHinnat: boolean;
+  /** Ostohinta + toimituskulu + tulli + ALV (asetusten arvoilla). */
+  kokonaishinta: number;
 }) {
   return (
     <Link href={`/varit/${vari.id}`} className="block h-full">
@@ -109,10 +112,7 @@ export function VariKortti({
             )}
           </div>
           {naytaHinnat && (
-            <TietoRivi
-              otsikko="Ostohinta"
-              arvo={`${muotoileEuro(vari.ostohinta_per_kg)}/kg`}
-            />
+            <TietoRivi otsikko="Hinta" arvo={`${muotoileEuro(kokonaishinta)}/kg`} />
           )}
         </CardContent>
       </Card>
