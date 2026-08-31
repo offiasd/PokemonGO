@@ -21,8 +21,8 @@ export function VariKortti({
   return (
     <Link href={`/varit/${vari.id}`}>
       <Card className={!vari.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"}>
-        <CardHeader>
-          <div className="flex items-start gap-3">
+        <CardHeader className="grid gap-3">
+          <div className="flex items-start justify-between gap-2">
             <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
               {vari.kuva_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -35,30 +35,28 @@ export function VariKortti({
                 <Paintbrush className="size-5 text-muted-foreground" />
               )}
             </div>
-            <div className="flex flex-1 items-start justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  {vari.varisavy && (
-                    <span
-                      className="inline-block size-3 shrink-0 rounded-full border"
-                      style={{ backgroundColor: VARISAVYN_VARIKOODI[vari.varisavy] }}
-                      title={varisavynNimi(vari.varisavy)}
-                    />
-                  )}
-                  {vari.nimi}
-                </CardTitle>
-                <CardDescription>{vari.valmistaja ?? "Valmistaja tuntematon"}</CardDescription>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <Badge variant="outline">{vari.alkupera}</Badge>
-                {!vari.aktiivinen && <Badge variant="secondary">Poistettu</Badge>}
-              </div>
+            <div className="flex flex-col items-end gap-1">
+              <Badge variant="outline">{vari.alkupera}</Badge>
+              {!vari.aktiivinen && <Badge variant="secondary">Poistettu</Badge>}
             </div>
+          </div>
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              {vari.varisavy && (
+                <span
+                  className="inline-block size-3 shrink-0 rounded-full border"
+                  style={{ backgroundColor: VARISAVYN_VARIKOODI[vari.varisavy] }}
+                  title={varisavynNimi(vari.varisavy)}
+                />
+              )}
+              {vari.nimi}
+            </CardTitle>
+            <CardDescription>{vari.valmistaja ?? "Valmistaja tuntematon"}</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="grid gap-3">
           <div className="grid gap-1">
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between gap-2 text-sm">
               <span className="text-muted-foreground">Saldo</span>
               <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
             </div>
@@ -67,9 +65,9 @@ export function VariKortti({
               halytysrajaG={vari.halytysraja_g ?? oletusHalytysraja}
             />
             {vari.varattu_g > 0 && (
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>Varattu keskeneräisiin töihin</span>
-                <span>
+                <span className="text-right">
                   {muotoileGrammat(vari.varattu_g)} (käytettävissä{" "}
                   {muotoileGrammat(vari.saldo_g - vari.varattu_g)})
                 </span>
@@ -77,7 +75,7 @@ export function VariKortti({
             )}
           </div>
           {naytaHinnat && (
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between gap-2 text-sm">
               <span className="text-muted-foreground">Ostohinta</span>
               <span className="font-medium">{muotoileEuro(vari.ostohinta_per_kg)}/kg</span>
             </div>
