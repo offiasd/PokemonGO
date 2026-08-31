@@ -171,6 +171,9 @@ export function VariLomake({
       if (data?.tyyppi) {
         setTyyppi(data.tyyppi as MaaliTyyppi);
       }
+      if (data?.varisavy) {
+        setVarisavy(data.varisavy as Varisavy);
+      }
       if (data?.alkupera) {
         setAlkupera(data.alkupera as Alkupera);
       }

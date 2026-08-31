@@ -1,8 +1,10 @@
 // Supabase Edge Function: "Hae tiedot" -painike värin muokkausnäkymässä.
 // Admin antaa linkin valmistajan tuotesivulle -> yritetään poimia sivun
 // julkisesta HTML-sisällöstä (Open Graph -tagit + sivulle upotettu JSON):
-//   - nimi, valmistaja, tuotekuva (täysikokoinen jos löytyy)
-//   - kiiltoaste ja maalin tyyppi (solid/transparent/candy/illusion/metallic)
+//   - nimi (ilman valmistajan tuotekoodia, esim. "(PMS-11514)"), valmistaja,
+//     tuotekuva (täysikokoinen jos löytyy)
+//   - kiiltoaste ja maalin tyyppi (solid/transparent/candy/illusion/metallic/pohjavari)
+//   - värisävy suodatusta varten (punainen, sininen, ...) - ei lakoille
 //   - pohjavärivaatimus tyypin perusteella (candy/illusion/transparent)
 //   - tuotekohtainen ohje-/datasheet-PDF (ei yleistä levitysopasta tai SDS:ää)
 //   - hinta: muunnetaan tarvittaessa lb->kg ja valuutta EUR:ksi (frankfurter.app,
@@ -18,7 +20,29 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
 type Alkupera = "EU" | "USA" | "muu";
-type MaaliTyyppi = "solid" | "transparent" | "candy" | "illusion" | "metallic" | "muu";
+type MaaliTyyppi =
+  | "solid"
+  | "transparent"
+  | "candy"
+  | "illusion"
+  | "metallic"
+  | "pohjavari"
+  | "muu";
+type Varisavy =
+  | "punainen"
+  | "oranssi"
+  | "keltainen"
+  | "vihrea"
+  | "sininen"
+  | "liila"
+  | "pinkki"
+  | "musta"
+  | "harmaa"
+  | "valkoinen"
+  | "hopea"
+  | "kultainen"
+  | "bronssi"
+  | "ruskea";
 
 interface HaeTiedotVastaus {
   nimi: string | null;
@@ -27,6 +51,7 @@ interface HaeTiedotVastaus {
   ohje_tiedosto_url: string | null;
   kiiltoaste: string | null;
   tyyppi: MaaliTyyppi | null;
+  varisavy: Varisavy | null;
   vaatii_pohjavarin: boolean;
   pohjavari_kuvaus: string | null;
   alkupera: Alkupera | null;
@@ -70,17 +95,21 @@ function absoluuttinenUrl(url: string | null, baseUrl: string): string | null {
   }
 }
 
+// Valmistajan tuotekoodia suluissa (esim. "Illusion Cherry (PMS-11514)") ei
+// tallenneta - se ei kerro mitään maalista ja sotkee nimen listoissa.
+function poistaTuotekoodi(nimi: string): string {
+  return nimi.replace(/\s*\([A-Za-z0-9][A-Za-z0-9-]*\)/g, "").trim();
+}
+
 // og:title on usein muotoa "Nimi (KOODI) - Kuvaus | Sivuston nimi".
-// Poimitaan "Nimi (KOODI)" jos mahdollista, muuten ensimmäinen "|"-osa.
+// Poimitaan pelkkä nimi: katkaistaan koodiin, muuten ensimmäiseen "|"-osaan.
 function poimiNimi(html: string): string | null {
   const ogTitle = poimiMeta(html, "og:title");
   if (!ogTitle) return null;
   const otsikko = dekoodaaHtmlEntiteetit(ogTitle).trim();
-  const koodiMatch = otsikko.match(/^(.*?)\s*\(([A-Za-z0-9-]+)\)/);
-  if (koodiMatch) {
-    return `${koodiMatch[1].trim()} (${koodiMatch[2].trim()})`;
-  }
-  return otsikko.split("|")[0].trim();
+  const koodiMatch = otsikko.match(/^(.*?)\s*\([A-Za-z0-9][A-Za-z0-9-]*\)/);
+  const nimi = poistaTuotekoodi(koodiMatch ? koodiMatch[1] : otsikko.split("|")[0]);
+  return nimi || null;
 }
 
 function poimiValmistaja(html: string): string | null {
@@ -122,14 +151,127 @@ function poimiKiiltoaste(teksti: string): string | null {
   return pelkkaLuokka ? pelkkaLuokka[1].trim() : null;
 }
 
-function poimiTyyppi(teksti: string): MaaliTyyppi | null {
-  const t = teksti.toLowerCase();
-  if (/\bcandy\b/.test(t)) return "candy";
-  if (/\billusion\b/.test(t)) return "illusion";
-  if (/\btransparent\b/.test(t)) return "transparent";
-  if (/\bmetallic\b/.test(t)) return "metallic";
-  if (/\bsolid\b/.test(t)) return "solid";
-  return null;
+// meta name="..." (description, keywords) - täydentää og-tageja.
+function poimiMetaNimella(html: string, name: string): string | null {
+  const re1 = new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, "i");
+  const re2 = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, "i");
+  return html.match(re1)?.[1] ?? html.match(re2)?.[1] ?? null;
+}
+
+// Sivulle upotetusta JSON:ista löytyy usein tuotteen luokittelu (kokoelma,
+// sarja, kategoria, murupolku) - se kertoo maalin tyylin luotettavammin kuin
+// markkinointiteksti. Lainausmerkit voivat olla backslash-paettuina, ks. poimiHinta.
+const LUOKITTELUAVAIMET = [
+  "category",
+  "categories",
+  "collection",
+  "collections",
+  "series",
+  "productType",
+  "product_type",
+  "colorFamily",
+  "color_family",
+  "family",
+  "breadcrumb",
+  "tags",
+];
+
+function poimiLuokittelut(html: string): string {
+  const osumat: string[] = [];
+  for (const avain of LUOKITTELUAVAIMET) {
+    const re = new RegExp(`\\\\?"${avain}\\\\?"\\s*:\\s*\\\\?"([^"\\\\]{1,60})\\\\?"`, "gi");
+    for (const m of html.matchAll(re)) osumat.push(m[1]);
+  }
+  return dekoodaaHtmlEntiteetit(osumat.join(" "));
+}
+
+// Tunnistusjärjestys ratkaisee: illusion- ja candy-sivut mainitsevat lähes aina
+// myös lakan ("clear top coat") ja pohjavärin, joten erikoismaalit tarkistetaan
+// ensin ja yleisemmät tyypit vasta niiden jälkeen.
+const TYYPPI_AVAINSANAT: [MaaliTyyppi, RegExp][] = [
+  ["illusion", /\b(illusions?|illuusio)\b/i],
+  ["candy", /\b(cand(?:y|ies)|kandi)\b/i],
+  [
+    "transparent",
+    /\b(clears?|clear\s?coats?|clearcoats?|top\s?coats?|topcoats?|transparents?|translucent|lakka|lakat|kirkaslakka)\b/i,
+  ],
+  ["pohjavari", /\b(base\s?coats?|basecoats?|primers?|undercoats?|pohjav[äa]ri|pohjamaali)\b/i],
+  [
+    "metallic",
+    /\b(metallics?|metallic-|metalli(?:nen|set)?|pearlescent|pearls?|micas?|sparkles?|anodized)\b/i,
+  ],
+  ["solid", /\b(solids?|ral\s?\d{3,4}|flat\s?colou?rs?|yksiv[äa]rinen)\b/i],
+];
+
+function tunnistaTyyppi(teksti: string): MaaliTyyppi | null {
+  const osuma = TYYPPI_AVAINSANAT.find(([, avainsana]) => avainsana.test(teksti));
+  return osuma ? osuma[0] : null;
+}
+
+// Tunnistus kolmessa portaassa luotettavuusjärjestyksessä: tuotteen nimi on
+// vahvin signaali ("Illusion Cherry", "Clear Vision"), sitten sivun oma
+// luokittelu ("Candies", "Clears") ja vasta viimeisenä markkinointiteksti -
+// se mainitsee lakkasivullakin helposti candyt ja illusionit.
+function poimiTyyppi(
+  nimi: string | null,
+  luokittelut: string,
+  kuvausTeksti: string
+): MaaliTyyppi | null {
+  return (
+    (nimi ? tunnistaTyyppi(nimi) : null) ??
+    tunnistaTyyppi(luokittelut) ??
+    tunnistaTyyppi(kuvausTeksti)
+  );
+}
+
+// Sama heuristiikka kuin sovelluksen paattelyVarisavy (src/lib/vakiot.ts) -
+// pidä listat synkassa. Järjestys ratkaisee kun nimi osuu useampaan sävyyn
+// (esim. "Golden Bronze"): metallit ensin, sitten akromaattiset, sitten muut.
+const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
+  ["hopea", /\b(silvers?|chrome|chromium|hopea|kromi)\b/i],
+  ["kultainen", /\b(golds?|golden|kulta|kultainen)\b/i],
+  ["bronssi", /\b(bronzes?|coppers?|pronssi|kupari|bronssi)\b/i],
+  ["musta", /\b(blacks?|musta|onyx|jet|ebony)\b/i],
+  ["valkoinen", /\b(whites?|valkoinen|pearl|ivory)\b/i],
+  ["harmaa", /\b(gr[ae]ys?|harmaa|graphite|gunmetal|charcoal|slate)\b/i],
+  ["ruskea", /\b(browns?|ruskea|chocolate|coffee|mocha|tan|chestnut|beige)\b/i],
+  ["punainen", /\b(reds?|punainen|ruby|cherry|crimson|scarlet|maroon)\b/i],
+  ["oranssi", /\b(oranges?|oranssi|tangerine|amber)\b/i],
+  ["keltainen", /\b(yellows?|keltainen|lemon|banana|sunflower)\b/i],
+  ["vihrea", /\b(greens?|vihre[äa]|lime|emerald|olive|mint|forest)\b/i],
+  ["sininen", /\b(blues?|sininen|navy|azure|cobalt|teal|sky)\b/i],
+  ["liila", /\b(purples?|violets?|liila|lilac|lavender|plum|grape)\b/i],
+  ["pinkki", /\b(pinks?|pinkki|magenta|fuchsia|rose|salmon)\b/i],
+];
+
+function tunnistaVarisavy(teksti: string): Varisavy | null {
+  const osuma = VARISAVY_AVAINSANAT.find(([, avainsana]) => avainsana.test(teksti));
+  return osuma ? osuma[0] : null;
+}
+
+// Markkinointiteksti mainitsee helposti muitakin värejä ("looks great over
+// black"), joten siitä hyväksytään sävy vain jos koko teksti puhuu yhdestä
+// ainoasta sävystä. Muuten jätetään tyhjäksi - admin valitsee lomakkeelta.
+function ainoaSavyTekstissa(teksti: string): Varisavy | null {
+  const osumat = VARISAVY_AVAINSANAT.filter(([, avainsana]) => avainsana.test(teksti));
+  return osumat.length === 1 ? osumat[0][0] : null;
+}
+
+// Värisävy on vain suodatusta varten. Lakoille sitä ei aseteta (kirkas maali,
+// ei omaa sävyä). Nimi ratkaisee ensin, sitten sivun luokittelu ("Reds",
+// "Blues") ja viimeisenä yksiselitteinen kuvausteksti.
+function poimiVarisavy(
+  tyyppi: MaaliTyyppi | null,
+  nimi: string | null,
+  luokittelut: string,
+  kuvausTeksti: string
+): Varisavy | null {
+  if (tyyppi === "transparent") return null;
+  return (
+    (nimi ? tunnistaVarisavy(nimi) : null) ??
+    tunnistaVarisavy(luokittelut) ??
+    ainoaSavyTekstissa(kuvausTeksti)
+  );
 }
 
 function poimiPohjavariKuvaus(tyyppi: MaaliTyyppi | null, html: string): string | null {
@@ -287,6 +429,7 @@ Deno.serve(async (req) => {
         ohje_tiedosto_url: null,
         kiiltoaste: null,
         tyyppi: null,
+        varisavy: null,
         vaatii_pohjavarin: false,
         pohjavari_kuvaus: null,
         alkupera: null,
@@ -303,10 +446,16 @@ Deno.serve(async (req) => {
     }
 
     const kuvausTeksti = dekoodaaHtmlEntiteetit(
-      `${poimiMeta(html, "og:title") ?? ""} ${poimiMeta(html, "og:description") ?? ""}`
+      `${poimiMeta(html, "og:title") ?? ""} ${poimiMeta(html, "og:description") ?? ""} ${
+        poimiMetaNimella(html, "description") ?? ""
+      } ${poimiMetaNimella(html, "keywords") ?? ""}`
     );
 
-    const tyyppi = poimiTyyppi(kuvausTeksti);
+    const nimi = poimiNimi(html);
+    const luokittelut = poimiLuokittelut(html);
+
+    const tyyppi = poimiTyyppi(nimi, luokittelut, kuvausTeksti);
+    const varisavy = poimiVarisavy(tyyppi, nimi, luokittelut, kuvausTeksti);
     const vaatiiPohjavarin = tyyppi === "candy" || tyyppi === "illusion" || tyyppi === "transparent";
 
     const raakaHinta = poimiHinta(html);
@@ -332,12 +481,13 @@ Deno.serve(async (req) => {
     }
 
     const vastaus: HaeTiedotVastaus = {
-      nimi: poimiNimi(html),
+      nimi,
       valmistaja: poimiValmistaja(html),
       kuva_url: poimiKuva(html, url),
       ohje_tiedosto_url: poimiOhjeTiedosto(html, url),
       kiiltoaste: poimiKiiltoaste(kuvausTeksti),
       tyyppi,
+      varisavy,
       vaatii_pohjavarin: vaatiiPohjavarin,
       pohjavari_kuvaus: poimiPohjavariKuvaus(tyyppi, html),
       alkupera: poimiAlkupera(html),
