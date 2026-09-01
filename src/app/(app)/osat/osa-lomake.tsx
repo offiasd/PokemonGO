@@ -81,11 +81,21 @@ function VaiheRivi({
   );
 }
 
+// Toinen maalikerros kategoriaa kohden. Solidilla lakkaus on valinnainen
+// lisä, muilla pakollinen osa työtä.
 const TOINEN_KULUTUS_LABEL: Partial<Record<MyytavaMaaliTyyppi, string>> = {
+  solid: "Lakkauksen kulutus (g)",
   candy: "Pohjavärin kulutus (g)",
   metallic: "Lakan kulutus (g)",
   illusion: "Lakan kulutus (g)",
 };
+
+// Solidin valinnaisen lakkauksen kulutus on osan oma sarake
+// (osat.lakkaus_kulutus_g), muiden kategorioiden toinen kulutus tallentuu
+// kategoriahinnan riville.
+function toisenKulutuksenKentta(arvo: MyytavaMaaliTyyppi): string {
+  return arvo === "solid" ? "lakkaus_kulutus_g" : `kategoria_${arvo}_toinen_kulutus`;
+}
 
 function KategoriaRivi({
   arvo,
@@ -104,6 +114,8 @@ function KategoriaRivi({
 }) {
   const [kaytossa, setKaytossa] = useState(oletusKaytossa);
   const toinenLabel = TOINEN_KULUTUS_LABEL[arvo];
+  const toinenKentta = toisenKulutuksenKentta(arvo);
+  const lakkausValinnainen = arvo === "solid";
 
   return (
     <div className="grid gap-3 rounded-md border p-3">
@@ -149,23 +161,24 @@ function KategoriaRivi({
           </div>
           {toinenLabel && (
             <div className="grid gap-1">
-              <Label
-                htmlFor={`kategoria_${arvo}_toinen_kulutus`}
-                className="text-xs text-muted-foreground"
-              >
+              <Label htmlFor={toinenKentta} className="text-xs text-muted-foreground">
                 {toinenLabel}
               </Label>
               <Input
-                id={`kategoria_${arvo}_toinen_kulutus`}
-                name={`kategoria_${arvo}_toinen_kulutus`}
+                id={toinenKentta}
+                name={toinenKentta}
                 type="number"
                 min="0"
                 step="1"
+                placeholder={lakkausValinnainen ? "Ei lakkausta" : undefined}
                 defaultValue={oletusToinenKulutus ?? ""}
               />
             </div>
           )}
         </div>
+      )}
+      {lakkausValinnainen && !kaytossa && (
+        <input type="hidden" name={toinenKentta} value={oletusToinenKulutus ?? ""} />
       )}
     </div>
   );
@@ -247,7 +260,8 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
             Vain maalinkulutus on pakollinen - asiakashinta lasketaan sen perusteella
             automaattisesti värin ostohinnasta ja katteesta. Kiinteä hinta on valinnainen ja
             ohittaa automaattisen laskennan Osat-listan hintanäytössä, jos se on asetettu. Vain
-            valitut kategoriat ovat myytävissä tälle osalle Työt-sivulla.
+            valitut kategoriat ovat myytävissä tälle osalle Työt-sivulla. Perusvärin lakkauksen
+            kulutus on valinnainen: tyhjänä lakkausta ei tarjota tälle osalle.
           </p>
         </div>
         <div className="grid gap-3">
@@ -261,25 +275,14 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
                 oletusKaytossa={Boolean(olemassaOleva)}
                 oletusHinta={olemassaOleva?.hinta ?? null}
                 oletusKulutus={olemassaOleva?.arvioitu_kulutus_g ?? null}
-                oletusToinenKulutus={olemassaOleva?.toinen_arvioitu_kulutus_g ?? null}
+                oletusToinenKulutus={
+                  arvo === "solid"
+                    ? (osa?.lakkaus_kulutus_g ?? null)
+                    : (olemassaOleva?.toinen_arvioitu_kulutus_g ?? null)
+                }
               />
             );
           })}
-        </div>
-        <div className="grid gap-3 rounded-md border p-3 sm:max-w-md">
-          <div className="grid gap-1">
-            <Label htmlFor="lakkaus_kulutus_g" className="text-xs text-muted-foreground">
-              Lakkauksen maalinkulutus (g) - tyhjä tai 0 = lakkausta ei tarjota
-            </Label>
-            <Input
-              id="lakkaus_kulutus_g"
-              name="lakkaus_kulutus_g"
-              type="number"
-              step="1"
-              min="0"
-              defaultValue={osa?.lakkaus_kulutus_g ?? ""}
-            />
-          </div>
         </div>
       </div>
 
