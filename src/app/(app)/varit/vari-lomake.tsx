@@ -202,8 +202,15 @@ export function VariLomake({
    * nimi + valmistaja -parilla. Värejä on kymmeniä, joten koko lista haetaan
    * kerralla ja vertailu tehdään selaimessa - näin linkit voi normalisoida
    * samalla tavalla kuin lomakkeella.
+   *
+   * Tarkistus tehdään vain uutta väriä luotaessa. Olemassa olevalla värillä
+   * "Hae tiedot" on päivitystyökalu - sillä haetaan saman tuotteen muuttuneet
+   * tiedot valmistajalta - joten duplikaattivaroitus olisi siellä pelkkää
+   * kohinaa.
    */
   async function etsiDuplikaatti(linkki: string, haettuNimi?: string | null) {
+    if (vari) return null;
+
     const supabase = createClient();
     const { data } = await supabase
       .from("varit")
@@ -215,7 +222,6 @@ export function VariLomake({
     const kohdeValmistaja = normalisoiNimi(valmistaja);
 
     for (const rivi of data) {
-      if (vari && rivi.id === vari.id) continue;
       const poistettuLisa = rivi.aktiivinen ? "" : " (poistettu käytöstä)";
       if (kohdeLinkki && normalisoiLinkki(rivi.myyja_linkki) === kohdeLinkki) {
         return { id: rivi.id, nimi: rivi.nimi, peruste: `sama tuotesivu${poistettuLisa}` };

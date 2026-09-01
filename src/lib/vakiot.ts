@@ -223,7 +223,7 @@ export const VARISAVYN_VARIKOODI: Record<Varisavy, string> = {
 // pidä ne synkassa, jotta "Hae tiedot" ja "Tunnista nimestä" päätyvät samaan
 // sävyyn. Monikot mukana valmistajien kategorianimiä varten ("Reds", "Blues").
 const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
-  ["hopea", /\b(silvers?|chrome|chromium|hopea|kromi)\b/i],
+  ["hopea", /\b(silvers?|hopea)\b/i],
   ["kultainen", /\b(golds?|golden|kulta|kultainen)\b/i],
   ["bronssi", /\b(bronzes?|coppers?|pronssi|kupari|bronssi)\b/i],
   ["musta", /\b(blacks?|musta|onyx|jet|ebony)\b/i],
@@ -237,6 +237,10 @@ const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
   ["sininen", /\b(blues?|sininen|navy|azure|cobalt|teal|sky)\b/i],
   ["liila", /\b(purples?|violets?|liila|lilac|lavender|plum|grape)\b/i],
   ["pinkki", /\b(pinks?|pinkki|magenta|fuchsia|rose|salmon)\b/i],
+  // Kromi on pinnan kiilto, ei sävy: "Bronze Chrome" on bronssi ja "Gold
+  // Chrome" kultainen. Siksi kromi on vasta viimeisenä, kun mikään varsinainen
+  // värisana ei osunut - silloin "Super Chrome" on hopea.
+  ["hopea", /\b(chromes?|chromium|kromi)\b/i],
 ];
 
 export function paattelyVarisavy(nimi: string): Varisavy | null {

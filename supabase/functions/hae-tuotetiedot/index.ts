@@ -210,20 +210,33 @@ const TYYPPI_AVAINSANAT: [MaaliTyyppi, RegExp][] = [
   ],
   [
     "metallic",
-    /\b(metallics?|metallic-|metalli(?:nen|set)?|pearlescent|pearls?|micas?|sparkles?|anodized)\b/i,
+    /\b(metallics?|metallic-|metalli(?:nen|set)?|pearlescent|pearls?|micas?|sparkles?|anodized|chromes?|chromium|kromi)\b/i,
   ],
   ["solid", /\b(solids?|ral\s?\d{3,4}|flat\s?colou?rs?|yksiv[äa]rinen)\b/i],
 ];
 
-function tunnistaTyyppi(teksti: string): MaaliTyyppi | null {
-  const osuma = TYYPPI_AVAINSANAT.find(([, avainsana]) => avainsana.test(teksti));
+function tunnistaTyyppi(teksti: string, ohitettavat: MaaliTyyppi[] = []): MaaliTyyppi | null {
+  const osuma = TYYPPI_AVAINSANAT.find(
+    ([tyyppi, avainsana]) => !ohitettavat.includes(tyyppi) && avainsana.test(teksti)
+  );
   return osuma ? osuma[0] : null;
 }
 
+// Lakka ja pohjaväri ovat oheistuotteita, joita markkinointiteksti suosittelee
+// värin kanssa käytettäväksi: "a clear top coat is recommended for exterior
+// use", "apply over a base coat". Niistä päättely meni pieleen - metallic,
+// jolle suositellaan lakkausta, tunnistui lakaksi. Siksi kuvaustekstistä ei
+// enää hyväksytä näitä kahta; ne luetaan vain nimestä ja sivun omasta
+// luokittelusta, joissa sana tarkoittaa tuotetta itseään.
+//
+// Candy ja illusion sen sijaan pysyvät mukana: ne mainitaan kuvauksessa
+// yleensä juuri siksi että tuote ON candy tai illusion, ja kummankin sivun
+// nimi tai luokittelu ei aina kerro tyyppiä.
+const KUVAUKSESTA_JATETTAVAT: MaaliTyyppi[] = ["transparent", "pohjavari"];
+
 // Tunnistus kolmessa portaassa luotettavuusjärjestyksessä: tuotteen nimi on
 // vahvin signaali ("Illusion Cherry", "Clear Vision"), sitten sivun oma
-// luokittelu ("Candies", "Clears") ja vasta viimeisenä markkinointiteksti -
-// se mainitsee lakkasivullakin helposti candyt ja illusionit.
+// luokittelu ("Candies", "Clears") ja vasta viimeisenä markkinointiteksti.
 function poimiTyyppi(
   nimi: string | null,
   luokittelut: string,
@@ -232,7 +245,7 @@ function poimiTyyppi(
   return (
     (nimi ? tunnistaTyyppi(nimi) : null) ??
     tunnistaTyyppi(luokittelut) ??
-    tunnistaTyyppi(kuvausTeksti)
+    tunnistaTyyppi(kuvausTeksti, KUVAUKSESTA_JATETTAVAT)
   );
 }
 
@@ -240,7 +253,7 @@ function poimiTyyppi(
 // pidä listat synkassa. Järjestys ratkaisee kun nimi osuu useampaan sävyyn
 // (esim. "Golden Bronze"): metallit ensin, sitten akromaattiset, sitten muut.
 const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
-  ["hopea", /\b(silvers?|chrome|chromium|hopea|kromi)\b/i],
+  ["hopea", /\b(silvers?|hopea)\b/i],
   ["kultainen", /\b(golds?|golden|kulta|kultainen)\b/i],
   ["bronssi", /\b(bronzes?|coppers?|pronssi|kupari|bronssi)\b/i],
   ["musta", /\b(blacks?|musta|onyx|jet|ebony)\b/i],
@@ -254,6 +267,10 @@ const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
   ["sininen", /\b(blues?|sininen|navy|azure|cobalt|teal|sky)\b/i],
   ["liila", /\b(purples?|violets?|liila|lilac|lavender|plum|grape)\b/i],
   ["pinkki", /\b(pinks?|pinkki|magenta|fuchsia|rose|salmon)\b/i],
+  // Kromi on pinnan kiilto, ei sävy: "Bronze Chrome" on bronssi ja "Gold
+  // Chrome" kultainen. Siksi kromi on vasta viimeisenä, kun mikään varsinainen
+  // värisana ei osunut - silloin "Super Chrome" on hopea.
+  ["hopea", /\b(chromes?|chromium|kromi)\b/i],
 ];
 
 function tunnistaVarisavy(teksti: string): Varisavy | null {
