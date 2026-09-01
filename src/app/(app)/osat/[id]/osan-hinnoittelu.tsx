@@ -46,7 +46,6 @@ export function OsanHinnoittelu({
   manuaalinenHinta,
   kateProsentti,
   kateKiintea,
-  lakkausLisahinta,
   perusTyokustannusKerroksittain,
   pesunKustannus,
   maalinpoistonKustannus,
@@ -57,7 +56,6 @@ export function OsanHinnoittelu({
   manuaalinenHinta: number | null;
   kateProsentti: number;
   kateKiintea: number;
-  lakkausLisahinta: number | null;
   /** Työkustannus värien lukumäärän mukaan: [1 väri, 2 väriä]. */
   perusTyokustannusKerroksittain: number[];
   pesunKustannus: number;
@@ -140,11 +138,11 @@ export function OsanHinnoittelu({
       manuaalinenHinta ??
       Math.round((kustannus * (1 + kateProsentti / 100) + kateKiintea) * 100) / 100;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
-    const lakkausLisa = kategoria === "solid" && lakkausValittu ? (lakkausLisahinta ?? 0) : 0;
+
     const pesuLisa = pesuValittu ? pesunKustannus : 0;
     const maalinpoistoLisa = maalinpoistoValittu ? maalinpoistonKustannus : 0;
     return (
-      Math.round((kategorianHinta + lisa + lakkausLisa + pesuLisa + maalinpoistoLisa) * 100) / 100
+      Math.round((kategorianHinta + lisa + pesuLisa + maalinpoistoLisa) * 100) / 100
     );
   }, [
     valittuKategoriahinta,
@@ -159,7 +157,6 @@ export function OsanHinnoittelu({
     kateKiintea,
     kategoria,
     lakkausValittu,
-    lakkausLisahinta,
     pesuValittu,
     pesunKustannus,
     maalinpoistoValittu,
@@ -253,7 +250,6 @@ export function OsanHinnoittelu({
             />
             <Label htmlFor="hinnoittelu_lakkaus" className="font-normal">
               Lisää lakkaus (kirkas topcoat)
-              {lakkausLisahinta ? ` - +${muotoileEuro(lakkausLisahinta)}` : ""}
             </Label>
           </div>
         )}

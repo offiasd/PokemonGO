@@ -23,7 +23,7 @@ export default async function UusiTyoSivu() {
     supabase
       .from("osat")
       .select(
-        "id, nimi, merkki, malli, lakkaus_lisahinta, lakkaus_kulutus_g, kate_prosentti, kate_kiintea, manuaalinen_hinta"
+        "id, nimi, merkki, malli, lakkaus_kulutus_g, kate_prosentti, kate_kiintea, manuaalinen_hinta"
       )
       .eq("aktiivinen", true)
       .order("nimi"),

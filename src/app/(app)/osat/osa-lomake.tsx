@@ -266,23 +266,10 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
             );
           })}
         </div>
-        <div className="grid gap-3 rounded-md border p-3 sm:grid-cols-2 sm:max-w-md">
-          <div className="grid gap-1">
-            <Label htmlFor="lakkaus_lisahinta" className="text-xs text-muted-foreground">
-              Valinnaisen lakkauksen lisähinta € (Solid/RAL, tyhjä = ei tarjota)
-            </Label>
-            <Input
-              id="lakkaus_lisahinta"
-              name="lakkaus_lisahinta"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={osa?.lakkaus_lisahinta ?? ""}
-            />
-          </div>
+        <div className="grid gap-3 rounded-md border p-3 sm:max-w-md">
           <div className="grid gap-1">
             <Label htmlFor="lakkaus_kulutus_g" className="text-xs text-muted-foreground">
-              Lakkauksen maalinkulutus (g)
+              Lakkauksen maalinkulutus (g) - tyhjä tai 0 = lakkausta ei tarjota
             </Label>
             <Input
               id="lakkaus_kulutus_g"

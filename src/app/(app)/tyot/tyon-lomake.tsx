@@ -42,7 +42,6 @@ interface Osa {
   nimi: string;
   merkki: string | null;
   malli: string | null;
-  lakkaus_lisahinta: number | null;
   lakkaus_kulutus_g: number | null;
   tyokustannusKerroksittain: number[];
   kateProsentti: number;
@@ -173,7 +172,12 @@ export function TyonLomake({
       valittuOsa.tyokustannusKerroksittain[0] ??
       0;
     let kustannus = (arvioituKulutusG / 1000) * valittuVari.kokonaishinta + tyokustannus;
-    if (pakollinenRooli && valittuToinenVari) {
+    // Myös valinnainen lakkaus kuluttaa maalia: sen grammat varataan varastosta
+    // (toinenArvioituKulutusG tallennetaan työriville), joten ne kuuluvat myös
+    // kustannukseen. Aiemmin tämä laskettiin vain pakollisille pohjaväreille ja
+    // lakoille, jolloin Työt-sivu antoi solid + lakkaus -työlle eri hinnan kuin
+    // osan oma kustannusarvio.
+    if (toinenVariAktiivinen && valittuToinenVari) {
       kustannus += (toinenArvioituKulutusG / 1000) * valittuToinenVari.kokonaishinta;
     }
     const kategorianHinta =
@@ -181,15 +185,13 @@ export function TyonLomake({
       Math.round((kustannus * (1 + valittuOsa.kateProsentti / 100) + valittuOsa.kateKiintea) * 100) /
         100;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
-    const lakkausLisa =
-      kategoria === "solid" && lakkausValittu ? (valittuOsa?.lakkaus_lisahinta ?? 0) : 0;
-    return Math.round((kategorianHinta + lisa + lakkausLisa) * 100) / 100;
+    return Math.round((kategorianHinta + lisa) * 100) / 100;
   }, [
     valittuKategoriahinta,
     valittuVari,
     valittuOsa,
     valittuToinenVari,
-    pakollinenRooli,
+    toinenVariAktiivinen,
     arvioituKulutusG,
     toinenArvioituKulutusG,
     kategoria,
@@ -365,9 +367,6 @@ export function TyonLomake({
               />
               <Label htmlFor="lakkaus_kytketty" className="font-normal">
                 Lisää lakkaus (kirkas topcoat)
-                {valittuOsa?.lakkaus_lisahinta
-                  ? ` - +${muotoileEuro(valittuOsa.lakkaus_lisahinta)}`
-                  : ""}
               </Label>
             </div>
           )}
