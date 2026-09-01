@@ -12,7 +12,6 @@ import {
   JARJESTYKSET,
   MAALI_TYYPIT,
   OLETUS_JARJESTYS,
-  SALDO_TILAT,
   VARISAVYN_VARIKOODI,
   VARISAVYT,
   lueLista,
@@ -79,7 +78,6 @@ export function VarienSuodattimet({
 
   const valitutTyypit = lueLista(searchParams.get("tyyppi"));
   const valitutSavyt = lueLista(searchParams.get("savy"));
-  const valitutSaldot = lueLista(searchParams.get("saldo"));
   const jarjestys = searchParams.get("jarjestys") ?? OLETUS_JARJESTYS;
   const naytaPoistetut = searchParams.get("naytaPoistetut") === "1";
 
@@ -107,7 +105,6 @@ export function VarienSuodattimet({
   const suodattimiaValittu =
     valitutTyypit.length +
     valitutSavyt.length +
-    valitutSaldot.length +
     (jarjestys !== OLETUS_JARJESTYS ? 1 : 0) +
     (naytaPoistetut ? 1 : 0);
 
@@ -128,36 +125,19 @@ export function VarienSuodattimet({
       {/* Maalityypit vasemmalla, värit keskellä, järjestys oikealla. Kapealla
           näytöllä osiot pinoutuvat allekkain samassa järjestyksessä. */}
       <div className="grid gap-5 rounded-lg border p-4 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_minmax(0,12rem)] lg:gap-6">
-        <div className="grid content-start gap-5">
-          <Osio otsikko="Saldo">
-            <div className="flex flex-wrap gap-2">
-              {SALDO_TILAT.map(({ arvo, nimi, luokka }) => (
-                <SuodatinNappi
-                  key={arvo}
-                  valittu={valitutSaldot.includes(arvo)}
-                  onClick={() => vaihdaArvo("saldo", arvo)}
-                >
-                  <span className={cn("inline-block size-3 shrink-0 rounded-full", luokka)} />
-                  {nimi}
-                </SuodatinNappi>
-              ))}
-            </div>
-          </Osio>
-
-          <Osio otsikko="Maalityyppi">
-            <div className="flex flex-wrap gap-2">
-              {MAALI_TYYPIT.map(({ arvo, nimi }) => (
-                <SuodatinNappi
-                  key={arvo}
-                  valittu={valitutTyypit.includes(arvo)}
-                  onClick={() => vaihdaArvo("tyyppi", arvo)}
-                >
-                  {nimi}
-                </SuodatinNappi>
-              ))}
-            </div>
-          </Osio>
-        </div>
+        <Osio otsikko="Maalityyppi">
+          <div className="flex flex-wrap gap-2">
+            {MAALI_TYYPIT.map(({ arvo, nimi }) => (
+              <SuodatinNappi
+                key={arvo}
+                valittu={valitutTyypit.includes(arvo)}
+                onClick={() => vaihdaArvo("tyyppi", arvo)}
+              >
+                {nimi}
+              </SuodatinNappi>
+            ))}
+          </div>
+        </Osio>
 
         <Osio otsikko="Väri" className="lg:border-l lg:pl-6">
           <div className="flex flex-wrap gap-2">
@@ -213,13 +193,7 @@ export function VarienSuodattimet({
                   size="sm"
                   className="justify-start px-0 text-muted-foreground lg:justify-center lg:px-3"
                   onClick={() =>
-                    paivita({
-                      tyyppi: null,
-                      savy: null,
-                      saldo: null,
-                      jarjestys: null,
-                      naytaPoistetut: null,
-                    })
+                    paivita({ tyyppi: null, savy: null, jarjestys: null, naytaPoistetut: null })
                   }
                 >
                   Tyhjennä ({suodattimiaValittu})

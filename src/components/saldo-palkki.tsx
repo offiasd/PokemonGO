@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { SALDO_TILAT, saldonTila } from "@/lib/vakiot";
 
 interface SaldoPalkkiProps {
   saldoG: number;
@@ -19,10 +18,9 @@ export function SaldoPalkki({ saldoG, halytysrajaG, maksimiG, className }: Saldo
   const prosentti = Math.max(0, Math.min(100, (saldoG / yläraja) * 100));
   const halytysrajaProsentti = Math.max(0, Math.min(100, (halytysrajaG / yläraja) * 100));
 
-  // Kynnykset ovat vakiot.ts:n saldonTila-funktiossa, jotta Värit-sivun
-  // saldosuodatin ja tämä palkki eivät voi ajautua eri linjoille.
-  const tila = saldonTila(saldoG, halytysrajaG);
-  const vari = SALDO_TILAT.find((t) => t.arvo === tila)!.luokka;
+  const suhde = halytysrajaG > 0 ? saldoG / halytysrajaG : saldoG > 0 ? 2 : 0;
+  const vari =
+    suhde <= 1 ? "bg-destructive" : suhde <= 1.5 ? "bg-warning" : "bg-success";
 
   return (
     <div className={cn("relative h-2.5 w-full overflow-hidden rounded-full bg-muted", className)}>
