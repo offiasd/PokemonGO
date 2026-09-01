@@ -149,7 +149,7 @@ export async function paivitaVari(
 
   revalidatePath("/varit");
   revalidatePath(`/varit/${variId}`);
-  return { virhe: null };
+  return { virhe: null, viesti: "Muutokset tallennettu." };
 }
 
 export async function asetaVarinAktiivisuus(variId: string, aktiivinen: boolean) {

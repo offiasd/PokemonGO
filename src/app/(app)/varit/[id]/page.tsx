@@ -79,6 +79,10 @@ export default async function VariSivu({
           <TaydennaVarastoa variId={vari.id} />
           {/* key pakottaa kentän ajan tasalle aina kun saldo muuttuu. */}
           <KorjaaSaldo key={vari.saldo_g} variId={vari.id} nykyinenSaldoG={vari.saldo_g} />
+          <p className="text-xs text-muted-foreground">
+            Varastosaldon muutokset tallentuvat heti - niitä ei tarvitse erikseen tallentaa
+            alempaa lomakkeelta.
+          </p>
         </div>
 
         <div className="grid gap-1 border-t pt-3 text-sm">

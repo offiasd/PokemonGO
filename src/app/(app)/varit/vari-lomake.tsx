@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
+import { TallentamattomatVaroitus } from "@/components/tallentamattomat-varoitus";
 import { createClient } from "@/lib/supabase/client";
 import type { Alkupera, Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
 import {
@@ -130,6 +131,34 @@ export function VariLomake({
   const [duplikaatti, setDuplikaatti] = useState<Duplikaatti | null>(null);
   const lomakeRef = useRef<HTMLFormElement>(null);
 
+  // Muokkausten seuranta poistumisvaroitusta varten. Kontrolloidut kentät
+  // vertaillaan tilannevedoksena, jolloin jokaista setteriä ei tarvitse
+  // koskea erikseen; tavalliset input- ja textarea-kentät (hinta, hälytysraja,
+  // ohjeet) eivät ole kontrolloituja, joten niiden muokkaus napataan lomakkeen
+  // input-tapahtumasta.
+  const vedos = JSON.stringify({
+    nimi,
+    valmistaja,
+    alkupera,
+    ostohintaPerKg,
+    kuvaUrl,
+    ohjeTiedostoUrl,
+    kiiltoaste,
+    tyyppi,
+    varisavy,
+    lisakategoriat: [...lisakategoriat].sort(),
+    myyjaLinkki,
+    vaatiiLakkauksen,
+  });
+  const [alkuperainenVedos, setAlkuperainenVedos] = useState(vedos);
+  const [natiiviMuokattu, setNatiiviMuokattu] = useState(false);
+  const muokattu = natiiviMuokattu || vedos !== alkuperainenVedos;
+
+  function nollaaMuokkaustila() {
+    setAlkuperainenVedos(vedos);
+    setNatiiviMuokattu(false);
+  }
+
   // Uuden värin luonnin jälkeen nollataan koko lomake (kontrolloidut kentät tässä,
   // ei-kontrolloidut alla olevassa effektissä lomakkeen resetin kautta), jotta
   // seuraavan värin lisääminen onnistuu heti ilman sivun uudelleenlatausta.
@@ -154,13 +183,15 @@ export function VariLomake({
       setVaatiiLakkauksen(false);
       setDuplikaatti(null);
     }
+    if (tila.viesti) nollaaMuokkaustila();
   }
 
   useEffect(() => {
-    if (!vari && tila.viesti) {
-      toast.success(tila.viesti);
-      lomakeRef.current?.reset();
-    }
+    if (!tila.viesti) return;
+    toast.success(tila.viesti);
+    // Uuden värin jälkeen lomake tyhjennetään seuraavaa väriä varten;
+    // muokkauksessa kentät jäävät paikoilleen.
+    if (!vari) lomakeRef.current?.reset();
   }, [tila, vari]);
 
   const toimituskuluOletus =
@@ -288,7 +319,13 @@ export function VariLomake({
   }
 
   return (
-    <form ref={lomakeRef} action={kutsuAction} className="grid gap-6">
+    <form
+      ref={lomakeRef}
+      action={kutsuAction}
+      onInput={() => setNatiiviMuokattu(true)}
+      className="grid gap-6"
+    >
+      <TallentamattomatVaroitus muokattu={muokattu} />
       <input type="hidden" name="kuva_url" value={kuvaUrl ?? ""} />
       <input type="hidden" name="vaatii_lakkauksen" value={vaatiiLakkauksen ? "1" : ""} />
 
