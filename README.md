@@ -94,25 +94,73 @@ julkaistu. Ei kirjoita mitään.
 
 ## Supabase-yhteys Claude Codelle
 
-`.mcp.json` määrittää Supabasen virallisen MCP-palvelimen, jonka kautta
-Claude Code voi ajaa SQL:ää ja julkaista Edge Functioneita ilman käsin
-kopiointia. Palvelin tarvitsee kaksi ympäristömuuttujaa, jotka asetetaan
-Claude Coden ympäristöasetuksista - **ei koskaan tähän repoon**:
+Claude Code voi ajaa migraatiot ja julkaista Edge Functionit itse, kun sille
+antaa pääsyn Supabasen Management APIin. Tunnus **ei kuulu ympäristö-
+muuttujiin**: ne ovat luettavissa jokaisessa istunnossa, ja Claude Coden oma
+lomake varoittaa siitä.
 
-| Muuttuja | Mistä |
+### 1. Ympäristömuuttuja (ei salainen)
+
+Claude Coden ympäristöasetuksiin, kenttään Environment variables:
+
+```
+SUPABASE_PROJECT_REF=<project ref>
+```
+
+Project ref löytyy kohdasta Project Settings -> General. Se ei ole salaisuus:
+sama tunnus on julkisen API-osoitteen aliverkkotunnuksena selainniputuksessa.
+
+### 2. Access token (salainen)
+
+Saman lomakkeen kohdasta **API credentials** (Environment variables -kentän
+alapuolella) -> Add credential:
+
+| Kenttä | Arvo |
 |---|---|
-| `SUPABASE_ACCESS_TOKEN` | supabase.com/dashboard/account/tokens |
-| `SUPABASE_PROJECT_REF` | Project Settings -> General |
+| Name | `Supabase Management API` |
+| Allowed websites | `api.supabase.com` |
+| Credential type | Bearer |
+| Custom headers | `Authorization`, prefix `Bearer`, value = personal access token |
 
-Personal access token on tilikohtainen: se antaa pääsyn kaikkiin
+Token luodaan osoitteessa supabase.com/dashboard/account/tokens.
+
+Anthropicin agent proxy liittää tunnuksen pyyntöihin vasta sen jälkeen kun ne
+ovat poistuneet istunnon virtuaalikoneelta, joten token ei näy Claudelle, sen
+ajamille komennoille eikä ympäristömuuttujissa. Tallennettua arvoa ei voi
+katsoa jälkikäteen - muutos tehdään poistamalla ja lisäämällä uudelleen.
+
+Huomaa että personal access token on tilikohtainen: se antaa pääsyn kaikkiin
 organisaation projekteihin, ei vain tähän. Luo siis oma token tätä varten ja
-mitätöi se, kun sitä ei enää tarvita. Jos haluat antaa vain lukuoikeuden,
-lisää `.mcp.json`-tiedoston argumentteihin `--read-only` - silloin Claude voi
-tutkia kantaa mutta ei muuttaa sitä.
+mitätöi se, kun sitä ei enää tarvita.
 
-Migraatiot ajetaan MCP:n kautta Management APIlla (HTTPS), koska suora
-Postgres-yhteys (portti 5432) ei ole auki Claude Coden verkkoympäristössä -
-`supabase db push` ei siis toimi siellä, mutta `apply_migration` toimii.
+### 3. Käyttö istunnossa
+
+Tunnus tulee mukaan automaattisesti, joten pyynnön voi tehdä ilman avainta:
+
+```bash
+# SQL (migraatiot)
+curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "select 1"}'
+
+# Edge Functionien listaus
+curl "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/functions"
+```
+
+Muut käytössä olevat polut: `/database/migrations`, `/functions/deploy`,
+`/types/typescript`, `/advisors/security`.
+
+Migraatiot ajetaan Management APIn yli HTTPS:llä, koska suora Postgres-yhteys
+(portti 5432) ei ole auki Claude Coden verkkoympäristössä edes Full-tason
+verkko-oikeuksilla - `supabase db push` ja `psql` eivät siis toimi siellä.
+
+### Vaihtoehto: MCP-palvelin
+
+`.mcp.json` määrittää Supabasen virallisen MCP-palvelimen, joka tarjoaa samat
+toiminnot valmiina työkaluina (`apply_migration`, `execute_sql`,
+`deploy_edge_function`). Se lukee tunnuksen ympäristömuuttujasta
+`SUPABASE_ACCESS_TOKEN`, eli token päätyy istunnon sisään - käytä tätä vain,
+jos hyväksyt sen. Yllä kuvattu API credential on turvallisempi tapa.
 
 ## Deploy
 
