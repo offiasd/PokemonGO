@@ -131,6 +131,13 @@ export function muotoileGrammat(arvo: number | null | undefined): string {
   return `${arvo.toLocaleString("fi-FI", { maximumFractionDigits: 0 })} g`;
 }
 
+// Varastototaalit ovat kymmeniä kiloja, jolloin gramma on liian tarkka yksikkö
+// luettavaksi. Sama esitystapa kuin Raportit-sivun kulutusluvuilla.
+export function muotoileKilot(grammat: number | null | undefined): string {
+  if (grammat === null || grammat === undefined) return "-";
+  return `${(grammat / 1000).toLocaleString("fi-FI", { maximumFractionDigits: 2 })} kg`;
+}
+
 export function muotoileValiEuro(min: number, max: number): string {
   return min === max ? muotoileEuro(min) : `${muotoileEuro(min)} - ${muotoileEuro(max)}`;
 }

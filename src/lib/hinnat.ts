@@ -2,7 +2,7 @@ import type { Alkupera, Database } from "@/lib/supabase/database.types";
 
 type AsetuksetRow = Database["public"]["Tables"]["asetukset"]["Row"];
 
-interface VarinHintatiedot {
+export interface VarinHintatiedot {
   alkupera: Alkupera;
   ostohinta_per_kg: number;
   tullimaksu_prosentti: number | null;

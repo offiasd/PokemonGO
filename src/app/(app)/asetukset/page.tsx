@@ -4,14 +4,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 import { AsetuksetLomake } from "./asetukset-lomake";
 import { TuntiveloituksetLomake } from "./tuntiveloitukset-lomake";
+import { VarastoYhteenveto } from "./varasto-yhteenveto";
 
 export default async function AsetuksetSivu() {
   await vaaditaanAdmin();
   const supabase = await createClient();
 
-  const [asetuksetVastaus, tuntiveloituksetVastaus] = await Promise.all([
+  const [asetuksetVastaus, tuntiveloituksetVastaus, varitVastaus] = await Promise.all([
     supabase.from("asetukset").select("*").single(),
     supabase.from("tuntiveloitukset").select("*"),
+    // Varaston arvo lasketaan JS:ssä asetusten arvoilla, joten haetaan
+    // hinnanlaskennan tarvitsemat sarakkeet eikä valmista summaa.
+    supabase
+      .from("varit")
+      .select(
+        "saldo_g, ostohinta_per_kg, alkupera, tullimaksu_prosentti, alv_prosentti, toimituskulu_per_kg"
+      )
+      .eq("aktiivinen", true),
   ]);
 
   if (!asetuksetVastaus.data) {
@@ -26,6 +35,8 @@ export default async function AsetuksetSivu() {
           Globaalit oletusarvot: tulli/ALV, hälytysraja, kate ja hinnoittelunäkyvyys.
         </p>
       </div>
+
+      <VarastoYhteenveto varit={varitVastaus.data ?? []} asetukset={asetuksetVastaus.data} />
 
       <Card>
         <CardHeader>
