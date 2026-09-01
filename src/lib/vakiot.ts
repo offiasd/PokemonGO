@@ -154,6 +154,27 @@ export const VARISAVYT: { arvo: Varisavy; nimi: string }[] = [
   { arvo: "ruskea", nimi: "Ruskea" },
 ];
 
+// Värilistan järjestysvaihtoehdot. Hintajärjestykset piilotetaan käyttäjiltä,
+// jotka eivät näe hintoja lainkaan.
+export type VarienJarjestys = "nimi" | "hinta_nouseva" | "hinta_laskeva";
+
+export const OLETUS_JARJESTYS: VarienJarjestys = "nimi";
+
+export const JARJESTYKSET: { arvo: VarienJarjestys; nimi: string; vaatiiHinnat: boolean }[] = [
+  { arvo: "nimi", nimi: "Nimen mukaan", vaatiiHinnat: false },
+  { arvo: "hinta_nouseva", nimi: "Halvin ensin", vaatiiHinnat: true },
+  { arvo: "hinta_laskeva", nimi: "Kallein ensin", vaatiiHinnat: true },
+];
+
+/** Pilkulla eroteltu monivalintasuodatin URL-parametrista listaksi. */
+export function lueLista(arvo: string | null | undefined): string[] {
+  if (!arvo) return [];
+  return arvo
+    .split(",")
+    .map((osa) => osa.trim())
+    .filter(Boolean);
+}
+
 export function varisavynNimi(savy: Varisavy): string {
   return VARISAVYT.find((s) => s.arvo === savy)?.nimi ?? savy;
 }
