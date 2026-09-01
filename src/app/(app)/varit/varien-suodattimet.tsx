@@ -1,22 +1,13 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { ListFilter, Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   JARJESTYKSET,
   MAALI_TYYPIT,
@@ -26,34 +17,52 @@ import {
   lueLista,
 } from "@/lib/vakiot";
 
-/** Yksi poistettava suodatin aktiivisten suodattimien rivillä. */
-function SuodatinMerkki({
-  nimi,
-  varikoodi,
-  onPoista,
+/** Painettava suodatinvalinta - valittuna korostettu, muuten ääriviivoin. */
+function SuodatinNappi({
+  valittu,
+  onClick,
+  children,
+  className,
 }: {
-  nimi: string;
-  varikoodi?: string;
-  onPoista: () => void;
+  valittu: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <Badge variant="secondary" className="gap-1.5 py-1 pr-1 pl-2 font-normal">
-      {varikoodi && (
-        <span
-          className="inline-block size-2.5 shrink-0 rounded-full border"
-          style={{ backgroundColor: varikoodi }}
-        />
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={valittu}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
+        valittu
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        className
       )}
-      {nimi}
-      <button
-        type="button"
-        onClick={onPoista}
-        aria-label={`Poista suodatin ${nimi}`}
-        className="rounded-sm p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
-      >
-        <X className="size-3" />
-      </button>
-    </Badge>
+    >
+      {children}
+    </button>
+  );
+}
+
+function Osio({
+  otsikko,
+  children,
+  className,
+}: {
+  otsikko: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("grid content-start gap-2", className)}>
+      <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {otsikko}
+      </h3>
+      {children}
+    </section>
   );
 }
 
@@ -85,11 +94,11 @@ export function VarienSuodattimet({
   }
 
   /** Lisää tai poistaa yhden arvon monivalintasuodattimesta. */
-  function vaihdaArvo(avain: string, arvo: string, valittu: boolean) {
+  function vaihdaArvo(avain: string, arvo: string) {
     const nykyiset = lueLista(searchParams.get(avain));
-    const uudet = valittu
-      ? [...nykyiset, arvo]
-      : nykyiset.filter((a) => a !== arvo);
+    const uudet = nykyiset.includes(arvo)
+      ? nykyiset.filter((a) => a !== arvo)
+      : [...nykyiset, arvo];
     paivita({ [avain]: uudet.length > 0 ? uudet.join(",") : null });
   }
 
@@ -103,152 +112,97 @@ export function VarienSuodattimet({
 
   return (
     <div className="grid gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-xs">
-          <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Hae nimellä tai valmistajalla..."
-            defaultValue={searchParams.get("q") ?? ""}
-            className="pl-8"
-            onChange={(e) => paivita({ q: e.target.value || null })}
-          />
-        </div>
+      <div className="relative w-full max-w-xs">
+        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Hae nimellä tai valmistajalla..."
+          defaultValue={searchParams.get("q") ?? ""}
+          className="pl-8"
+          onChange={(e) => paivita({ q: e.target.value || null })}
+        />
+      </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <ListFilter className="size-4" />
-              Suodata
-              {suodattimiaValittu > 0 && (
-                <Badge variant="secondary" className="ml-1 px-1.5">
-                  {suodattimiaValittu}
-                </Badge>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          {/* Valinnat eivät sulje valikkoa (preventDefault), jotta useamman
-              suodattimen voi valita kerralla - esim. Candy + Punainen. */}
-          <DropdownMenuContent align="start" className="max-h-[70vh] w-64 overflow-y-auto">
-            <DropdownMenuLabel>Maalityyppi</DropdownMenuLabel>
+      {/* Maalityypit vasemmalla, värit keskellä, järjestys oikealla. Kapealla
+          näytöllä osiot pinoutuvat allekkain samassa järjestyksessä. */}
+      <div className="grid gap-5 rounded-lg border p-4 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_minmax(0,12rem)] lg:gap-6">
+        <Osio otsikko="Maalityyppi">
+          <div className="flex flex-wrap gap-2">
             {MAALI_TYYPIT.map(({ arvo, nimi }) => (
-              <DropdownMenuCheckboxItem
+              <SuodatinNappi
                 key={arvo}
-                checked={valitutTyypit.includes(arvo)}
-                onSelect={(e) => e.preventDefault()}
-                onCheckedChange={(tila) => vaihdaArvo("tyyppi", arvo, tila === true)}
+                valittu={valitutTyypit.includes(arvo)}
+                onClick={() => vaihdaArvo("tyyppi", arvo)}
               >
                 {nimi}
-              </DropdownMenuCheckboxItem>
+              </SuodatinNappi>
             ))}
+          </div>
+        </Osio>
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Väri</DropdownMenuLabel>
+        <Osio otsikko="Väri" className="lg:border-l lg:pl-6">
+          <div className="flex flex-wrap gap-2">
             {VARISAVYT.map(({ arvo, nimi }) => (
-              <DropdownMenuCheckboxItem
+              <SuodatinNappi
                 key={arvo}
-                checked={valitutSavyt.includes(arvo)}
-                onSelect={(e) => e.preventDefault()}
-                onCheckedChange={(tila) => vaihdaArvo("savy", arvo, tila === true)}
+                valittu={valitutSavyt.includes(arvo)}
+                onClick={() => vaihdaArvo("savy", arvo)}
               >
-                <span className="flex items-center gap-2">
-                  <span
-                    className="inline-block size-3 rounded-full border"
-                    style={{ backgroundColor: VARISAVYN_VARIKOODI[arvo] }}
-                  />
-                  {nimi}
-                </span>
-              </DropdownMenuCheckboxItem>
+                <span
+                  className="inline-block size-3 shrink-0 rounded-full border"
+                  style={{ backgroundColor: VARISAVYN_VARIKOODI[arvo] }}
+                />
+                {nimi}
+              </SuodatinNappi>
             ))}
+          </div>
+        </Osio>
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Järjestys</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={jarjestys}
-              onValueChange={(arvo) =>
-                paivita({ jarjestys: arvo === OLETUS_JARJESTYS ? null : arvo })
-              }
-            >
-              {jarjestysvaihtoehdot.map(({ arvo, nimi }) => (
-                <DropdownMenuRadioItem
-                  key={arvo}
-                  value={arvo}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {nimi}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
+        <Osio otsikko="Järjestys" className="lg:border-l lg:pl-6">
+          <div className="flex flex-wrap gap-2 lg:grid">
+            {jarjestysvaihtoehdot.map(({ arvo, nimi }) => (
+              <SuodatinNappi
+                key={arvo}
+                valittu={jarjestys === arvo}
+                onClick={() => paivita({ jarjestys: arvo === OLETUS_JARJESTYS ? null : arvo })}
+                className="lg:justify-center"
+              >
+                {nimi}
+              </SuodatinNappi>
+            ))}
+          </div>
 
-            {naytaPoistetutValinta && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={naytaPoistetut}
-                  onSelect={(e) => e.preventDefault()}
-                  onCheckedChange={(tila) =>
-                    paivita({ naytaPoistetut: tila === true ? "1" : null })
-                  }
-                >
-                  Näytä poistetut
-                </DropdownMenuCheckboxItem>
-              </>
-            )}
-
-            {suodattimiaValittu > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() =>
+          {(naytaPoistetutValinta || suodattimiaValittu > 0) && (
+            <div className="mt-1 grid gap-2">
+              {naytaPoistetutValinta && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="naytaPoistetut"
+                    checked={naytaPoistetut}
+                    onCheckedChange={(tila) =>
+                      paivita({ naytaPoistetut: tila === true ? "1" : null })
+                    }
+                  />
+                  <Label htmlFor="naytaPoistetut" className="font-normal">
+                    Näytä poistetut
+                  </Label>
+                </div>
+              )}
+              {suodattimiaValittu > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start px-0 text-muted-foreground lg:justify-center lg:px-3"
+                  onClick={() =>
                     paivita({ tyyppi: null, savy: null, jarjestys: null, naytaPoistetut: null })
                   }
                 >
-                  Tyhjennä suodattimet
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  Tyhjennä ({suodattimiaValittu})
+                </Button>
+              )}
+            </div>
+          )}
+        </Osio>
       </div>
-
-      {suodattimiaValittu > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {valitutTyypit.map((arvo) => {
-            const tyyppi = MAALI_TYYPIT.find((t) => t.arvo === arvo);
-            if (!tyyppi) return null;
-            return (
-              <SuodatinMerkki
-                key={arvo}
-                nimi={tyyppi.nimi}
-                onPoista={() => vaihdaArvo("tyyppi", arvo, false)}
-              />
-            );
-          })}
-          {valitutSavyt.map((arvo) => {
-            const savy = VARISAVYT.find((s) => s.arvo === arvo);
-            if (!savy) return null;
-            return (
-              <SuodatinMerkki
-                key={arvo}
-                nimi={savy.nimi}
-                varikoodi={VARISAVYN_VARIKOODI[savy.arvo]}
-                onPoista={() => vaihdaArvo("savy", arvo, false)}
-              />
-            );
-          })}
-          {jarjestys !== OLETUS_JARJESTYS && (
-            <SuodatinMerkki
-              nimi={JARJESTYKSET.find((j) => j.arvo === jarjestys)?.nimi ?? jarjestys}
-              onPoista={() => paivita({ jarjestys: null })}
-            />
-          )}
-          {naytaPoistetut && (
-            <SuodatinMerkki
-              nimi="Näytä poistetut"
-              onPoista={() => paivita({ naytaPoistetut: null })}
-            />
-          )}
-        </div>
-      )}
     </div>
   );
 }
