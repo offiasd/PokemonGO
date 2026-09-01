@@ -83,6 +83,37 @@ npm run build
 
 CI (`.github/workflows/ci.yml`) ajaa nämä jokaisessa pushissa/PR:ssä.
 
+Supabase-yhteyden ja kannan tilan voi tarkistaa yhdellä komennolla:
+
+```bash
+npm run testaa-supabase
+```
+
+Se kertoo mm. onko jokin migraatio ajamatta ja ovatko Edge Functionit
+julkaistu. Ei kirjoita mitään.
+
+## Supabase-yhteys Claude Codelle
+
+`.mcp.json` määrittää Supabasen virallisen MCP-palvelimen, jonka kautta
+Claude Code voi ajaa SQL:ää ja julkaista Edge Functioneita ilman käsin
+kopiointia. Palvelin tarvitsee kaksi ympäristömuuttujaa, jotka asetetaan
+Claude Coden ympäristöasetuksista - **ei koskaan tähän repoon**:
+
+| Muuttuja | Mistä |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | supabase.com/dashboard/account/tokens |
+| `SUPABASE_PROJECT_REF` | Project Settings -> General |
+
+Personal access token on tilikohtainen: se antaa pääsyn kaikkiin
+organisaation projekteihin, ei vain tähän. Luo siis oma token tätä varten ja
+mitätöi se, kun sitä ei enää tarvita. Jos haluat antaa vain lukuoikeuden,
+lisää `.mcp.json`-tiedoston argumentteihin `--read-only` - silloin Claude voi
+tutkia kantaa mutta ei muuttaa sitä.
+
+Migraatiot ajetaan MCP:n kautta Management APIlla (HTTPS), koska suora
+Postgres-yhteys (portti 5432) ei ole auki Claude Coden verkkoympäristössä -
+`supabase db push` ei siis toimi siellä, mutta `apply_migration` toimii.
+
 ## Deploy
 
 - **Käyttöliittymä (Render.com)**: `render.yaml` määrittää Node-web-servicen.
