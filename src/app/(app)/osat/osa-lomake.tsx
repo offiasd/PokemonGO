@@ -57,8 +57,10 @@ function VaiheRivi({
 }) {
   const [tarvitaan, setTarvitaan] = useState(oletusTarvitaan);
 
+  // Kestokenttä varasi ennen 8rem myös kapeimmalla ruudulla, jolloin rivi
+  // työnsi kortin puhelimen näytön yli. 5rem riittää minuuttiluvulle.
   return (
-    <div className="grid grid-cols-[auto_1fr_8rem] items-center gap-3">
+    <div className="grid grid-cols-[auto_1fr_5rem] items-center gap-3 sm:grid-cols-[auto_1fr_8rem]">
       <Checkbox
         id={`vaihe_${vaihe}_tarvitaan`}
         name={`vaihe_${vaihe}_tarvitaan`}

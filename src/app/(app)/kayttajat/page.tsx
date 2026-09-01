@@ -64,7 +64,9 @@ export default async function KayttajatSivu() {
             <TableBody>
               {(profiilit ?? []).map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.full_name ?? "-"}</TableCell>
+                  {/* break-all: nimi on käytännössä sähköpostiosoite, eli yksi
+                      katkeamaton sana joka piti taulukon puhelinta leveämpänä. */}
+                  <TableCell className="font-medium break-all">{p.full_name ?? "-"}</TableCell>
                   <TableCell>
                     <RooliValitsin
                       kayttajaId={p.id}

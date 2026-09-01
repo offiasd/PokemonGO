@@ -7,7 +7,11 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm",
+        // min-w-0: grid- ja flex-kohteen oletus min-width on auto, jolloin kortti
+        // kieltäytyy kutistumasta sisältönsä minimileveyden alle ja venyttää
+        // koko sivun (esim. leveä taulukko puhelimessa). Nollattuna kortti
+        // mahtuu ruudulle ja sisäinen vieritys hoitaa loput.
+        "flex min-w-0 flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm",
         className
       )}
       {...props}

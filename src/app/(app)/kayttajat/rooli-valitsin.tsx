@@ -41,7 +41,7 @@ export function RooliValitsin({
         });
       }}
     >
-      <SelectTrigger className="w-36" title={onOma ? "Et voi muuttaa omaa roolia" : undefined}>
+      <SelectTrigger className="w-32 sm:w-36" title={onOma ? "Et voi muuttaa omaa roolia" : undefined}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

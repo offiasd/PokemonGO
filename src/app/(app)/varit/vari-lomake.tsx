@@ -263,7 +263,7 @@ export function VariLomake({
       {tyyppi !== "transparent" && (
         <div className="grid gap-2 sm:max-w-sm">
           <Label htmlFor="varisavy">Värisävy (suodatusta varten)</Label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select
               name="varisavy"
               value={varisavy || "ei_asetettu"}
@@ -430,7 +430,7 @@ export function VariLomake({
 
       <div className="grid gap-2">
         <Label htmlFor="myyja_linkki">Linkki myyjän tuotesivulle</Label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Input
             id="myyja_linkki"
             name="myyja_linkki"
