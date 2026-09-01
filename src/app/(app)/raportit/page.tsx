@@ -23,6 +23,10 @@ import { RaportinSuodattimet } from "./raportin-suodattimet";
 
 type Jakso = "paiva" | "viikko" | "kuukausi" | "vuosi";
 
+function muotoileKg(kg: number): string {
+  return `${kg.toLocaleString("fi-FI", { maximumFractionDigits: 2 })} kg`;
+}
+
 function muotoileJakso(jakso: Jakso, iso: string) {
   const pvm = new Date(iso);
   if (jakso === "paiva") return pvm.toLocaleDateString("fi-FI");
@@ -124,11 +128,40 @@ export default async function RaportitSivu({
         <CardHeader>
           <CardTitle>Kulutus jaksoittain</CardTitle>
           <CardDescription>
-            Yhteensä {yhteensaKg.toLocaleString("fi-FI", { maximumFractionDigits: 2 })} kg
+            Yhteensä {muotoileKg(yhteensaKg)}
             {naytaHinnat && ` - ${muotoileEuro(yhteensaEur)}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Neljä saraketta ei mahdu kapeimmille puhelimille edes rivittyneenä,
+              joten siellä jokainen jakso on oma lohkonsa. Sama data, eri muoto -
+              sm-koosta ylöspäin taulukko kuten ennenkin. */}
+          <div className="grid gap-3 sm:hidden">
+            {rivit.length === 0 && (
+              <p className="text-sm text-muted-foreground">Ei tapahtumia hakuehdoilla.</p>
+            )}
+            {rivit.map(([avain, arvot]) => (
+              <div key={avain} className="grid gap-1 rounded-md border p-3 text-sm">
+                <p className="font-medium">{muotoileJakso(jakso, avain)}</p>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Tapahtumia</span>
+                  <span className="font-medium">{arvot.tapahtumia}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Kulutus</span>
+                  <span className="font-medium">{muotoileKg(arvot.kg)}</span>
+                </div>
+                {naytaHinnat && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Maalikustannus</span>
+                    <span className="font-medium">{muotoileEuro(arvot.eur)}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden sm:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -158,6 +191,7 @@ export default async function RaportitSivu({
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
