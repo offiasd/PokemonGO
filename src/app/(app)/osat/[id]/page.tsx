@@ -169,7 +169,6 @@ export default async function OsaSivu({
               manuaalinenHinta={osa.manuaalinen_hinta}
               kateProsentti={kateProsentti}
               kateKiintea={osa.kate_kiintea ?? 0}
-              lakkausLisahinta={osa.lakkaus_lisahinta}
               perusTyokustannusKerroksittain={perusTyokustannusKerroksittain}
               pesunKustannus={pesunKustannus}
               maalinpoistonKustannus={maalinpoistonKustannus}

@@ -81,9 +81,7 @@ function rakennaRivi(
   nimi: string,
   kustannukset: number[],
   osa: OsaRow,
-  asetukset: AsetuksetRow,
-  /** Kiinteä lisä asiakashintaan (esim. lakkauslisä) - ei osa kustannusta. */
-  asiakkaanLisahinta = 0
+  asetukset: AsetuksetRow
 ): KustannusarvioRivi | null {
   if (kustannukset.length === 0) return null;
   const kustannusMin = pyoristaSentteihin(Math.min(...kustannukset));
@@ -93,12 +91,8 @@ function rakennaRivi(
     nimi,
     kustannusMin,
     kustannusMax,
-    suositusMin: pyoristaSentteihin(
-      suositushinta(kustannusMin, osa, asetukset) + asiakkaanLisahinta
-    ),
-    suositusMax: pyoristaSentteihin(
-      suositushinta(kustannusMax, osa, asetukset) + asiakkaanLisahinta
-    ),
+    suositusMin: pyoristaSentteihin(suositushinta(kustannusMin, osa, asetukset)),
+    suositusMax: pyoristaSentteihin(suositushinta(kustannusMax, osa, asetukset)),
   };
 }
 
@@ -180,11 +174,12 @@ export function laskeKategoriaKustannukset({
     if (rivi) rivit.push(rivi);
 
     // Perusvärille lakkaus on valinnainen lisä, joten se näytetään omana
-    // vaihtoehtonaan: kaksi värikerrosta (maalaus + suojaus kahdesti) ja
-    // lakan oma kulutus. Lakkauslisä lisätään asiakashintaan kuten Työt-sivulla.
+    // vaihtoehtonaan: kaksi värikerrosta (maalaus + suojaus kahdesti) ja lakan
+    // oma kulutus. Lakkauksen hinta syntyy kokonaan näistä - erillistä
+    // lakkauslisää ei lisätä, koska se veloittaisi saman työn toiseen kertaan.
     const lakkaVarit = kategoriaVarit("transparent");
     const lakkausKulutusG = osa.lakkaus_kulutus_g ?? 0;
-    if (lakkaVarit.length > 0 && (lakkausKulutusG > 0 || osa.lakkaus_lisahinta)) {
+    if (lakkaVarit.length > 0 && lakkausKulutusG > 0) {
       const lakatut: number[] = [];
       for (const v of kategoriaVarit("solid")) {
         for (const lakka of lakkaVarit) {
@@ -200,8 +195,7 @@ export function laskeKategoriaKustannukset({
         "Perusvärit + lakkaus",
         lakatut,
         osa,
-        asetukset,
-        osa.lakkaus_lisahinta ?? 0
+        asetukset
       );
       if (lakattuRivi) rivit.push(lakattuRivi);
     }
