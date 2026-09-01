@@ -12,7 +12,6 @@ import {
   SALDO_TILAT,
   VARISAVYT,
   lueLista,
-  saldonSuhde,
   saldonTila,
 } from "@/lib/vakiot";
 import { laskeVarinKokonaishinta } from "@/lib/hinnat";
@@ -96,13 +95,8 @@ export default async function VaritSivu({
         saldoSuodattimet.includes(saldonTila(vari.saldo_g, halytysraja))
     );
 
-  if (valittuJarjestys === "taydennystarve") {
-    // Suhteessa hälytysrajaan, ei absoluuttisena grammamääränä: kiireellisin
-    // täydennys on se joka on lähimpänä omaa rajaansa.
-    varitHinnoin.sort(
-      (a, b) =>
-        saldonSuhde(a.vari.saldo_g, a.halytysraja) - saldonSuhde(b.vari.saldo_g, b.halytysraja)
-    );
+  if (valittuJarjestys === "saldo_nouseva") {
+    varitHinnoin.sort((a, b) => a.vari.saldo_g - b.vari.saldo_g);
   } else if (valittuJarjestys !== OLETUS_JARJESTYS) {
     const suunta = valittuJarjestys === "hinta_nouseva" ? 1 : -1;
     varitHinnoin.sort((a, b) => suunta * (a.kokonaishinta - b.kokonaishinta));

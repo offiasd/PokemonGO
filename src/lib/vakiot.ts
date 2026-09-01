@@ -185,20 +185,15 @@ export function saldonTila(saldoG: number, halytysrajaG: number): SaldoTila {
   return "riittava";
 }
 
-/** Pienempi luku = kiireellisempi täydennys. Käytetään täydennystarve-järjestykseen. */
-export function saldonSuhde(saldoG: number, halytysrajaG: number): number {
-  return halytysrajaG > 0 ? saldoG / halytysrajaG : saldoG > 0 ? Number.POSITIVE_INFINITY : 0;
-}
-
 // Värilistan järjestysvaihtoehdot. Hintajärjestykset piilotetaan käyttäjiltä,
 // jotka eivät näe hintoja lainkaan.
-export type VarienJarjestys = "nimi" | "taydennystarve" | "hinta_nouseva" | "hinta_laskeva";
+export type VarienJarjestys = "nimi" | "saldo_nouseva" | "hinta_nouseva" | "hinta_laskeva";
 
 export const OLETUS_JARJESTYS: VarienJarjestys = "nimi";
 
 export const JARJESTYKSET: { arvo: VarienJarjestys; nimi: string; vaatiiHinnat: boolean }[] = [
   { arvo: "nimi", nimi: "Nimen mukaan", vaatiiHinnat: false },
-  { arvo: "taydennystarve", nimi: "Täydennystarve ensin", vaatiiHinnat: false },
+  { arvo: "saldo_nouseva", nimi: "Vähiten saldoa ensin", vaatiiHinnat: false },
   { arvo: "hinta_nouseva", nimi: "Halvin ensin", vaatiiHinnat: true },
   { arvo: "hinta_laskeva", nimi: "Kallein ensin", vaatiiHinnat: true },
 ];
