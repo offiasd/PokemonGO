@@ -72,6 +72,27 @@ function normalisoiNimi(nimi: string | null | undefined): string {
   return (nimi ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Uuden värin lomakkeen lähtöarvot. Samasta paikasta sekä nollaus että
+ *  muokkausvertailun lähtötaso, jotta ne eivät voi ajautua erilleen. */
+const TYHJAT_ARVOT = {
+  nimi: "",
+  valmistaja: "",
+  alkupera: "EU" as Alkupera,
+  ostohintaPerKg: "",
+  kuvaUrl: null as string | null,
+  ohjeTiedostoUrl: null as string | null,
+  kiiltoaste: "",
+  tyyppi: "solid" as MaaliTyyppi,
+  varisavy: "" as Varisavy | "",
+  lisakategoriat: [] as MaaliTyyppi[],
+  myyjaLinkki: "",
+  vaatiiLakkauksen: false,
+};
+
+function teeVedos(arvot: typeof TYHJAT_ARVOT): string {
+  return JSON.stringify({ ...arvot, lisakategoriat: [...arvot.lisakategoriat].sort() });
+}
+
 interface Duplikaatti {
   id: string;
   nimi: string;
@@ -136,7 +157,7 @@ export function VariLomake({
   // koskea erikseen; tavalliset input- ja textarea-kentät (hinta, hälytysraja,
   // ohjeet) eivät ole kontrolloituja, joten niiden muokkaus napataan lomakkeen
   // input-tapahtumasta.
-  const vedos = JSON.stringify({
+  const vedos = teeVedos({
     nimi,
     valmistaja,
     alkupera,
@@ -146,7 +167,7 @@ export function VariLomake({
     kiiltoaste,
     tyyppi,
     varisavy,
-    lisakategoriat: [...lisakategoriat].sort(),
+    lisakategoriat,
     myyjaLinkki,
     vaatiiLakkauksen,
   });
@@ -154,8 +175,8 @@ export function VariLomake({
   const [natiiviMuokattu, setNatiiviMuokattu] = useState(false);
   const muokattu = natiiviMuokattu || vedos !== alkuperainenVedos;
 
-  function nollaaMuokkaustila() {
-    setAlkuperainenVedos(vedos);
+  function nollaaMuokkaustila(uusiLahtotaso: string) {
+    setAlkuperainenVedos(uusiLahtotaso);
     setNatiiviMuokattu(false);
   }
 
@@ -166,24 +187,27 @@ export function VariLomake({
   if (tila !== edellinenTila) {
     setEdellinenTila(tila);
     if (!vari && tila.viesti) {
-      setNimi("");
-      setValmistaja("");
-      setAlkupera("EU");
-      setOstohintaPerKg("");
-      setKuvaUrl(null);
-      setOhjeTiedostoUrl(null);
-      setKiiltoaste("");
-      setTyyppi("solid");
-      setVarisavy("");
-      setLisakategoriat([]);
+      setNimi(TYHJAT_ARVOT.nimi);
+      setValmistaja(TYHJAT_ARVOT.valmistaja);
+      setAlkupera(TYHJAT_ARVOT.alkupera);
+      setOstohintaPerKg(TYHJAT_ARVOT.ostohintaPerKg);
+      setKuvaUrl(TYHJAT_ARVOT.kuvaUrl);
+      setOhjeTiedostoUrl(TYHJAT_ARVOT.ohjeTiedostoUrl);
+      setKiiltoaste(TYHJAT_ARVOT.kiiltoaste);
+      setTyyppi(TYHJAT_ARVOT.tyyppi);
+      setVarisavy(TYHJAT_ARVOT.varisavy);
+      setLisakategoriat(TYHJAT_ARVOT.lisakategoriat);
       setAlkuperainenHinta(null);
       setAlkuperainenValuutta(null);
       setAlkuperainenYksikko(null);
-      setMyyjaLinkki("");
-      setVaatiiLakkauksen(false);
+      setMyyjaLinkki(TYHJAT_ARVOT.myyjaLinkki);
+      setVaatiiLakkauksen(TYHJAT_ARVOT.vaatiiLakkauksen);
       setDuplikaatti(null);
     }
-    if (tila.viesti) nollaaMuokkaustila();
+    // Uuden värin jälkeen lomake tyhjenee, joten lähtötasoksi tulee tyhjä
+    // lomake. Aiemmin tähän tallentui juuri lähetetyt arvot, jolloin tyhjä
+    // lomake näytti muokatulta ja poistuminen varoitti turhaan.
+    if (tila.viesti) nollaaMuokkaustila(vari ? vedos : teeVedos(TYHJAT_ARVOT));
   }
 
   useEffect(() => {

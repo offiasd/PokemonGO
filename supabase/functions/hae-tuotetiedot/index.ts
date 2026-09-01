@@ -234,6 +234,45 @@ function tunnistaTyyppi(teksti: string, ohitettavat: MaaliTyyppi[] = []): MaaliT
 // nimi tai luokittelu ei aina kerro tyyppiä.
 const KUVAUKSESTA_JATETTAVAT: MaaliTyyppi[] = ["transparent", "pohjavari"];
 
+// Prismatic Powders kertoo tuoteluokan omalla vakiolauseellaan: "This color is
+// a polyester metallic powder coat", "...a polyester top coat powder coat".
+// Lause on luotettavampi kuin nimestä arvaaminen - esim. "Ultra Blue Sparkle"
+// ja "Baby Rockstar Sparkle" ovat nimensä perusteella metallicceja mutta
+// oikeasti läpikuultavia lakkoja, ja valmistaja sanoo sen suoraan.
+//
+// Lauseen pitää päättyä "powder coat":iin, jotta markkinointilause
+// ("a fine silver sparkling metallic clear coat") ei mene siitä läpi.
+const TUOTELUOKKA_LAUSE =
+  /\bis an? [a-z\s-]{0,30}?(metallics?|top\s?coats?|textured?|wrinkled?|clears?)\s+powder\s+coat/i;
+
+type Tuoteluokka = "metallic" | "lapikuultava" | "tekstuuri";
+
+// Kaikilla tuotteilla ei ole vakiolausetta. Silloin katsotaan tuotteen oma
+// esittely ("Fire Sparkle is a clear metallic polyester with red glitter"):
+// siinä "clear" tai "top coat" kertoo läpikuultavasta tuotteesta silloinkin
+// kun samassa lauseessa lukee metallic. Vain ensimmäinen esittelylause
+// kelpaa - myöhemmät lauseet ovat levitysohjeita ("A clear top coat is
+// recommended"), jotka puhuvat oheistuotteesta.
+const ESITTELYLAUSE = /\bis an?\s+([^.!?]{0,140})/i;
+
+function luokitteleSanat(teksti: string): Tuoteluokka | null {
+  if (/\b(clears?|top\s?coats?|topcoats?|translucent)\b/i.test(teksti)) return "lapikuultava";
+  if (/\b(textured?|wrinkled?)\b/i.test(teksti)) return "tekstuuri";
+  if (/\bmetallics?\b/i.test(teksti)) return "metallic";
+  return null;
+}
+
+function poimiTuoteluokka(teksti: string): Tuoteluokka | null {
+  const sana = teksti.match(TUOTELUOKKA_LAUSE)?.[1]?.toLowerCase();
+  if (sana) {
+    if (sana.startsWith("metallic")) return "metallic";
+    if (sana.startsWith("textur") || sana.startsWith("wrinkl")) return "tekstuuri";
+    return "lapikuultava";
+  }
+  const esittely = teksti.match(ESITTELYLAUSE)?.[1];
+  return esittely ? luokitteleSanat(esittely) : null;
+}
+
 // Tunnistus kolmessa portaassa luotettavuusjärjestyksessä: tuotteen nimi on
 // vahvin signaali ("Illusion Cherry", "Clear Vision"), sitten sivun oma
 // luokittelu ("Candies", "Clears") ja vasta viimeisenä markkinointiteksti.
@@ -242,11 +281,21 @@ function poimiTyyppi(
   luokittelut: string,
   kuvausTeksti: string
 ): MaaliTyyppi | null {
-  return (
+  const arvaus =
     (nimi ? tunnistaTyyppi(nimi) : null) ??
     tunnistaTyyppi(luokittelut) ??
-    tunnistaTyyppi(kuvausTeksti, KUVAUKSESTA_JATETTAVAT)
-  );
+    tunnistaTyyppi(kuvausTeksti, KUVAUKSESTA_JATETTAVAT);
+
+  // Valmistajan oma tuoteluokka korjaa arvauksen kun ne ovat eri mieltä.
+  // Candy, illusion ja pohjaväri ovat lausetta tarkempia (nekin ovat
+  // valmistajan sanoin "top coat" -tuotteita), joten ne jäävät voimaan.
+  const tarkempiKuinLause = arvaus === "candy" || arvaus === "illusion" || arvaus === "pohjavari";
+  const luokka = tarkempiKuinLause ? null : poimiTuoteluokka(kuvausTeksti);
+  if (luokka === "metallic") return "metallic";
+  if (luokka === "tekstuuri") return "tekstuuri";
+  if (luokka === "lapikuultava") return "transparent";
+
+  return arvaus;
 }
 
 // Sama heuristiikka kuin sovelluksen paattelyVarisavy (src/lib/vakiot.ts) -
