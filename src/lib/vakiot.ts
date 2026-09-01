@@ -161,14 +161,44 @@ export const VARISAVYT: { arvo: Varisavy; nimi: string }[] = [
   { arvo: "ruskea", nimi: "Ruskea" },
 ];
 
+// Saldon kolmijako. Sama kynnys kuin saldopalkin väreissä (saldo-palkki.tsx
+// käyttää tätä funktiota), jottei suodatin ja palkki voi olla eri mieltä siitä
+// mikä on "vähissä".
+export type SaldoTila = "loppumassa" | "vahissa" | "riittava";
+
+export const SALDO_TILAT: { arvo: SaldoTila; nimi: string; luokka: string }[] = [
+  { arvo: "loppumassa", nimi: "Hälytysrajalla tai alle", luokka: "bg-destructive" },
+  { arvo: "vahissa", nimi: "Vähissä", luokka: "bg-warning" },
+  { arvo: "riittava", nimi: "Riittävästi", luokka: "bg-success" },
+];
+
+/**
+ * Saldon tila suhteessa hälytysrajaan, ei absoluuttiseen määrään: 300 g on
+ * paljon jos raja on 200 g ja vähän jos raja on 1000 g.
+ *
+ * Ilman hälytysrajaa väri katsotaan riittäväksi jos saldoa on lainkaan.
+ */
+export function saldonTila(saldoG: number, halytysrajaG: number): SaldoTila {
+  const suhde = halytysrajaG > 0 ? saldoG / halytysrajaG : saldoG > 0 ? 2 : 0;
+  if (suhde <= 1) return "loppumassa";
+  if (suhde <= 1.5) return "vahissa";
+  return "riittava";
+}
+
+/** Pienempi luku = kiireellisempi täydennys. Käytetään täydennystarve-järjestykseen. */
+export function saldonSuhde(saldoG: number, halytysrajaG: number): number {
+  return halytysrajaG > 0 ? saldoG / halytysrajaG : saldoG > 0 ? Number.POSITIVE_INFINITY : 0;
+}
+
 // Värilistan järjestysvaihtoehdot. Hintajärjestykset piilotetaan käyttäjiltä,
 // jotka eivät näe hintoja lainkaan.
-export type VarienJarjestys = "nimi" | "hinta_nouseva" | "hinta_laskeva";
+export type VarienJarjestys = "nimi" | "taydennystarve" | "hinta_nouseva" | "hinta_laskeva";
 
 export const OLETUS_JARJESTYS: VarienJarjestys = "nimi";
 
 export const JARJESTYKSET: { arvo: VarienJarjestys; nimi: string; vaatiiHinnat: boolean }[] = [
   { arvo: "nimi", nimi: "Nimen mukaan", vaatiiHinnat: false },
+  { arvo: "taydennystarve", nimi: "Täydennystarve ensin", vaatiiHinnat: false },
   { arvo: "hinta_nouseva", nimi: "Halvin ensin", vaatiiHinnat: true },
   { arvo: "hinta_laskeva", nimi: "Kallein ensin", vaatiiHinnat: true },
 ];

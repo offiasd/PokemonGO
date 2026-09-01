@@ -9,12 +9,15 @@ import {
   JARJESTYKSET,
   MAALI_TYYPIT,
   OLETUS_JARJESTYS,
+  SALDO_TILAT,
   VARISAVYT,
   lueLista,
+  saldonSuhde,
+  saldonTila,
 } from "@/lib/vakiot";
 import { laskeVarinKokonaishinta } from "@/lib/hinnat";
 import type { Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
-import type { VarienJarjestys } from "@/lib/vakiot";
+import type { SaldoTila, VarienJarjestys } from "@/lib/vakiot";
 
 import { VarienSuodattimet } from "./varien-suodattimet";
 import { VariKortti } from "./vari-kortti";
@@ -29,10 +32,11 @@ export default async function VaritSivu({
     naytaPoistetut?: string;
     tyyppi?: string;
     savy?: string;
+    saldo?: string;
     jarjestys?: string;
   }>;
 }) {
-  const { q, naytaPoistetut, tyyppi, savy, jarjestys } = await searchParams;
+  const { q, naytaPoistetut, tyyppi, savy, saldo, jarjestys } = await searchParams;
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
@@ -46,6 +50,11 @@ export default async function VaritSivu({
   );
   const savySuodattimet = lueLista(savy).filter((s): s is Varisavy =>
     VARISAVYT.some((v) => v.arvo === s)
+  );
+  // Saldotila riippuu värikohtaisesta hälytysrajasta, joka voi tulla
+  // asetusten oletuksesta, joten suodatus tehdään JS:ssä eikä SQL:ssä.
+  const saldoSuodattimet = lueLista(saldo).filter((s): s is SaldoTila =>
+    SALDO_TILAT.some((t) => t.arvo === s)
   );
 
   const sallittuJarjestys = JARJESTYKSET.find(
@@ -75,17 +84,31 @@ export default async function VaritSivu({
 
   // Kokonaishinta lasketaan JS:ssä asetusten arvoilla, joten hintajärjestys
   // tehdään haun jälkeen eikä SQL:ssä.
-  const varitHinnoin = (varit ?? []).map((vari) => ({
-    vari,
-    kokonaishinta: laskeVarinKokonaishinta(vari, asetukset),
-  }));
+  const varitHinnoin = (varit ?? [])
+    .map((vari) => ({
+      vari,
+      kokonaishinta: laskeVarinKokonaishinta(vari, asetukset),
+      halytysraja: vari.halytysraja_g ?? asetukset.oletus_halytysraja_g,
+    }))
+    .filter(
+      ({ vari, halytysraja }) =>
+        saldoSuodattimet.length === 0 ||
+        saldoSuodattimet.includes(saldonTila(vari.saldo_g, halytysraja))
+    );
 
-  if (valittuJarjestys !== OLETUS_JARJESTYS) {
+  if (valittuJarjestys === "taydennystarve") {
+    // Suhteessa hälytysrajaan, ei absoluuttisena grammamääränä: kiireellisin
+    // täydennys on se joka on lähimpänä omaa rajaansa.
+    varitHinnoin.sort(
+      (a, b) =>
+        saldonSuhde(a.vari.saldo_g, a.halytysraja) - saldonSuhde(b.vari.saldo_g, b.halytysraja)
+    );
+  } else if (valittuJarjestys !== OLETUS_JARJESTYS) {
     const suunta = valittuJarjestys === "hinta_nouseva" ? 1 : -1;
     varitHinnoin.sort((a, b) => suunta * (a.kokonaishinta - b.kokonaishinta));
   }
 
-  type VariHinnalla = { vari: VariRow; kokonaishinta: number };
+  type VariHinnalla = { vari: VariRow; kokonaishinta: number; halytysraja: number };
   const ryhmat = new Map<MaaliTyyppi, VariHinnalla[]>();
   for (const rivi of varitHinnoin) {
     const lista = ryhmat.get(rivi.vari.tyyppi) ?? [];
@@ -120,7 +143,7 @@ export default async function VaritSivu({
         naytaHinnat={naytaHinnat}
       />
 
-      {(varit ?? []).length === 0 && (
+      {varitHinnoin.length === 0 && (
         <p className="text-muted-foreground">Ei värejä hakuehdoilla.</p>
       )}
 
