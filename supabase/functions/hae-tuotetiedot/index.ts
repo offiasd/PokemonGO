@@ -6,6 +6,7 @@
 //   - kiiltoaste ja maalin tyyppi (solid/transparent/candy/illusion/metallic/pohjavari)
 //   - värisävy suodatusta varten (punainen, sininen, ...) - ei lakoille
 //   - pohjavärivaatimus tyypin perusteella (candy/illusion/transparent)
+//   - lakkausvaatimus tuotetekstistä ("clear coat recommended for exterior use")
 //   - tuotekohtainen ohje-/datasheet-PDF (ei yleistä levitysopasta tai SDS:ää)
 //   - hinta: muunnetaan tarvittaessa lb->kg ja valuutta EUR:ksi (frankfurter.app,
 //     EKP:n kurssit, ei API-avainta), pyöristetään aina ylöspäin
@@ -26,6 +27,8 @@ type MaaliTyyppi =
   | "candy"
   | "illusion"
   | "metallic"
+  | "tekstuuri"
+  | "kuumankesto"
   | "pohjavari"
   | "muu";
 type Varisavy =
@@ -53,6 +56,7 @@ interface HaeTiedotVastaus {
   tyyppi: MaaliTyyppi | null;
   varisavy: Varisavy | null;
   vaatii_pohjavarin: boolean;
+  vaatii_lakkauksen: boolean;
   pohjavari_kuvaus: string | null;
   alkupera: Alkupera | null;
   ostohinta_per_kg: number | null;
@@ -197,6 +201,14 @@ const TYYPPI_AVAINSANAT: [MaaliTyyppi, RegExp][] = [
   ],
   ["pohjavari", /\b(base\s?coats?|basecoats?|primers?|undercoats?|pohjav[äa]ri|pohjamaali)\b/i],
   [
+    "kuumankesto",
+    /\b(high\s?temp(?:erature)?|heat\s?resistant|heat\s?proof|exhaust|header|manifold|kuumankest[oä]v[äa]?|kuumankesto|pakoputk)/i,
+  ],
+  [
+    "tekstuuri",
+    /\b(textur(?:e|ed|es)|wrinkles?|hammer\s?tone|hammertone|veins?|structur(?:e|ed)|rough\s?coat|kuvioit|tekstuuri)/i,
+  ],
+  [
     "metallic",
     /\b(metallics?|metallic-|metalli(?:nen|set)?|pearlescent|pearls?|micas?|sparkles?|anodized)\b/i,
   ],
@@ -272,6 +284,28 @@ function poimiVarisavy(
     tunnistaVarisavy(luokittelut) ??
     ainoaSavyTekstissa(kuvausTeksti)
   );
+}
+
+// Valmistaja kertoo tuotekohtaisesti jos väri kaipaa erillisen lakan - esim.
+// Prismatic Powders kirjoittaa metallic- ja sparkle-tuotteista usein "a clear
+// top coat is recommended for exterior use". Pelkkä sanojen "clear coat"
+// esiintyminen ei riitä: lakkasivut ja yleiset levitysohjeet mainitsevat ne
+// muutenkin, joten vaaditaan suositus- tai vaatimusverbi samaan lauseeseen.
+const LAKKAUSSUOSITUS: RegExp[] = [
+  /\b(?:requires?|recommend(?:ed|s|ation)?|advise[ds]?|must\s+(?:be\s+)?(?:use|apply))\b[^.!?]{0,90}\b(?:clear\s?coat|clearcoat|clear\s?top\s?coat|top\s?coat|topcoat)\b/i,
+  /\b(?:clear\s?coat|clearcoat|clear\s?top\s?coat|top\s?coat|topcoat)\b[^.!?]{0,90}\b(?:is\s+)?(?:required|recommended|advised|necessary|a\s+must)\b/i,
+  /\b(?:kirkas)?lakk\w*\b[^.!?]{0,90}\b(?:suositel|vaadi|vaati|tarvit)/i,
+  /\b(?:suositel|vaadi|vaati|tarvit)\w*\b[^.!?]{0,90}\b(?:(?:kirkas)?lakk\w*|lakan|lakalla)\b/i,
+];
+
+/**
+ * Illusion tarvitsee lakan aina aktivoituakseen, joten se on totta tyypin
+ * perusteella. Muille tyypeille katsotaan tuoteteksti.
+ */
+function poimiLakkausvaatimus(tyyppi: MaaliTyyppi | null, teksti: string): boolean {
+  if (tyyppi === "illusion") return true;
+  if (tyyppi === "transparent") return false;
+  return LAKKAUSSUOSITUS.some((kuvio) => kuvio.test(teksti));
 }
 
 function poimiPohjavariKuvaus(tyyppi: MaaliTyyppi | null, html: string): string | null {
@@ -431,6 +465,7 @@ Deno.serve(async (req) => {
         tyyppi: null,
         varisavy: null,
         vaatii_pohjavarin: false,
+        vaatii_lakkauksen: false,
         pohjavari_kuvaus: null,
         alkupera: null,
         ostohinta_per_kg: null,
@@ -457,6 +492,9 @@ Deno.serve(async (req) => {
     const tyyppi = poimiTyyppi(nimi, luokittelut, kuvausTeksti);
     const varisavy = poimiVarisavy(tyyppi, nimi, luokittelut, kuvausTeksti);
     const vaatiiPohjavarin = tyyppi === "candy" || tyyppi === "illusion" || tyyppi === "transparent";
+    // Lakkaussuositus voi olla missä tahansa kohtaa sivun tekstiä, joten
+    // katsotaan sekä tiivistelmä että koko HTML.
+    const vaatiiLakkauksen = poimiLakkausvaatimus(tyyppi, `${kuvausTeksti} ${html}`);
 
     const raakaHinta = poimiHinta(html);
     let ostohintaPerKg: number | null = null;
@@ -489,6 +527,7 @@ Deno.serve(async (req) => {
       tyyppi,
       varisavy,
       vaatii_pohjavarin: vaatiiPohjavarin,
+      vaatii_lakkauksen: vaatiiLakkauksen,
       pohjavari_kuvaus: poimiPohjavariKuvaus(tyyppi, html),
       alkupera: poimiAlkupera(html),
       ostohinta_per_kg: ostohintaPerKg,

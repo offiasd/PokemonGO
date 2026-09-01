@@ -156,8 +156,9 @@ export function laskeKategoriaKustannukset({
   const kategoriaHinta = (tyyppi: MyytavaMaaliTyyppi) =>
     kategoriahinnat.find((k) => k.maali_tyyppi === tyyppi) ?? null;
 
-  // Maalaus ja suojaus kertautuvat värikerroksittain: candy/illusion/metallic
-  // ovat aina kahden värin töitä, perusväri yhden.
+  // Maalaus ja suojaus kertautuvat värikerroksittain: candy ja illusion ovat
+  // aina kahden värin töitä, perusväri ja metallic yhden - metallicille lakkaus
+  // on valinnainen ja näytetään omana rivinään.
   const tyokustannusVareilla = (maara: number) =>
     tyokustannusKerroksittain[maara - 1] ?? tyokustannusKerroksittain[0] ?? 0;
   const tyokustannus = (kategoria: MyytavaMaaliTyyppi) =>
@@ -203,17 +204,26 @@ export function laskeKategoriaKustannukset({
 
   const metallicHinta = kategoriaHinta("metallic");
   if (metallicHinta) {
-    const rivi = laskeLakatunKategorianRivi(
-      "metallic",
-      "Metallic",
+    // Lakkaus ei ole enää metallicin pakko, joten kategoria näytetään samaan
+    // tapaan kuin perusväri: oma rivinsä ilman lakkaa ja toinen sen kanssa.
+    // Kaksi värikerrosta veloitetaan vain lakatusta vaihtoehdosta.
+    const kustannukset = kategoriaVarit("metallic").map(
+      (v) => (metallicHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("metallic")
+    );
+    const rivi = rakennaRivi("metallic", "Metallic", kustannukset, osa, asetukset);
+    if (rivi) rivit.push(rivi);
+
+    const lakattuRivi = laskeLakatunKategorianRivi(
+      "metallic-lakattu",
+      "Metallic + lakkaus",
       metallicHinta,
       kategoriaVarit("metallic"),
       kategoriaVarit("transparent"),
-      tyokustannus("metallic"),
+      tyokustannusVareilla(2),
       osa,
       asetukset
     );
-    if (rivi) rivit.push(rivi);
+    if (lakattuRivi) rivit.push(lakattuRivi);
   }
 
   const candyHinta = kategoriaHinta("candy");

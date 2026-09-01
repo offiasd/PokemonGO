@@ -76,8 +76,11 @@ function lueVariKentat(formData: FormData) {
     kiiltoaste: tyhjaksiTekstiksi(formData.get("kiiltoaste")),
     tyyppi,
     varisavy: lueVarisavy(formData),
-    // Pohjaväri-/lakkavaatimus johdetaan maalityypistä, ei syötetä käsin.
+    // Pohjavärivaatimus johdetaan maalityypistä, ei syötetä käsin.
     vaatii_pohjavarin: varinVaatiiPohjavarin(tyyppi),
+    // Lakkausvaatimus sen sijaan on värikohtainen: kaikki saman kategorian
+    // värit eivät sitä tarvitse, joten se tulee lomakkeen kytkimestä.
+    vaatii_lakkauksen: formData.get("vaatii_lakkauksen") === "1",
     pohjavari_kuvaus: varinLisavaatimus(tyyppi),
     alkuperainen_hinta: tyhjaksiNumeroksi(formData.get("alkuperainen_hinta")),
     alkuperainen_valuutta: tyhjaksiTekstiksi(formData.get("alkuperainen_valuutta")),

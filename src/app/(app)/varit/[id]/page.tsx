@@ -54,6 +54,10 @@ export default async function VariSivu({
   const hinta = laskeVarinHintaerittely(vari, asetukset);
   // Pohjaväri-/lakkavaatimus johdetaan maalityypistä, ei tallennetusta tekstistä.
   const lisavaatimus = varinLisavaatimus(vari.tyyppi);
+  // Lakkausvaatimus on värikohtainen tieto, ei maalityypistä johdettu.
+  const lakkausvaatimus = vari.vaatii_lakkauksen
+    ? "Tämä väri vaatii lakkauksen (esim. UV-suoja ulkokäyttöön)."
+    : null;
 
   const varastosaldoKortti = (
     <Card>
@@ -227,7 +231,8 @@ export default async function VariSivu({
 
       {naytaHinnat && hinnoitteluKortti}
 
-      {(vari.ohjeet || vari.ohje_tiedosto_url || vari.myyja_linkki || lisavaatimus) && (
+      {(vari.ohjeet || vari.ohje_tiedosto_url || vari.myyja_linkki || lisavaatimus ||
+        lakkausvaatimus) && (
         <Card>
           <CardHeader>
             <CardTitle>Maalausohjeet</CardTitle>
@@ -235,6 +240,9 @@ export default async function VariSivu({
           <CardContent className="grid gap-3 text-sm">
             {lisavaatimus && (
               <p className="rounded-md border bg-muted/30 p-3">{lisavaatimus}</p>
+            )}
+            {lakkausvaatimus && (
+              <p className="rounded-md border bg-muted/30 p-3">{lakkausvaatimus}</p>
             )}
             {vari.ohjeet && <p className="whitespace-pre-wrap">{vari.ohjeet}</p>}
             {vari.ohje_tiedosto_url && (

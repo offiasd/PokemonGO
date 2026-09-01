@@ -22,6 +22,8 @@ export type MaaliTyyppi =
   | "candy"
   | "illusion"
   | "metallic"
+  | "tekstuuri"
+  | "kuumankesto"
   | "pohjavari"
   | "muu";
 export type ToinenVariRooli = "pohjavari" | "lakka";
@@ -108,6 +110,8 @@ export interface Database {
           kiiltoaste: string | null;
           tyyppi: MaaliTyyppi;
           vaatii_pohjavarin: boolean;
+          /** Tarvitseeko väri erillisen lakkauksen (esim. UV-suoja ulkokäyttöön). */
+          vaatii_lakkauksen: boolean;
           pohjavari_kuvaus: string | null;
           alkuperainen_hinta: number | null;
           alkuperainen_valuutta: string | null;

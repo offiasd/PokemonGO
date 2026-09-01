@@ -56,6 +56,7 @@ interface Vari {
   saldo_g: number;
   varattu_g: number;
   hintalisa_prosentti: number;
+  vaatii_lakkauksen: boolean;
   kokonaishinta: number;
 }
 
@@ -342,7 +343,18 @@ export function TyonLomake({
           {kategoria && (
             <div className="grid gap-2">
               <Label htmlFor="vari_id">Väri</Label>
-              <Select value={variId} onValueChange={setVariId}>
+              <Select
+                value={variId}
+                onValueChange={(uusiId) => {
+                  setVariId(uusiId);
+                  // Lakkaus ei ole enää kategoriakohtainen pakko vaan
+                  // värikohtainen tieto, joten se ehdotetaan valinnan
+                  // yhteydessä. Käyttäjä voi ottaa sen pois - siksi ehdotus.
+                  if (varit.find((v) => v.id === uusiId)?.vaatii_lakkauksen) {
+                    setLakkausValittu(true);
+                  }
+                }}
+              >
                 <SelectTrigger id="vari_id" className="w-full">
                   <SelectValue placeholder="Valitse väri" />
                 </SelectTrigger>
@@ -367,6 +379,9 @@ export function TyonLomake({
               />
               <Label htmlFor="lakkaus_kytketty" className="font-normal">
                 Lisää lakkaus (kirkas topcoat)
+                {valittuVari?.vaatii_lakkauksen && (
+                  <span className="text-muted-foreground"> - väri vaatii lakkauksen</span>
+                )}
               </Label>
             </div>
           )}

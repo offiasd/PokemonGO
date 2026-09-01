@@ -29,7 +29,7 @@ export default async function UusiTyoSivu() {
       .order("nimi"),
     supabase
       .from("varit")
-      .select("id, nimi, tyyppi, saldo_g, varattu_g, hintalisa_prosentti")
+      .select("id, nimi, tyyppi, saldo_g, varattu_g, hintalisa_prosentti, vaatii_lakkauksen")
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase

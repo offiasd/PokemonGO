@@ -3,12 +3,13 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { Loader2, Palette, Wand2 } from "lucide-react";
+import { AlertTriangle, Loader2, Palette, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -17,6 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Link from "next/link";
+
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import { createClient } from "@/lib/supabase/client";
 import type { Alkupera, Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
@@ -45,6 +48,33 @@ interface VariLomakeProps {
   toimituskuluOletusMuu: number;
   tullimaksuOletus: number;
   alvOletus: number;
+}
+
+/**
+ * Sama tuotesivu voi tulla vastaan eri muodoissa (http/https, www, seurantaa
+ * varten lisätyt ?utm_-parametrit, lopun kauttaviiva), joten linkit verrataan
+ * karsittuina: verkkotunnus ja polku riittävät tunnistamaan tuotteen.
+ */
+function normalisoiLinkki(linkki: string | null | undefined): string | null {
+  if (!linkki) return null;
+  try {
+    const osoite = new URL(linkki.trim());
+    const isanta = osoite.hostname.toLowerCase().replace(/^www\./, "");
+    const polku = osoite.pathname.replace(/\/+$/, "").toLowerCase();
+    return `${isanta}${polku}`;
+  } catch {
+    return linkki.trim().toLowerCase() || null;
+  }
+}
+
+function normalisoiNimi(nimi: string | null | undefined): string {
+  return (nimi ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+interface Duplikaatti {
+  id: string;
+  nimi: string;
+  peruste: string;
 }
 
 function TallennaNappi({ uusi }: { uusi: boolean }) {
@@ -95,7 +125,9 @@ export function VariLomake({
     vari?.alkuperainen_yksikko ?? null
   );
   const [myyjaLinkki, setMyyjaLinkki] = useState(vari?.myyja_linkki ?? "");
+  const [vaatiiLakkauksen, setVaatiiLakkauksen] = useState(vari?.vaatii_lakkauksen ?? false);
   const [haetaan, setHaetaan] = useState(false);
+  const [duplikaatti, setDuplikaatti] = useState<Duplikaatti | null>(null);
   const lomakeRef = useRef<HTMLFormElement>(null);
 
   // Uuden värin luonnin jälkeen nollataan koko lomake (kontrolloidut kentät tässä,
@@ -119,6 +151,8 @@ export function VariLomake({
       setAlkuperainenValuutta(null);
       setAlkuperainenYksikko(null);
       setMyyjaLinkki("");
+      setVaatiiLakkauksen(false);
+      setDuplikaatti(null);
     }
   }
 
@@ -132,13 +166,57 @@ export function VariLomake({
   const toimituskuluOletus =
     alkupera === "EU" ? toimituskuluOletusEu : alkupera === "USA" ? toimituskuluOletusUsa : toimituskuluOletusMuu;
 
+  /**
+   * Etsii jo tallennetun värin joko samalla tuotesivulla tai samalla
+   * nimi + valmistaja -parilla. Värejä on kymmeniä, joten koko lista haetaan
+   * kerralla ja vertailu tehdään selaimessa - näin linkit voi normalisoida
+   * samalla tavalla kuin lomakkeella.
+   */
+  async function etsiDuplikaatti(linkki: string, haettuNimi?: string | null) {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("varit")
+      .select("id, nimi, valmistaja, myyja_linkki, aktiivinen");
+    if (!data) return null;
+
+    const kohdeLinkki = normalisoiLinkki(linkki);
+    const kohdeNimi = normalisoiNimi(haettuNimi ?? nimi);
+    const kohdeValmistaja = normalisoiNimi(valmistaja);
+
+    for (const rivi of data) {
+      if (vari && rivi.id === vari.id) continue;
+      const poistettuLisa = rivi.aktiivinen ? "" : " (poistettu käytöstä)";
+      if (kohdeLinkki && normalisoiLinkki(rivi.myyja_linkki) === kohdeLinkki) {
+        return { id: rivi.id, nimi: rivi.nimi, peruste: `sama tuotesivu${poistettuLisa}` };
+      }
+      if (
+        kohdeNimi &&
+        normalisoiNimi(rivi.nimi) === kohdeNimi &&
+        (!kohdeValmistaja || normalisoiNimi(rivi.valmistaja) === kohdeValmistaja)
+      ) {
+        return { id: rivi.id, nimi: rivi.nimi, peruste: `sama nimi${poistettuLisa}` };
+      }
+    }
+    return null;
+  }
+
   async function haeTiedot() {
     if (!myyjaLinkki) {
       toast.error("Anna ensin linkki myyjän tuotesivulle.");
       return;
     }
     setHaetaan(true);
+    setDuplikaatti(null);
     try {
+      // Linkki tarkistetaan ennen hakua: jos väri on jo järjestelmässä, sivun
+      // hakeminen on turhaa työtä ja vastaus tulee heti.
+      const linkinPerusteella = await etsiDuplikaatti(myyjaLinkki);
+      if (linkinPerusteella) {
+        setDuplikaatti(linkinPerusteella);
+        toast.warning(`"${linkinPerusteella.nimi}" on jo järjestelmässä (${linkinPerusteella.peruste}).`);
+        return;
+      }
+
       const supabase = createClient();
       const { data, error } = await supabase.functions.invoke("hae-tuotetiedot", {
         body: { url: myyjaLinkki },
@@ -183,9 +261,23 @@ export function VariLomake({
           `Hinta muunnettu: ${data.ostohinta_per_kg} €/kg (lähde: ${data.alkuperainen_hinta} ${data.alkuperainen_valuutta}/${data.alkuperainen_yksikko}).`
         );
       }
+      if (typeof data?.vaatii_lakkauksen === "boolean") {
+        setVaatiiLakkauksen(data.vaatii_lakkauksen);
+        if (data.vaatii_lakkauksen) {
+          toast.info("Tuotetiedoissa suositellaan lakkausta - vaatimus merkittiin päälle.");
+        }
+      }
       setAlkuperainenHinta(data?.alkuperainen_hinta ?? null);
       setAlkuperainenValuutta(data?.alkuperainen_valuutta ?? null);
       setAlkuperainenYksikko(data?.alkuperainen_yksikko ?? null);
+
+      // Nimi voi paljastaa duplikaatin vaikka linkki olisi eri (esim. sama väri
+      // eri jälleenmyyjältä), joten tarkistus toistetaan haetulla nimellä.
+      const nimenPerusteella = await etsiDuplikaatti(myyjaLinkki, data?.nimi ?? nimi);
+      if (nimenPerusteella) {
+        setDuplikaatti(nimenPerusteella);
+        toast.warning(`"${nimenPerusteella.nimi}" on jo järjestelmässä (${nimenPerusteella.peruste}).`);
+      }
     } catch {
       toast.error(
         "Haku epäonnistui - tarkista että Edge Function 'hae-tuotetiedot' on julkaistu Supabase-projektissa."
@@ -198,6 +290,26 @@ export function VariLomake({
   return (
     <form ref={lomakeRef} action={kutsuAction} className="grid gap-6">
       <input type="hidden" name="kuva_url" value={kuvaUrl ?? ""} />
+      <input type="hidden" name="vaatii_lakkauksen" value={vaatiiLakkauksen ? "1" : ""} />
+
+      {duplikaatti && (
+        <div className="flex flex-wrap items-start gap-3 rounded-md border border-warning bg-warning/10 p-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div className="grid min-w-0 gap-1">
+            <p className="font-medium">Tämä väri näyttää olevan jo järjestelmässä</p>
+            <p className="text-muted-foreground">
+              &quot;{duplikaatti.nimi}&quot; löytyi perusteella: {duplikaatti.peruste}. Tarkista
+              ettet lisää samaa väriä kahdesti - voit myös täydentää olemassa olevan värin tietoja.
+            </p>
+            <Link
+              href={`/varit/${duplikaatti.id}`}
+              className="text-primary underline underline-offset-2"
+            >
+              Avaa olemassa oleva väri
+            </Link>
+          </div>
+        </div>
+      )}
       <input type="hidden" name="ohje_tiedosto_url" value={ohjeTiedostoUrl ?? ""} />
       <input type="hidden" name="alkuperainen_hinta" value={alkuperainenHinta ?? ""} />
       <input type="hidden" name="alkuperainen_valuutta" value={alkuperainenValuutta ?? ""} />
@@ -332,6 +444,25 @@ export function VariLomake({
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="grid gap-2 rounded-md border p-4">
+        <div className="flex items-center gap-3">
+          <Switch
+            id="vaatii_lakkauksen"
+            checked={vaatiiLakkauksen}
+            onCheckedChange={setVaatiiLakkauksen}
+          />
+          <Label htmlFor="vaatii_lakkauksen" className="font-medium">
+            Väri vaatii lakkauksen
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Merkitse päälle jos valmistaja suosittelee lakkausta esim. UV-suojaksi ulkokäyttöön.
+          Vaatimus on värikohtainen, ei kategoriakohtainen: kaikki metallicit eivät sitä tarvitse.
+          &quot;Hae tiedot&quot; osaa päätellä tämän valmistajan tuotetekstistä, mutta tarkista
+          aina itse. Tieto näkyy värin sivulla ja ehdottaa lakkausta työtä kirjattaessa.
+        </p>
       </div>
 
       {varinLisavaatimus(tyyppi) && (

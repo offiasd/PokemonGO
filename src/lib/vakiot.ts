@@ -34,6 +34,8 @@ export const VARI_TYYPIT: { arvo: VariTyyppi; nimi: string }[] = [
 export const MAALI_TYYPIT: { arvo: MaaliTyyppi; nimi: string }[] = [
   { arvo: "solid", nimi: "Solid / RAL" },
   { arvo: "metallic", nimi: "Metallic" },
+  { arvo: "tekstuuri", nimi: "Tekstuuri" },
+  { arvo: "kuumankesto", nimi: "Kuumankesto" },
   { arvo: "pohjavari", nimi: "Pohjavärit" },
   { arvo: "candy", nimi: "Candy" },
   { arvo: "illusion", nimi: "Illusion" },
@@ -63,17 +65,18 @@ export const TOINEN_VARI_ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
   lakka: "Lakka",
 };
 
-// Candy vaatii aina pohjavärin, metallic ja illusion aina lakan (metallic
-// tarvitsee lakkauksen vain omana värinään - ei kun sitä käytetään candyn
-// pohjavärinä) - solidille lakkaus on valinnainen lisä. Käytössä
-// väri+hinta-valinnassa (Uusi työ, osan sivu).
+// Candy vaatii aina pohjavärin ja illusion aina lakan aktivoituakseen. Solidille
+// ja metallicille lakkaus on valinnainen lisä: kaikki metallicit eivät sitä
+// tarvitse, vaan vaatimus on värikohtainen tieto (varit.vaatii_lakkauksen) jonka
+// valmistaja kertoo tuotekohtaisesti. Käytössä väri+hinta-valinnassa (Uusi työ,
+// osan sivu).
 export const PAKOLLINEN_TOINEN_VARI_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {
   candy: "pohjavari",
-  metallic: "lakka",
   illusion: "lakka",
 };
 export const VALINNAINEN_TOINEN_VARI_ROOLI: Partial<Record<MyytavaMaaliTyyppi, ToinenVariRooli>> = {
   solid: "lakka",
+  metallic: "lakka",
 };
 
 // Monikerrosmaalauksessa (candy, illusion, metallic, solid + lakkaus) maalaus- ja
@@ -97,7 +100,6 @@ export function kategorianVarienMaara(
 export const VARIN_LISAVAATIMUS: Partial<Record<MaaliTyyppi, string>> = {
   candy: "Candy vaatii aina pohjavärin - yleisimmin Super Chrome.",
   illusion: "Illusion vaatii aina lakan aktivoituakseen.",
-  metallic: "Metallic vaatii lakkauksen UV-suojaksi.",
 };
 
 export function varinLisavaatimus(tyyppi: MaaliTyyppi): string | null {
