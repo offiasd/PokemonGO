@@ -113,15 +113,25 @@ if (serviceAvain && !serviceAvain.includes("xxxxx")) {
 
 otsikko("2. Yhteys REST-rajapintaan");
 try {
-  const vastaus = await haeAikakatkaisulla(`${url}/rest/v1/`, {
-    headers: { apikey: anonAvain },
+  // Kysytään oikeaa taulua eikä juurta `/rest/v1/`: juuri hyväksyy nykyään
+  // vain service_role-avaimen, joten se vastaisi anon-avaimella aina 401.
+  // Kirjautumattomana RLS palauttaa tyhjän listan - se on odotettu tulos ja
+  // todistaa yhtä lailla, että avain kelpaa.
+  const vastaus = await haeAikakatkaisulla(`${url}/rest/v1/varit?select=id&limit=1`, {
+    headers: { apikey: anonAvain, Authorization: `Bearer ${anonAvain}` },
   });
+  const runko = await vastaus.json().catch(() => null);
   if (vastaus.ok) {
-    ok(`Rajapinta vastaa (HTTP ${vastaus.status}).`);
+    ok(`Rajapinta vastaa ja anon-avain kelpaa (HTTP ${vastaus.status}).`);
   } else if (vastaus.status === 401) {
-    virhe("Rajapinta vastaa, mutta anon-avain hylättiin (401).", "Tarkista NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+    virhe(
+      `Rajapinta vastaa, mutta anon-avain hylättiin (401${runko?.message ? `: ${runko.message}` : ""}).`,
+      "Tarkista NEXT_PUBLIC_SUPABASE_ANON_KEY."
+    );
+  } else if (runko?.code === "42P01") {
+    virhe("Avain kelpaa, mutta taulua varit ei ole.", "Kanta on tyhjä - aja migraatiot järjestyksessä.");
   } else {
-    virhe(`Odottamaton vastaus HTTP ${vastaus.status}.`);
+    virhe(`Odottamaton vastaus HTTP ${vastaus.status}.`, runko?.message ?? undefined);
   }
 } catch (e) {
   virhe(`Yhteys epäonnistui: ${e.message}`, "Tarkista projektin osoite ja verkkoyhteys - onko projekti keskeytetty?");
