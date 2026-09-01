@@ -168,6 +168,50 @@ export async function lisaaVarastotayennys(variId: string, maaraG: number) {
   const { error } = await supabase.from("varastotayennykset").insert({
     vari_id: variId,
     maara_g: maaraG,
+    tyyppi: "taydennys",
+    kayttaja_id: kayttaja.id,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/varit");
+  revalidatePath(`/varit/${variId}`);
+}
+
+/**
+ * Asettaa varastosaldon manuaalisesti (inventaario-oikaisu).
+ *
+ * Saldoa ei kirjoiteta suoraan yli vaan muutos kirjataan erotuksena samaan
+ * historiaan kuin täydennykset. Näin saldo pysyy tapahtumien summana: jos
+ * maalaustapahtuma osuu samaan hetkeen, se ei katoa oikaisun alle, ja
+ * muutoksesta jää jälki.
+ */
+export async function korjaaSaldo(variId: string, uusiSaldoG: number) {
+  const kayttaja = await vaaditaanKayttaja();
+  if (!Number.isFinite(uusiSaldoG) || uusiSaldoG < 0) {
+    throw new Error("Saldon tulee olla vähintään 0.");
+  }
+
+  const supabase = await createClient();
+  const { data: vari } = await supabase
+    .from("varit")
+    .select("saldo_g")
+    .eq("id", variId)
+    .single();
+
+  if (!vari) throw new Error("Väriä ei löytynyt.");
+
+  // Sama tarkkuus kuin kannan numeric(12, 2), jottei liukulukujen pyöristys
+  // jätä nollan suuruista muutosta joka rikkoisi maara_g <> 0 -ehdon.
+  const erotus = Math.round((uusiSaldoG - vari.saldo_g) * 100) / 100;
+  if (erotus === 0) {
+    throw new Error("Saldo on jo tämä - ei muutettavaa.");
+  }
+
+  const { error } = await supabase.from("varastotayennykset").insert({
+    vari_id: variId,
+    maara_g: erotus,
+    tyyppi: "korjaus",
     kayttaja_id: kayttaja.id,
   });
 

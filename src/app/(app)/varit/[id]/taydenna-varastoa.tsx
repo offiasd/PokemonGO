@@ -14,7 +14,7 @@ export function TaydennaVarastoa({ variId }: { variId: string }) {
   const [kaynnissa, aloita] = useTransition();
 
   return (
-    <div className="flex items-end gap-2">
+    <div className="flex flex-wrap items-end gap-2">
       <div className="grid gap-1.5">
         <label className="text-sm font-medium" htmlFor="taydennys">
           Täydennä varastoa (g)

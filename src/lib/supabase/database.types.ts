@@ -12,6 +12,9 @@ export type VariTyyppi =
   | "muu_erikois";
 export type TyoVaihe = "pesu" | "maalinpoisto" | "puhallus" | "teippaus" | "maalaus";
 export type Alkupera = "EU" | "USA" | "muu";
+
+/** Varastosaldon muutoksen laji: lisätty erä vai manuaalinen oikaisu. */
+export type VarastomuutosTyyppi = "taydennys" | "korjaus";
 export type KayttajaRooli = "admin" | "maalaaja";
 export type MaaliTyyppi =
   | "solid"
@@ -235,7 +238,9 @@ export interface Database {
         Row: {
           id: string;
           vari_id: string;
+          /** Muutos grammoina. Korjaus voi olla negatiivinen, täydennys ei. */
           maara_g: number;
+          tyyppi: VarastomuutosTyyppi;
           kayttaja_id: string | null;
           luotu: string;
         };

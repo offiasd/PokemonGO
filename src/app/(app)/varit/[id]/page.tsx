@@ -14,6 +14,7 @@ import { laskeVarinHintaerittely } from "@/lib/hinnat";
 import { paivitaVari } from "../actions";
 import { VariLomake } from "../vari-lomake";
 import { TaydennaVarastoa } from "./taydenna-varastoa";
+import { KorjaaSaldo } from "./korjaa-saldo";
 import { PoistaPalautaVari } from "./poista-palauta-vari";
 
 export default async function VariSivu({
@@ -37,6 +38,15 @@ export default async function VariSivu({
     .map((k) => k.maali_tyyppi)
     .filter((t) => t !== vari.tyyppi);
 
+  // Viimeisimmät saldomuutokset: sekä täydennykset että manuaaliset korjaukset
+  // ovat samassa taulussa, joten historia kattaa molemmat.
+  const { data: saldohistoria } = await supabase
+    .from("varastotayennykset")
+    .select("id, maara_g, tyyppi, luotu")
+    .eq("vari_id", id)
+    .order("luotu", { ascending: false })
+    .limit(3);
+
   const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
 
   const halytysraja = vari.halytysraja_g ?? asetukset.oletus_halytysraja_g;
@@ -44,6 +54,54 @@ export default async function VariSivu({
   const hinta = laskeVarinHintaerittely(vari, asetukset);
   // Pohjaväri-/lakkavaatimus johdetaan maalityypistä, ei tallennetusta tekstistä.
   const lisavaatimus = varinLisavaatimus(vari.tyyppi);
+
+  const varastosaldoKortti = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Varastosaldo</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 sm:max-w-md">
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">
+              Saldo / hälytysraja {muotoileGrammat(halytysraja)}
+            </span>
+            <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
+          </div>
+          <SaldoPalkki saldoG={vari.saldo_g} halytysrajaG={halytysraja} />
+        </div>
+
+        <div className="grid gap-3">
+          <TaydennaVarastoa variId={vari.id} />
+          {/* key pakottaa kentän ajan tasalle aina kun saldo muuttuu. */}
+          <KorjaaSaldo key={vari.saldo_g} variId={vari.id} nykyinenSaldoG={vari.saldo_g} />
+        </div>
+
+        <div className="grid gap-1 border-t pt-3 text-sm">
+          <p className="font-medium">Viimeisimmät saldomuutokset</p>
+          {(saldohistoria ?? []).length === 0 && (
+            <p className="text-muted-foreground">Ei kirjauksia.</p>
+          )}
+          {(saldohistoria ?? []).map((muutos) => (
+            <div key={muutos.id} className="flex justify-between gap-2">
+              <span className="text-muted-foreground">
+                {new Date(muutos.luotu).toLocaleDateString("fi-FI")}
+                {muutos.tyyppi === "korjaus" && " - korjaus"}
+              </span>
+              <span
+                className={
+                  muutos.maara_g < 0 ? "font-medium text-destructive" : "font-medium text-success"
+                }
+              >
+                {muutos.maara_g > 0 && "+"}
+                {muotoileGrammat(muutos.maara_g)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   const hinnoitteluKortti = (
     <Card>
@@ -107,23 +165,7 @@ export default async function VariSivu({
           <PoistaPalautaVari variId={vari.id} aktiivinen={vari.aktiivinen} />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Varastosaldo</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-2 sm:max-w-md">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  Saldo / hälytysraja {muotoileGrammat(halytysraja)}
-                </span>
-                <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
-              </div>
-              <SaldoPalkki saldoG={vari.saldo_g} halytysrajaG={halytysraja} />
-            </div>
-            <TaydennaVarastoa variId={vari.id} />
-          </CardContent>
-        </Card>
+        {varastosaldoKortti}
 
         {naytaHinnat && hinnoitteluKortti}
 
@@ -164,23 +206,7 @@ export default async function VariSivu({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Varastosaldo</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  Saldo / hälytysraja {muotoileGrammat(halytysraja)}
-                </span>
-                <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
-              </div>
-              <SaldoPalkki saldoG={vari.saldo_g} halytysrajaG={halytysraja} />
-            </div>
-            <TaydennaVarastoa variId={vari.id} />
-          </CardContent>
-        </Card>
+        {varastosaldoKortti}
 
         {vari.kuva_url && (
           <Card>
