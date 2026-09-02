@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
+import { ajoneuvotyypinAvain } from "@/lib/vakiot";
 
 export interface AsetuksetTila {
   virhe: string | null;
@@ -73,4 +74,78 @@ export async function poistaTuntiveloitusYlikirjoitus(vaihe: TyoVaihe) {
   }
 
   revalidatePath("/asetukset");
+}
+
+/**
+ * Ajoneuvotyyppien hallinta.
+ *
+ * Avain on osien viittaus ja osalistan osoiteparametri, joten se muodostetaan
+ * nimestä kerran lisäyksessä eikä muutu enää: uudelleennimeäminen vaihtaa vain
+ * näyttönimen. Poisto onnistuu vain jos tyyppiä ei käytetä missään osassa -
+ * kanta estäisi sen viite-eheydellä, mutta virheteksti tulee tarkistuksesta
+ * suomeksi ja kertoo montako osaa on kyseessä.
+ */
+export async function lisaaAjoneuvotyyppi(nimi: string) {
+  await vaaditaanAdmin();
+  const siistittyNimi = nimi.trim();
+  if (!siistittyNimi) throw new Error("Anna ajoneuvotyypille nimi.");
+
+  const avain = ajoneuvotyypinAvain(siistittyNimi);
+  if (!avain) throw new Error("Nimestä ei saatu kelvollista tunnistetta - käytä kirjaimia.");
+
+  const supabase = await createClient();
+  const { data: suurin } = await supabase
+    .from("ajoneuvotyypit")
+    .select("jarjestys")
+    .order("jarjestys", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("ajoneuvotyypit")
+    .insert({ avain, nimi: siistittyNimi, jarjestys: (suurin?.jarjestys ?? 0) + 1 });
+  if (error) {
+    if (error.code === "23505") throw new Error("Samanniminen ajoneuvotyyppi on jo olemassa.");
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/asetukset");
+  revalidatePath("/osat");
+}
+
+export async function nimeaAjoneuvotyyppi(avain: string, nimi: string) {
+  await vaaditaanAdmin();
+  const siistittyNimi = nimi.trim();
+  if (!siistittyNimi) throw new Error("Anna ajoneuvotyypille nimi.");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ajoneuvotyypit")
+    .update({ nimi: siistittyNimi })
+    .eq("avain", avain);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/asetukset");
+  revalidatePath("/osat");
+}
+
+export async function poistaAjoneuvotyyppi(avain: string) {
+  await vaaditaanAdmin();
+  const supabase = await createClient();
+
+  const { count } = await supabase
+    .from("osat")
+    .select("id", { count: "exact", head: true })
+    .eq("ajoneuvotyyppi", avain);
+  if (count && count > 0) {
+    throw new Error(
+      `Tyyppi on käytössä ${count} osassa. Vaihda niiden ajoneuvotyyppi ensin.`
+    );
+  }
+
+  const { error } = await supabase.from("ajoneuvotyypit").delete().eq("avain", avain);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/asetukset");
+  revalidatePath("/osat");
 }

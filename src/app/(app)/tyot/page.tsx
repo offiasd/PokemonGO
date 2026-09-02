@@ -6,14 +6,6 @@ import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { muotoileEuro, peruutuksenSyynNimi } from "@/lib/vakiot";
 import type { Database, ToinenVariRooli } from "@/lib/supabase/database.types";
 
@@ -161,52 +153,41 @@ export default async function TyotSivu() {
           })}
         </TabsContent>
 
-        <TabsContent value="valmis">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Asiakas</TableHead>
-                <TableHead>Osat / värit</TableHead>
-                <TableHead>Aloitti</TableHead>
-                <TableHead>Valmistui</TableHead>
-                <TableHead>Valmistunut</TableHead>
-                <TableHead>Hinta</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {valmistuneet.map((tyo) => (
-                <TableRow key={tyo.id}>
-                  <TableCell className="font-medium">
-                    {tyo.asiakas ?? <span className="text-muted-foreground">-</span>}
-                  </TableCell>
-                  <TableCell>
-                    <div className="grid gap-0.5 text-sm">
-                      {rivitTyolle(tyo.id).map((rivi) => (
-                        <span key={rivi.id}>{riviteksti(rivi)}</span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {profiiliNimi(tyo.aloitti_id)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {profiiliNimi(tyo.valmistui_id)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {tyo.valmistunut ? new Date(tyo.valmistunut).toLocaleString("fi-FI") : "-"}
-                  </TableCell>
-                  <TableCell className="font-medium">{muotoileEuro(tyonHinta(tyo.id))}</TableCell>
-                </TableRow>
-              ))}
-              {valmistuneet.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Ei vielä valmistuneita töitä.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+        <TabsContent value="valmis" className="grid gap-3">
+          {valmistuneet.length === 0 && (
+            <p className="text-muted-foreground">Ei vielä valmistuneita töitä.</p>
+          )}
+          {valmistuneet.map((tyo) => (
+            <Card key={tyo.id}>
+              <CardHeader className="gap-1 space-y-0">
+                <CardTitle className="text-base">{tyo.asiakas ?? "Ei asiakastietoa"}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Valmistui {profiiliNimi(tyo.valmistui_id)} -{" "}
+                  {tyo.valmistunut ? new Date(tyo.valmistunut).toLocaleString("fi-FI") : "-"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Aloitti {profiiliNimi(tyo.aloitti_id)} -{" "}
+                  {new Date(tyo.aloitettu).toLocaleString("fi-FI")}
+                </p>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <ul className="grid gap-1 text-sm">
+                  {rivitTyolle(tyo.id).map((rivi) => (
+                    <li key={rivi.id} className="flex justify-between gap-4">
+                      <span className="min-w-0">{riviteksti(rivi)}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {muotoileEuro(rivi.yksikkohinta_eur * rivi.kappalemaara)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex justify-between border-t pt-2 text-sm font-medium">
+                  <span>Yhteensä</span>
+                  <span>{muotoileEuro(tyonHinta(tyo.id))}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
 
         <TabsContent value="peruttu" className="grid gap-3">

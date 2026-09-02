@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
+import { haeAjoneuvotyypit } from "@/lib/supabase/ajoneuvotyypit";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -34,6 +35,7 @@ export default async function OsatSivu({
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
+  const ajoneuvotyypit = await haeAjoneuvotyypit();
 
   let kysely = supabase.from("osat").select("*").order("nimi", { ascending: true });
 
@@ -44,7 +46,7 @@ export default async function OsatSivu({
     kysely = kysely.eq("ajoneuvotyyppi", ajoneuvotyyppi as AjoneuvoTyyppi);
   }
   if (q) {
-    kysely = kysely.or(`nimi.ilike.%${q}%,merkki.ilike.%${q}%,malli.ilike.%${q}%`);
+    kysely = kysely.or(`nimi.ilike.%${q}%,lisatiedot.ilike.%${q}%`);
   }
 
   const [
@@ -149,7 +151,10 @@ export default async function OsatSivu({
         )}
       </div>
 
-      <OsienSuodattimet naytaPoistetutValinta={kayttaja.role === "admin"} />
+      <OsienSuodattimet
+        naytaPoistetutValinta={kayttaja.role === "admin"}
+        ajoneuvotyypit={ajoneuvotyypit}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {osat.map((osa) => {
@@ -164,7 +169,7 @@ export default async function OsatSivu({
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{osa.nimi}</CardTitle>
                   <CardDescription>
-                    {[osa.merkki, osa.malli].filter(Boolean).join(" ") || "Merkki/malli tuntematon"}
+                    {osa.lisatiedot || "Ei lisätietoja"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -183,7 +188,7 @@ export default async function OsatSivu({
                     )}
                     <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
                       <Badge variant="outline" className="bg-background/90">
-                        {ajoneuvotyypinNimi(osa.ajoneuvotyyppi)}
+                        {ajoneuvotyypinNimi(osa.ajoneuvotyyppi, ajoneuvotyypit)}
                       </Badge>
                       {!osa.aktiivinen && <Badge variant="secondary">Poistettu</Badge>}
                     </div>

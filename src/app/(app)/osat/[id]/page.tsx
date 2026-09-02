@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
+import { haeAjoneuvotyypit } from "@/lib/supabase/ajoneuvotyypit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -45,6 +46,7 @@ export default async function OsaSivu({
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
+  const ajoneuvotyypit = await haeAjoneuvotyypit();
 
   const [
     osaVastaus,
@@ -138,11 +140,11 @@ export default async function OsaSivu({
           <div>
             <h1 className="text-2xl font-semibold">{osa.nimi}</h1>
             <p className="text-muted-foreground">
-              {[osa.merkki, osa.malli].filter(Boolean).join(" ") || "Merkki/malli tuntematon"}
+              {osa.lisatiedot || "Ei lisätietoja"}
             </p>
           </div>
           <div className="flex gap-2">
-            <Badge variant="outline">{ajoneuvotyypinNimi(osa.ajoneuvotyyppi)}</Badge>
+            <Badge variant="outline">{ajoneuvotyypinNimi(osa.ajoneuvotyyppi, ajoneuvotyypit)}</Badge>
             <Badge variant="outline">{variTyypinNimi(osa.vari_tyyppi)}</Badge>
           </div>
         </div>
@@ -213,7 +215,7 @@ export default async function OsaSivu({
         <div>
           <h1 className="text-2xl font-semibold">{osa.nimi}</h1>
           <p className="text-muted-foreground">
-            {[osa.merkki, osa.malli].filter(Boolean).join(" ") || "Merkki/malli tuntematon"}
+            {osa.lisatiedot || "Ei lisätietoja"}
           </p>
         </div>
         <PoistaPalautaOsa osaId={osa.id} aktiivinen={osa.aktiivinen} />
@@ -278,6 +280,7 @@ export default async function OsaSivu({
             osa={osa}
             tyovaiheet={tyovaiheetVastaus.data ?? []}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
+            ajoneuvotyypit={ajoneuvotyypit}
             formAction={paivitaOsa.bind(null, osa.id)}
           />
         </CardContent>

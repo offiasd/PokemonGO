@@ -1,4 +1,5 @@
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
+import { haeAjoneuvotyypit } from "@/lib/supabase/ajoneuvotyypit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { luoOsa } from "../actions";
@@ -6,6 +7,7 @@ import { OsaLomake } from "../osa-lomake";
 
 export default async function UusiOsaSivu() {
   await vaaditaanAdmin();
+  const ajoneuvotyypit = await haeAjoneuvotyypit();
 
   return (
     <div className="grid gap-6">
@@ -19,7 +21,7 @@ export default async function UusiOsaSivu() {
           <CardTitle>Osan tiedot</CardTitle>
         </CardHeader>
         <CardContent>
-          <OsaLomake formAction={luoOsa} />
+          <OsaLomake formAction={luoOsa} ajoneuvotyypit={ajoneuvotyypit} />
         </CardContent>
       </Card>
     </div>

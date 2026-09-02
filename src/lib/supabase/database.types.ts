@@ -3,7 +3,11 @@
 // voidaan korvata komennolla:
 //   npx supabase gen types typescript --project-id <id> > src/lib/supabase/database.types.ts
 
-export type AjoneuvoTyyppi = "auto" | "mopo" | "moottoripyora";
+/**
+ * Ajoneuvotyypin avain. Tyypit ovat adminin hallinnoimaa dataa
+ * (ajoneuvotyypit-taulu), joten sallittuja arvoja ei voi luetella tyypissä.
+ */
+export type AjoneuvoTyyppi = string;
 export type VariTyyppi =
   | "yksivarinen"
   | "candy"
@@ -135,13 +139,25 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["varit"]["Row"]>;
         Relationships: EiSuhteita;
       };
+      ajoneuvotyypit: {
+        Row: {
+          avain: string;
+          nimi: string;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["ajoneuvotyypit"]["Row"]> & {
+          avain: string;
+          nimi: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["ajoneuvotyypit"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
       osat: {
         Row: {
           id: string;
           nimi: string;
           ajoneuvotyyppi: AjoneuvoTyyppi;
-          merkki: string | null;
-          malli: string | null;
+          lisatiedot: string | null;
           vari_tyyppi: VariTyyppi;
           arvioitu_kulutus_g: number | null;
           kuva_url: string | null;
@@ -159,7 +175,15 @@ export interface Database {
           ajoneuvotyyppi: AjoneuvoTyyppi;
         };
         Update: Partial<Database["public"]["Tables"]["osat"]["Row"]>;
-        Relationships: EiSuhteita;
+        Relationships: [
+          {
+            foreignKeyName: "osat_ajoneuvotyyppi_fkey";
+            columns: ["ajoneuvotyyppi"];
+            isOneToOne: false;
+            referencedRelation: "ajoneuvotyypit";
+            referencedColumns: ["avain"];
+          },
+        ];
       };
       osa_tyovaiheet: {
         Row: {

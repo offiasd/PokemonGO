@@ -17,12 +17,6 @@ export const TYO_VAIHEET: { arvo: TyoVaihe; nimi: string }[] = [
   { arvo: "maalaus", nimi: "Maalaus" },
 ];
 
-export const AJONEUVOTYYPIT: { arvo: AjoneuvoTyyppi; nimi: string }[] = [
-  { arvo: "auto", nimi: "Auto" },
-  { arvo: "mopo", nimi: "Mopo" },
-  { arvo: "moottoripyora", nimi: "Moottoripyörä" },
-];
-
 export const VARI_TYYPIT: { arvo: VariTyyppi; nimi: string }[] = [
   { arvo: "yksivarinen", nimi: "Yksivärinen" },
   { arvo: "candy", nimi: "Candy" },
@@ -129,8 +123,31 @@ export function tyoVaiheenNimi(vaihe: TyoVaihe): string {
   return TYO_VAIHEET.find((v) => v.arvo === vaihe)?.nimi ?? vaihe;
 }
 
-export function ajoneuvotyypinNimi(tyyppi: AjoneuvoTyyppi): string {
-  return AJONEUVOTYYPIT.find((t) => t.arvo === tyyppi)?.nimi ?? tyyppi;
+/**
+ * Ajoneuvotyypin näyttönimi. Tyypit ovat adminin hallinnoimaa dataa, joten
+ * lista annetaan kutsussa - poistetun tyypin kohdalla näytetään avain, ettei
+ * näkymä jää tyhjäksi.
+ */
+export function ajoneuvotyypinNimi(
+  tyyppi: AjoneuvoTyyppi,
+  tyypit: { avain: string; nimi: string }[]
+): string {
+  return tyypit.find((t) => t.avain === tyyppi)?.nimi ?? tyyppi;
+}
+
+/**
+ * Muodostaa nimestä avaimen: pieniä kirjaimia, numeroita ja alaviivoja.
+ * Avain on osalistan osoiteparametri ja osien viittaus, joten se ei saa
+ * sisältää ääkkösiä eikä välilyöntejä.
+ */
+export function ajoneuvotyypinAvain(nimi: string): string {
+  return nimi
+    .toLowerCase()
+    .replace(/[äå]/g, "a")
+    .replace(/ö/g, "o")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
 }
 
 export function variTyypinNimi(tyyppi: VariTyyppi): string {

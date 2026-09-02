@@ -13,12 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AJONEUVOTYYPIT } from "@/lib/vakiot";
 
 export function OsienSuodattimet({
   naytaPoistetutValinta,
+  ajoneuvotyypit,
 }: {
   naytaPoistetutValinta: boolean;
+  ajoneuvotyypit: { avain: string; nimi: string }[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -38,7 +39,7 @@ export function OsienSuodattimet({
       <div className="relative w-full max-w-xs">
         <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Hae nimellä, merkillä tai mallilla..."
+          placeholder="Hae nimellä tai lisätiedoilla..."
           defaultValue={searchParams.get("q") ?? ""}
           className="pl-8"
           onChange={(e) => paivitaParametri("q", e.target.value || null)}
@@ -56,8 +57,8 @@ export function OsienSuodattimet({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="kaikki">Kaikki</SelectItem>
-            {AJONEUVOTYYPIT.map((t) => (
-              <SelectItem key={t.arvo} value={t.arvo}>
+            {ajoneuvotyypit.map((t) => (
+              <SelectItem key={t.avain} value={t.avain}>
                 {t.nimi}
               </SelectItem>
             ))}

@@ -20,8 +20,7 @@ function lueOsaKentat(formData: FormData) {
   return {
     nimi: String(formData.get("nimi") ?? "").trim(),
     ajoneuvotyyppi: String(formData.get("ajoneuvotyyppi") ?? "auto") as AjoneuvoTyyppi,
-    merkki: String(formData.get("merkki") ?? "").trim() || null,
-    malli: String(formData.get("malli") ?? "").trim() || null,
+    lisatiedot: String(formData.get("lisatiedot") ?? "").trim() || null,
     vari_tyyppi: String(formData.get("vari_tyyppi") ?? "yksivarinen") as VariTyyppi,
     kuva_url: String(formData.get("kuva_url") ?? "").trim() || null,
     kate_prosentti: tyhjaksiNumeroksi(formData.get("kate_prosentti")),

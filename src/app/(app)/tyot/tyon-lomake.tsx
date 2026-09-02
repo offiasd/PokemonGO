@@ -40,8 +40,7 @@ import { aloitaTyo, paivitaTyo } from "./actions";
 interface Osa {
   id: string;
   nimi: string;
-  merkki: string | null;
-  malli: string | null;
+  lisatiedot: string | null;
   lakkaus_kulutus_g: number | null;
   tyokustannusKerroksittain: number[];
   kateProsentti: number;
@@ -336,8 +335,9 @@ export function TyonLomake({
                   {osat.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.nimi}
-                      {(o.merkki || o.malli) &&
-                        ` (${[o.merkki, o.malli].filter(Boolean).join(" ")})`}
+                      {o.lisatiedot && (
+                        <span className="text-muted-foreground"> - {o.lisatiedot}</span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>

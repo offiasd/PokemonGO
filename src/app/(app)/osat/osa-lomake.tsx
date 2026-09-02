@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import type { Database, MyytavaMaaliTyyppi } from "@/lib/supabase/database.types";
-import { AJONEUVOTYYPIT, TYO_VAIHEET, MYYTAVAT_MAALI_TYYPIT } from "@/lib/vakiot";
+import { TYO_VAIHEET, MYYTAVAT_MAALI_TYYPIT } from "@/lib/vakiot";
 
 import type { OsaLomakeTila } from "./actions";
 
@@ -31,6 +32,8 @@ interface OsaLomakeProps {
   osa?: OsaRow;
   tyovaiheet?: TyovaiheRow[];
   kategoriahinnat?: KategoriahintaRow[];
+  /** Adminin hallinnoima lista, haetaan palvelimella ja annetaan propsina. */
+  ajoneuvotyypit: { avain: string; nimi: string }[];
   formAction: (tila: OsaLomakeTila, formData: FormData) => Promise<OsaLomakeTila>;
 }
 
@@ -186,7 +189,13 @@ function KategoriaRivi({
   );
 }
 
-export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formAction }: OsaLomakeProps) {
+export function OsaLomake({
+  osa,
+  tyovaiheet = [],
+  kategoriahinnat = [],
+  ajoneuvotyypit,
+  formAction,
+}: OsaLomakeProps) {
   const [tila, kutsuAction] = useActionState(formAction, TYHJA_OSA_TILA);
   const [kuvaUrl, setKuvaUrl] = useState<string | null>(osa?.kuva_url ?? null);
 
@@ -199,30 +208,39 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
         <Input id="nimi" name="nimi" required defaultValue={osa?.nimi} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="grid gap-2">
-          <Label htmlFor="ajoneuvotyyppi">Ajoneuvotyyppi</Label>
-          <Select name="ajoneuvotyyppi" defaultValue={osa?.ajoneuvotyyppi ?? "auto"}>
-            <SelectTrigger id="ajoneuvotyyppi">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {AJONEUVOTYYPIT.map((t) => (
-                <SelectItem key={t.arvo} value={t.arvo}>
-                  {t.nimi}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="merkki">Merkki</Label>
-          <Input id="merkki" name="merkki" defaultValue={osa?.merkki ?? ""} />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="malli">Malli</Label>
-          <Input id="malli" name="malli" defaultValue={osa?.malli ?? ""} />
-        </div>
+      <div className="grid gap-2 sm:max-w-xs">
+        <Label htmlFor="ajoneuvotyyppi">Ajoneuvotyyppi</Label>
+        <Select
+          name="ajoneuvotyyppi"
+          defaultValue={osa?.ajoneuvotyyppi ?? ajoneuvotyypit[0]?.avain}
+        >
+          <SelectTrigger id="ajoneuvotyyppi" className="w-full">
+            <SelectValue placeholder="Valitse tyyppi" />
+          </SelectTrigger>
+          <SelectContent>
+            {ajoneuvotyypit.map((t) => (
+              <SelectItem key={t.avain} value={t.avain}>
+                {t.nimi}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {ajoneuvotyypit.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Ajoneuvotyyppejä ei ole vielä lisätty - lisää ne Asetukset-sivulla.
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="lisatiedot">Lisätiedot</Label>
+        <Textarea
+          id="lisatiedot"
+          name="lisatiedot"
+          rows={3}
+          defaultValue={osa?.lisatiedot ?? ""}
+          placeholder="Esimerkiksi mihin ajoneuvoon osa sopii tai muuta huomioitavaa"
+        />
       </div>
 
       <div className="grid gap-2">
