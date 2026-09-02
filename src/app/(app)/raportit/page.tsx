@@ -62,7 +62,10 @@ export default async function RaportitSivu({
     supabase.rpc("kuukauden_kaytetyin_vari"),
   ]);
 
-  let kysely = supabase.from("maalaustapahtumat_raportoituna").select("*");
+  // Kulutus luetaan valmiiden töiden riveiltä (maalinkulutus_raportoituna):
+  // yksi rivi per käytetty väri, joten pohjaväri ja lakka näkyvät omina
+  // riveinään ja osuvat myös värisuodattimeen.
+  let kysely = supabase.from("maalinkulutus_raportoituna").select("*");
   if (variId) kysely = kysely.eq("vari_id", variId);
   if (osaId) kysely = kysely.eq("osa_id", osaId);
   if (alkaen) kysely = kysely.gte("luotu", new Date(alkaen).toISOString());
@@ -144,7 +147,7 @@ export default async function RaportitSivu({
               <div key={avain} className="grid gap-1 rounded-md border p-3 text-sm">
                 <p className="font-medium">{muotoileJakso(jakso, avain)}</p>
                 <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Tapahtumia</span>
+                  <span className="text-muted-foreground">Maalikertoja</span>
                   <span className="font-medium">{arvot.tapahtumia}</span>
                 </div>
                 <div className="flex justify-between gap-2">
@@ -166,7 +169,7 @@ export default async function RaportitSivu({
             <TableHeader>
               <TableRow>
                 <TableHead>Ajanjakso</TableHead>
-                <TableHead>Tapahtumia</TableHead>
+                <TableHead>Maalikertoja</TableHead>
                 <TableHead>Kulutus (kg)</TableHead>
                 {naytaHinnat && <TableHead>Maalikustannus</TableHead>}
               </TableRow>

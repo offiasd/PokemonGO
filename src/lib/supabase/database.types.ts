@@ -458,7 +458,7 @@ export interface Database {
         };
         Relationships: EiSuhteita;
       };
-      maalaustapahtumat_raportoituna: {
+      maalinkulutus_raportoituna: {
         Row: {
           id: string;
           luotu: string;
@@ -470,16 +470,13 @@ export interface Database {
           osa_nimi: string;
           vari_id: string;
           vari_nimi: string;
+          /** Missä roolissa väri käytettiin: pääväri, pohjaväri vai lakka. */
+          rooli: "paavari" | ToinenVariRooli | "toinen";
           kappalemaara: number;
           toteutunut_kulutus_g: number;
           toteutunut_kulutus_kg: number;
           maalikustannus_eur: number;
           kayttaja_id: string | null;
-          toinen_vari_id: string | null;
-          toinen_vari_nimi: string | null;
-          toinen_vari_rooli: ToinenVariRooli | null;
-          toinen_toteutunut_kulutus_g: number | null;
-          toinen_toteutunut_kulutus_kg: number | null;
         };
         Relationships: EiSuhteita;
       };
