@@ -28,6 +28,7 @@ import {
 import {
   kategorianVarienMaara,
   muotoileEuro,
+  muotoileProsentti,
   myytavaMaaliTyypinNimi,
   PAKOLLINEN_TOINEN_VARI_ROOLI,
   TOINEN_VARI_ROOLIN_NIMI,
@@ -99,7 +100,12 @@ export function TyonLomake({
   kategoriahinnat: Kategoriahinta[];
   variKategoriat: VariKategoria[];
   /** Annettuna lomake muokkaa olemassa olevaa keskeneräistä työtä. */
-  muokattavaTyo?: { id: string; asiakas: string | null; rivit: KoriRivi[] };
+  muokattavaTyo?: {
+    id: string;
+    asiakas: string | null;
+    alennusProsentti: number;
+    rivit: KoriRivi[];
+  };
 }) {
   const router = useRouter();
   const [kaynnissa, aloita] = useTransition();
@@ -118,6 +124,11 @@ export function TyonLomake({
   }, [variKategoriat]);
 
   const [asiakas, setAsiakas] = useState(muokattavaTyo?.asiakas ?? "");
+  const [alennus, setAlennus] = useState(
+    muokattavaTyo && muokattavaTyo.alennusProsentti > 0
+      ? String(muokattavaTyo.alennusProsentti)
+      : ""
+  );
   const [kori, setKori] = useState<KoriRivi[]>(muokattavaTyo?.rivit ?? []);
 
   const [osaId, setOsaId] = useState("");
@@ -264,6 +275,11 @@ export function TyonLomake({
   }
 
   const koriYhteensa = kori.reduce((s, r) => s + r.yksikkohintaEur, 0);
+  // Tyhjä kenttä ja roskasyöte tarkoittavat molemmat "ei alennusta". Rajaus
+  // 0-100 % on sama kuin palvelinfunktiossa ja kannassa.
+  const alennusProsentti = Math.min(Math.max(Number(alennus) || 0, 0), 100);
+  const alennusEur = Math.round(koriYhteensa * (alennusProsentti / 100) * 100) / 100;
+  const loppusumma = Math.round((koriYhteensa - alennusEur) * 100) / 100;
 
   function kasitteleTallennus() {
     if (kori.length === 0) {
@@ -288,10 +304,10 @@ export function TyonLomake({
     aloita(async () => {
       try {
         if (muokattavaTyo) {
-          await paivitaTyo(muokattavaTyo.id, asiakas.trim() || null, syotteet);
+          await paivitaTyo(muokattavaTyo.id, asiakas.trim() || null, syotteet, alennusProsentti);
           toast.success("Työ päivitetty ja varaukset korjattu varastoon.");
         } else {
-          await aloitaTyo(asiakas.trim() || null, syotteet);
+          await aloitaTyo(asiakas.trim() || null, syotteet, alennusProsentti);
           toast.success("Työ aloitettu ja maali varattu varastosta.");
         }
         router.push("/tyot");
@@ -466,45 +482,103 @@ export function TyonLomake({
           {kori.length === 0 && (
             <p className="text-sm text-muted-foreground">Kori on tyhjä - lisää osia yllä.</p>
           )}
+          {/* Viisi saraketta ei mahdu puhelimeen: taulukko vieri vaakasuunnassa
+              ja hinta sekä poistonappi jäivät ruudun ulkopuolelle. Kapealla
+              ruudulla rivit ovat omina lohkoinaan, sm-koosta ylöspäin taulukko. */}
           {kori.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Osa</TableHead>
-                  <TableHead>Väri</TableHead>
-                  <TableHead>Pohjaväri / lakka</TableHead>
-                  <TableHead>Hinta</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {kori.map((r) => (
-                  <TableRow key={r.avain}>
-                    <TableCell>{r.osaNimi}</TableCell>
-                    <TableCell>{r.variNimi}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {r.toinenVariNimi ?? "-"}
-                    </TableCell>
-                    <TableCell>{muotoileEuro(r.yksikkohintaEur)}</TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => poistaKorista(r.avain)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="grid gap-2 sm:hidden">
+              {kori.map((r) => (
+                <div key={r.avain} className="grid gap-1 rounded-md border p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 font-medium break-words">{r.osaNimi}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="-mt-1 shrink-0"
+                      onClick={() => poistaKorista(r.avain)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                  <span className="text-sm break-words text-muted-foreground">
+                    {r.variNimi}
+                    {r.toinenVariNimi && ` + ${r.toinenVariNimi}`}
+                  </span>
+                  <span className="text-sm font-medium">{muotoileEuro(r.yksikkohintaEur)}</span>
+                </div>
+              ))}
+            </div>
           )}
           {kori.length > 0 && (
-            <div className="flex items-center justify-between border-t pt-4">
-              <span className="text-sm text-muted-foreground">Yhteensä</span>
-              <span className="text-lg font-semibold">{muotoileEuro(koriYhteensa)}</span>
+            <div className="hidden sm:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Osa</TableHead>
+                    <TableHead>Väri</TableHead>
+                    <TableHead>Pohjaväri / lakka</TableHead>
+                    <TableHead>Hinta</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {kori.map((r) => (
+                    <TableRow key={r.avain}>
+                      <TableCell>{r.osaNimi}</TableCell>
+                      <TableCell>{r.variNimi}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {r.toinenVariNimi ?? "-"}
+                      </TableCell>
+                      <TableCell>{muotoileEuro(r.yksikkohintaEur)}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => poistaKorista(r.avain)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  </TableBody>
+              </Table>
+            </div>
+          )}
+          {kori.length > 0 && (
+            <div className="flex flex-wrap items-end justify-between gap-3 border-t pt-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="alennus">Alennus %</Label>
+                <Input
+                  id="alennus"
+                  className="w-28"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  placeholder="0"
+                  value={alennus}
+                  onChange={(e) => setAlennus(e.target.value)}
+                />
+              </div>
+              <div className="grid flex-1 gap-1 text-sm sm:flex-none">
+                <div className="flex justify-between gap-6">
+                  <span className="text-muted-foreground">Välisumma</span>
+                  <span>{muotoileEuro(koriYhteensa)}</span>
+                </div>
+                {alennusProsentti > 0 && (
+                  <div className="flex justify-between gap-6 text-muted-foreground">
+                    <span>Alennus {muotoileProsentti(alennusProsentti)}</span>
+                    <span>-{muotoileEuro(alennusEur)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between gap-6 border-t pt-1">
+                  <span className="font-medium">Yhteensä</span>
+                  <span className="text-lg font-semibold">{muotoileEuro(loppusumma)}</span>
+                </div>
+              </div>
             </div>
           )}
           <div>

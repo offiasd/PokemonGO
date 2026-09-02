@@ -345,6 +345,7 @@ export interface Database {
           aloitettu: string;
           valmistui_id: string | null;
           valmistunut: string | null;
+          alennus_prosentti: number;
         };
         Insert: Partial<Database["public"]["Tables"]["tyot"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["tyot"]["Row"]>;

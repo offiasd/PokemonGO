@@ -21,7 +21,7 @@ export default async function MuokkaaTyotaSivu({
 
   const { data: tyo } = await supabase
     .from("tyot")
-    .select("id, asiakas, tila")
+    .select("id, asiakas, tila, alennus_prosentti")
     .eq("id", id)
     .single();
   if (!tyo) notFound();
@@ -132,7 +132,12 @@ export default async function MuokkaaTyotaSivu({
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
-            muokattavaTyo={{ id: tyo.id, asiakas: tyo.asiakas, rivit: alkuRivit }}
+            muokattavaTyo={{
+              id: tyo.id,
+              asiakas: tyo.asiakas,
+              alennusProsentti: tyo.alennus_prosentti,
+              rivit: alkuRivit,
+            }}
           />
         </CardContent>
       </Card>

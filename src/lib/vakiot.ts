@@ -171,6 +171,11 @@ export function muotoileKilot(grammat: number | null | undefined): string {
   return `${(grammat / 1000).toLocaleString("fi-FI", { maximumFractionDigits: 2 })} kg`;
 }
 
+/** Prosenttiluku suomalaisittain: desimaalierottimena pilkku, ei turhia nollia. */
+export function muotoileProsentti(arvo: number): string {
+  return `${arvo.toLocaleString("fi-FI", { maximumFractionDigits: 2 })} %`;
+}
+
 export function muotoileValiEuro(min: number, max: number): string {
   return min === max ? muotoileEuro(min) : `${muotoileEuro(min)} - ${muotoileEuro(max)}`;
 }

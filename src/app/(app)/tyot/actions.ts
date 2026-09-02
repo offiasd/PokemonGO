@@ -6,6 +6,17 @@ import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import type { PeruutuksenSyy, ToinenVariRooli } from "@/lib/supabase/database.types";
 
+/**
+ * Alennus on koko työn prosenttiosuus, joten se rajataan 0-100 väliin. Sama
+ * rajaus on kannassa check-ehtona; tämä antaa siitä suomenkielisen virheen.
+ */
+function tarkistaAlennus(prosentti: number): number {
+  if (!Number.isFinite(prosentti) || prosentti < 0 || prosentti > 100) {
+    throw new Error("Alennuksen pitää olla 0-100 %.");
+  }
+  return Math.round(prosentti * 100) / 100;
+}
+
 export interface TyonRiviSyote {
   osaId: string;
   variId: string;
@@ -17,7 +28,11 @@ export interface TyonRiviSyote {
   toinenArvioituKulutusG?: number | null;
 }
 
-export async function aloitaTyo(asiakas: string | null, rivit: TyonRiviSyote[]): Promise<string> {
+export async function aloitaTyo(
+  asiakas: string | null,
+  rivit: TyonRiviSyote[],
+  alennusProsentti = 0
+): Promise<string> {
   const kayttaja = await vaaditaanKayttaja();
   if (rivit.length === 0) {
     throw new Error("Lisää vähintään yksi osa työhön ennen aloitusta.");
@@ -26,7 +41,11 @@ export async function aloitaTyo(asiakas: string | null, rivit: TyonRiviSyote[]):
 
   const { data: tyo, error: tyoVirhe } = await supabase
     .from("tyot")
-    .insert({ asiakas, aloitti_id: kayttaja.id })
+    .insert({
+      asiakas,
+      aloitti_id: kayttaja.id,
+      alennus_prosentti: tarkistaAlennus(alennusProsentti),
+    })
     .select("id")
     .single();
   if (tyoVirhe || !tyo) {
@@ -70,7 +89,8 @@ export async function aloitaTyo(asiakas: string | null, rivit: TyonRiviSyote[]):
 export async function paivitaTyo(
   tyoId: string,
   asiakas: string | null,
-  rivit: TyonRiviSyote[]
+  rivit: TyonRiviSyote[],
+  alennusProsentti = 0
 ): Promise<void> {
   await vaaditaanKayttaja();
   if (rivit.length === 0) {
@@ -97,7 +117,10 @@ export async function paivitaTyo(
   });
   if (rpcVirhe) throw new Error(rpcVirhe.message);
 
-  const { error: tyoVirhe } = await supabase.from("tyot").update({ asiakas }).eq("id", tyoId);
+  const { error: tyoVirhe } = await supabase
+    .from("tyot")
+    .update({ asiakas, alennus_prosentti: tarkistaAlennus(alennusProsentti) })
+    .eq("id", tyoId);
   if (tyoVirhe) throw new Error(tyoVirhe.message);
 
   revalidatePath("/tyot");

@@ -3,10 +3,16 @@ import { Pencil, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
+import { haeAjoneuvotyypit } from "@/lib/supabase/ajoneuvotyypit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { muotoileEuro, peruutuksenSyynNimi } from "@/lib/vakiot";
+import {
+  ajoneuvotyypinNimi,
+  muotoileEuro,
+  muotoileProsentti,
+  peruutuksenSyynNimi,
+} from "@/lib/vakiot";
 import type { Database, ToinenVariRooli } from "@/lib/supabase/database.types";
 
 import { MerkitseValmiiksi } from "./merkitse-valmiiksi";
@@ -19,9 +25,43 @@ const ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
   lakka: "Lakka",
 };
 
+/**
+ * Työn loppusumma. Alennusrivi näytetään vain kun alennus on annettu, jotta
+ * tavallinen työ ei saa turhaa "Alennus 0 %" -riviä.
+ */
+function Summat({
+  tyo,
+  summat,
+}: {
+  tyo: { alennus_prosentti: number };
+  summat: { valisumma: number; alennusEur: number; loppusumma: number };
+}) {
+  return (
+    <div className="grid gap-1 border-t pt-2 text-sm">
+      {tyo.alennus_prosentti > 0 && (
+        <>
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Välisumma</span>
+            <span>{muotoileEuro(summat.valisumma)}</span>
+          </div>
+          <div className="flex justify-between gap-4 text-muted-foreground">
+            <span>Alennus {muotoileProsentti(tyo.alennus_prosentti)}</span>
+            <span>-{muotoileEuro(summat.alennusEur)}</span>
+          </div>
+        </>
+      )}
+      <div className="flex justify-between gap-4 font-medium">
+        <span>Yhteensä</span>
+        <span>{muotoileEuro(summat.loppusumma)}</span>
+      </div>
+    </div>
+  );
+}
+
 export default async function TyotSivu() {
   await vaaditaanKayttaja();
   const supabase = await createClient();
+  const ajoneuvotyypit = await haeAjoneuvotyypit();
 
   const [tyotVastaus, profiilitVastaus, peruutuksetVastaus] = await Promise.all([
     supabase.from("tyot").select("*").order("aloitettu", { ascending: false }),
@@ -38,7 +78,7 @@ export default async function TyotSivu() {
     tyoIdt.length > 0
       ? supabase.from("tyon_rivit").select("*").in("tyo_id", tyoIdt)
       : Promise.resolve({ data: [] as TyonRiviRow[] }),
-    supabase.from("osat").select("id, nimi"),
+    supabase.from("osat").select("id, nimi, ajoneuvotyyppi"),
     supabase.from("varit").select("id, nimi"),
   ]);
 
@@ -49,11 +89,28 @@ export default async function TyotSivu() {
   const profiiliNimi = (id: string | null) =>
     profiilit.find((p) => p.id === id)?.full_name ?? "-";
   const osaNimi = (id: string) => osat.find((o) => o.id === id)?.nimi ?? "Tuntematon osa";
+  const osanAjoneuvotyyppi = (id: string) => {
+    const tyyppi = osat.find((o) => o.id === id)?.ajoneuvotyyppi;
+    return tyyppi ? ajoneuvotyypinNimi(tyyppi, ajoneuvotyypit) : null;
+  };
   const variNimi = (id: string) => varit.find((v) => v.id === id)?.nimi ?? "Tuntematon väri";
 
   const rivitTyolle = (tyoId: string) => rivit.filter((r) => r.tyo_id === tyoId);
-  const tyonHinta = (tyoId: string) =>
-    rivitTyolle(tyoId).reduce((s, r) => s + r.yksikkohinta_eur * r.kappalemaara, 0);
+
+  // Alennus on työn oma prosentti, ei riveille hierottu hinta, joten se
+  // lasketaan vasta näytettäessä rivien summasta.
+  function tyonSummat(tyo: { id: string; alennus_prosentti: number }) {
+    const valisumma = rivitTyolle(tyo.id).reduce(
+      (s, r) => s + r.yksikkohinta_eur * r.kappalemaara,
+      0
+    );
+    const alennusEur = Math.round(valisumma * (tyo.alennus_prosentti / 100) * 100) / 100;
+    return {
+      valisumma,
+      alennusEur,
+      loppusumma: Math.round((valisumma - alennusEur) * 100) / 100,
+    };
+  }
 
   const keskenerraiset = tyot.filter((t) => t.tila === "vaiheessa");
   const valmistuneet = tyot.filter((t) => t.tila === "valmis");
@@ -63,7 +120,6 @@ export default async function TyotSivu() {
     if (rivi.toinen_vari_id && rivi.toinen_vari_rooli) {
       teksti += ` + ${ROOLIN_NIMI[rivi.toinen_vari_rooli]}: ${variNimi(rivi.toinen_vari_id)}`;
     }
-    teksti += ` (${rivi.kappalemaara} kpl)`;
     return teksti;
   }
 
@@ -85,8 +141,13 @@ export default async function TyotSivu() {
         </Button>
       </div>
 
-      <Tabs defaultValue="keskenerainen">
-        <TabsList>
+      <Tabs defaultValue="keskenerainen" className="min-w-0">
+        {/* Kolme välilehteä lukumäärineen vaativat noin 345 px, mikä venytti
+            koko sivun 320 px:n näytöllä gridin min-width: auto -säännön kautta.
+            w-full pitää listan sarakkeen levyisenä ja rivitys näyttää kaikki
+            välilehdet myös kapeimmalla puhelimella - vaakavieritys jättäisi
+            viimeisen piiloon. */}
+        <TabsList className="h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="keskenerainen">Keskeneräiset ({keskenerraiset.length})</TabsTrigger>
           <TabsTrigger value="valmis">Valmistuneet ({valmistuneet.length})</TabsTrigger>
           <TabsTrigger value="peruttu">Perutut ({peruutukset.length})</TabsTrigger>
@@ -143,10 +204,7 @@ export default async function TyotSivu() {
                       </li>
                     ))}
                   </ul>
-                  <div className="flex justify-between border-t pt-2 text-sm font-medium">
-                    <span>Yhteensä</span>
-                    <span>{muotoileEuro(tyonHinta(tyo.id))}</span>
-                  </div>
+                  <Summat tyo={tyo} summat={tyonSummat(tyo)} />
                 </CardContent>
               </Card>
             );
@@ -170,21 +228,36 @@ export default async function TyotSivu() {
                   {new Date(tyo.aloitettu).toLocaleString("fi-FI")}
                 </p>
               </CardHeader>
-              <CardContent className="grid gap-2">
-                <ul className="grid gap-1 text-sm">
+              <CardContent className="grid gap-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {rivitTyolle(tyo.id).map((rivi) => (
-                    <li key={rivi.id} className="flex justify-between gap-4">
-                      <span className="min-w-0">{riviteksti(rivi)}</span>
-                      <span className="shrink-0 text-muted-foreground">
-                        {muotoileEuro(rivi.yksikkohinta_eur * rivi.kappalemaara)}
-                      </span>
-                    </li>
+                    <div
+                      key={rivi.id}
+                      className="flex min-w-0 flex-col gap-3 rounded-md border p-3"
+                    >
+                      <p className="text-center text-base font-semibold break-words">
+                        {osaNimi(rivi.osa_id)}
+                      </p>
+                      <div className="grid gap-0.5 text-center text-sm">
+                        <span className="break-words">{variNimi(rivi.vari_id)}</span>
+                        {rivi.toinen_vari_id && rivi.toinen_vari_rooli && (
+                          <span className="text-muted-foreground break-words">
+                            {ROOLIN_NIMI[rivi.toinen_vari_rooli]}: {variNimi(rivi.toinen_vari_id)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-auto flex items-end justify-between gap-2">
+                        <span className="min-w-0 text-xs text-muted-foreground break-words">
+                          {osanAjoneuvotyyppi(rivi.osa_id) ?? "-"}
+                        </span>
+                        <span className="shrink-0 text-sm">
+                          {muotoileEuro(rivi.yksikkohinta_eur * rivi.kappalemaara)}
+                        </span>
+                      </div>
+                    </div>
                   ))}
-                </ul>
-                <div className="flex justify-between border-t pt-2 text-sm font-medium">
-                  <span>Yhteensä</span>
-                  <span>{muotoileEuro(tyonHinta(tyo.id))}</span>
                 </div>
+                <Summat tyo={tyo} summat={tyonSummat(tyo)} />
               </CardContent>
             </Card>
           ))}
