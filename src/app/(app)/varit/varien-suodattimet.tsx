@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -15,6 +15,19 @@ import {
   VARISAVYT,
   lueLista,
 } from "@/lib/vakiot";
+
+/**
+ * Valittujen rajausten lukumäärä. Sama luku näkyy Tyhjennä-napissa ja
+ * mobiilin kelluvan napin merkissä, joten se lasketaan yhdessä paikassa.
+ */
+export function laskeValitutSuodattimet(searchParams: ReadonlyURLSearchParams): number {
+  return (
+    lueLista(searchParams.get("tyyppi")).length +
+    lueLista(searchParams.get("savy")).length +
+    ((searchParams.get("jarjestys") ?? OLETUS_JARJESTYS) !== OLETUS_JARJESTYS ? 1 : 0) +
+    (searchParams.get("naytaPoistetut") === "1" ? 1 : 0)
+  );
+}
 
 /** Painettava suodatinvalinta - valittuna korostettu, muuten ääriviivoin. */
 function SuodatinNappi({
@@ -67,15 +80,17 @@ function Osio({
 
 export function VarienSuodattimet({
   naytaPoistetutValinta,
+  kehys = true,
 }: {
   naytaPoistetutValinta: boolean;
+  /** Mobiilipaneelissa kehys jätetään pois, ettei tule laatikkoa laatikon sisään. */
+  kehys?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const valitutTyypit = lueLista(searchParams.get("tyyppi"));
   const valitutSavyt = lueLista(searchParams.get("savy"));
-  const jarjestys = searchParams.get("jarjestys") ?? OLETUS_JARJESTYS;
   const naytaPoistetut = searchParams.get("naytaPoistetut") === "1";
 
   function paivita(muutokset: Record<string, string | null>) {
@@ -102,16 +117,12 @@ export function VarienSuodattimet({
     paivita({ [avain]: uudet.length > 0 ? uudet.join(",") : null });
   }
 
-  const suodattimiaValittu =
-    valitutTyypit.length +
-    valitutSavyt.length +
-    (jarjestys !== OLETUS_JARJESTYS ? 1 : 0) +
-    (naytaPoistetut ? 1 : 0);
+  const suodattimiaValittu = laskeValitutSuodattimet(searchParams);
 
   return (
     // Sivupalkki: haku, rajaukset allekkain. Järjestys on erikseen listan
     // yläpuolella (varien-jarjestys.tsx), koska se ei rajaa mitään.
-    <div className="grid content-start gap-4 rounded-lg border p-4">
+    <div className={cn("grid content-start gap-4", kehys && "rounded-lg border p-4")}>
       <div className="relative w-full">
         <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input

@@ -19,6 +19,7 @@ import type { Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.ty
 import type { VarienJarjestys } from "@/lib/vakiot";
 
 import { VarienJarjestysValinta } from "./varien-jarjestys";
+import { SuodatinPaneeli } from "./suodatin-paneeli";
 import { VarienSuodattimet } from "./varien-suodattimet";
 import { Sivutus } from "@/components/sivutus";
 
@@ -182,7 +183,10 @@ export default async function VaritSivu({
       {/* Työpöydällä suodattimet omana sivupalkkinaan ja värit sen oikealla
           puolella - kapealla näytöllä ne pinoutuvat allekkain. */}
       <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start">
-        <aside className="lg:sticky lg:top-6">
+        {/* Työpöydällä suodattimet ovat sivupalkissa; puhelimessa ne veisivät
+            koko ensimmäisen ruudullisen, joten siellä ne aukeavat kelluvasta
+            napista liukuvaan paneeliin. */}
+        <aside className="hidden lg:sticky lg:top-6 lg:block">
           <VarienSuodattimet naytaPoistetutValinta={kayttaja.role === "admin"} />
         </aside>
 
@@ -236,9 +240,12 @@ export default async function VaritSivu({
               />
             ))}
 
-          <Sivutus sivu={nykyinenSivu} sivuja={sivuja} className="justify-center pt-2" />
+          {/* Kelluva nappi jättää tilaa alareunan sivutukselle. */}
+          <Sivutus sivu={nykyinenSivu} sivuja={sivuja} className="justify-center pt-2 pb-16 lg:pb-0" />
         </div>
       </div>
+
+      <SuodatinPaneeli naytaPoistetutValinta={kayttaja.role === "admin"} />
     </div>
   );
 }
