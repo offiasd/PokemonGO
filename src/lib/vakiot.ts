@@ -2,6 +2,7 @@ import type {
   AjoneuvoTyyppi,
   MaaliTyyppi,
   MyytavaMaaliTyyppi,
+  PeruutuksenSyy,
   ToinenVariRooli,
   TyoVaihe,
   VariTyyppi,
@@ -64,6 +65,19 @@ export const TOINEN_VARI_ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
   pohjavari: "Pohjaväri",
   lakka: "Lakka",
 };
+
+// Työn peruutuksen syyt. Yleisimmät kaksi ovat valmiina, ja "muu" avaa
+// tekstiruudun - näin tavallinen peruutus on kahden klikkauksen takana mutta
+// poikkeus saa silti oman selityksensä.
+export const PERUUTUKSEN_SYYT: { arvo: PeruutuksenSyy; nimi: string }[] = [
+  { arvo: "asiakas", nimi: "Asiakkaan peruutus" },
+  { arvo: "virhe", nimi: "Virhe" },
+  { arvo: "muu", nimi: "Muu" },
+];
+
+export function peruutuksenSyynNimi(syy: PeruutuksenSyy): string {
+  return PERUUTUKSEN_SYYT.find((s) => s.arvo === syy)?.nimi ?? syy;
+}
 
 // Candy vaatii aina pohjavärin ja illusion aina lakan aktivoituakseen. Solidille
 // ja metallicille lakkaus on valinnainen lisä: kaikki metallicit eivät sitä

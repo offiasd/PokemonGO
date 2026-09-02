@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { muotoileEuro } from "@/lib/vakiot";
+import { muotoileEuro, peruutuksenSyynNimi } from "@/lib/vakiot";
 import type { Database, ToinenVariRooli } from "@/lib/supabase/database.types";
 
 import { MerkitseValmiiksi } from "./merkitse-valmiiksi";
@@ -31,13 +31,15 @@ export default async function TyotSivu() {
   await vaaditaanKayttaja();
   const supabase = await createClient();
 
-  const [tyotVastaus, profiilitVastaus] = await Promise.all([
+  const [tyotVastaus, profiilitVastaus, peruutuksetVastaus] = await Promise.all([
     supabase.from("tyot").select("*").order("aloitettu", { ascending: false }),
     supabase.from("profiles").select("id, full_name"),
+    supabase.from("tyon_peruutukset").select("*").order("peruttu", { ascending: false }),
   ]);
 
   const tyot = tyotVastaus.data ?? [];
   const profiilit = profiilitVastaus.data ?? [];
+  const peruutukset = peruutuksetVastaus.data ?? [];
   const tyoIdt = tyot.map((t) => t.id);
 
   const [rivitVastaus, osatVastaus, varitVastaus] = await Promise.all([
@@ -95,6 +97,7 @@ export default async function TyotSivu() {
         <TabsList>
           <TabsTrigger value="keskenerainen">Keskeneräiset ({keskenerraiset.length})</TabsTrigger>
           <TabsTrigger value="valmis">Valmistuneet ({valmistuneet.length})</TabsTrigger>
+          <TabsTrigger value="peruttu">Perutut ({peruutukset.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="keskenerainen" className="grid gap-4">
@@ -204,6 +207,30 @@ export default async function TyotSivu() {
               )}
             </TableBody>
           </Table>
+        </TabsContent>
+
+        <TabsContent value="peruttu" className="grid gap-3">
+          {peruutukset.length === 0 && <p className="text-muted-foreground">Ei peruttuja töitä.</p>}
+          {peruutukset.map((peruutus) => (
+            <Card key={peruutus.id}>
+              <CardHeader className="gap-1 space-y-0">
+                <CardTitle className="text-base">
+                  {peruutus.asiakas ?? "Ei asiakastietoa"}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Perui {profiiliNimi(peruutus.perui_id)} -{" "}
+                  {new Date(peruutus.peruttu).toLocaleString("fi-FI")}
+                </p>
+              </CardHeader>
+              <CardContent className="grid gap-1 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Syy: </span>
+                  {peruutuksenSyynNimi(peruutus.syy)}
+                </p>
+                {peruutus.tarkennus && <p className="break-words">{peruutus.tarkennus}</p>}
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
       </Tabs>
     </div>

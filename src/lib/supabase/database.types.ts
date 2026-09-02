@@ -48,6 +48,9 @@ export type Varisavy =
 export type MyytavaMaaliTyyppi = "solid" | "metallic" | "candy" | "illusion";
 export type TyonTila = "vaiheessa" | "valmis";
 
+/** Peruutuksen syy: valmiit vaihtoehdot ja vapaa teksti ("muu"). */
+export type PeruutuksenSyy = "asiakas" | "virhe" | "muu";
+
 type EiSuhteita = [];
 
 export interface Database {
@@ -338,6 +341,29 @@ export interface Database {
           },
         ];
       };
+      tyon_peruutukset: {
+        Row: {
+          id: string;
+          tyo_id: string;
+          asiakas: string | null;
+          aloitettu: string | null;
+          syy: PeruutuksenSyy;
+          tarkennus: string | null;
+          perui_id: string | null;
+          peruttu: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["tyon_peruutukset"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["tyon_peruutukset"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "tyon_peruutukset_perui_id_fkey";
+            columns: ["perui_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tyon_rivit: {
         Row: {
           id: string;
@@ -439,6 +465,10 @@ export interface Database {
       };
       korvaa_tyon_rivit: {
         Args: { p_tyo_id: string; p_rivit: unknown };
+        Returns: undefined;
+      };
+      peru_tyo: {
+        Args: { p_tyo_id: string; p_syy: PeruutuksenSyy; p_tarkennus?: string | null };
         Returns: undefined;
       };
       kuukauden_kaytetyin_vari: {

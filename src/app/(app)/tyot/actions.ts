@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
-import type { ToinenVariRooli } from "@/lib/supabase/database.types";
+import type { PeruutuksenSyy, ToinenVariRooli } from "@/lib/supabase/database.types";
 
 export interface TyonRiviSyote {
   osaId: string;
@@ -145,25 +145,36 @@ export async function merkitseTyoValmiiksi(
 }
 
 /**
- * Peruu keskeneräisen työn ja vapauttaa sen varaamat maalisaldot.
+ * Peruu keskeneräisen työn syineen ja vapauttaa sen varaamat maalisaldot.
  *
  * Kaikki kirjautuneet saavat perua: työn aloitus ja muokkaus ovat samoin
  * kaikkien käytettävissä, ja virheellisen työn huomaa yleensä sen kirjaaja.
- * Valmista työtä ei peruta - sen maali on jo kulutettu varastosta - ja saman
- * rajauksen tekee myös kannan rivitason käytäntö.
+ * Valmista työtä ei peruta - sen maali on jo kulutettu varastosta.
+ *
+ * Syy kirjataan ja työ poistetaan kannan peru_tyo-funktiossa samassa
+ * transaktiossa: erillisinä kutsuina lopputulos voisi jäädä puolitiehen, eli
+ * lokiin perumaton työ tai perutu työ ilman syytä.
  */
-export async function peruTyo(tyoId: string): Promise<void> {
+export async function peruTyo(
+  tyoId: string,
+  syy: PeruutuksenSyy,
+  tarkennus?: string | null
+): Promise<void> {
   await vaaditaanKayttaja();
+  const siistittyTarkennus = tarkennus?.trim() ?? "";
+  if (syy === "muu" && siistittyTarkennus === "") {
+    throw new Error("Kirjoita peruutuksen syy.");
+  }
   const supabase = await createClient();
 
-  const { data: tyo } = await supabase.from("tyot").select("tila").eq("id", tyoId).single();
-  if (tyo?.tila === "valmis") {
-    throw new Error("Valmista työtä ei voi perua.");
-  }
-
-  const { error } = await supabase.from("tyot").delete().eq("id", tyoId);
+  const { error } = await supabase.rpc("peru_tyo", {
+    p_tyo_id: tyoId,
+    p_syy: syy,
+    p_tarkennus: siistittyTarkennus === "" ? null : siistittyTarkennus,
+  });
   if (error) throw new Error(error.message);
 
   revalidatePath("/tyot");
   revalidatePath("/varit");
+  revalidatePath("/");
 }
