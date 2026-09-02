@@ -203,6 +203,7 @@ export const VARISAVYT: { arvo: Varisavy; nimi: string }[] = [
 // jotka eivät näe hintoja lainkaan.
 export type VarienJarjestys =
   | "nimi"
+  | "suosituin"
   | "saldo_laskeva"
   | "saldo_nouseva"
   | "hinta_nouseva"
@@ -212,6 +213,8 @@ export const OLETUS_JARJESTYS: VarienJarjestys = "nimi";
 
 export const JARJESTYKSET: { arvo: VarienJarjestys; nimi: string; vaatiiHinnat: boolean }[] = [
   { arvo: "nimi", nimi: "Nimen mukaan", vaatiiHinnat: false },
+  // Suosio = värin käyttökerrat työriveillä (kannan varien_suosio-näkymä).
+  { arvo: "suosituin", nimi: "Suosituin", vaatiiHinnat: false },
   { arvo: "saldo_laskeva", nimi: "Saldo laskeva", vaatiiHinnat: false },
   { arvo: "saldo_nouseva", nimi: "Saldo nouseva", vaatiiHinnat: false },
   { arvo: "hinta_nouseva", nimi: "Halvin ensin", vaatiiHinnat: true },

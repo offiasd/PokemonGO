@@ -16,10 +16,39 @@ import { laskeVarinKokonaishinta } from "@/lib/hinnat";
 import type { Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
 import type { VarienJarjestys } from "@/lib/vakiot";
 
+import { VarienJarjestysValinta } from "./varien-jarjestys";
 import { VarienSuodattimet } from "./varien-suodattimet";
 import { VariKortti } from "./vari-kortti";
 
 type VariRow = Database["public"]["Tables"]["varit"]["Row"];
+
+/**
+ * Värikorttien ruudukko. Maksimileveydellä neljä saraketta; kapeammilla
+ * näytöillä vähemmän, jotta kortit eivät kutistu lukukelvottomiksi.
+ */
+function VariRuudukko({
+  varit,
+  oletusHalytysraja,
+  naytaHinnat,
+}: {
+  varit: { vari: VariRow; kokonaishinta: number }[];
+  oletusHalytysraja: number;
+  naytaHinnat: boolean;
+}) {
+  return (
+    <div className="grid auto-rows-fr grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+      {varit.map(({ vari, kokonaishinta }) => (
+        <VariKortti
+          key={vari.id}
+          vari={vari}
+          oletusHalytysraja={oletusHalytysraja}
+          naytaHinnat={naytaHinnat}
+          kokonaishinta={kokonaishinta}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default async function VaritSivu({
   searchParams,
@@ -71,16 +100,28 @@ export default async function VaritSivu({
     kysely = kysely.in("varisavy", savySuodattimet);
   }
 
-  const { data: varit } = await kysely;
+  const [{ data: varit }, { data: suosio }] = await Promise.all([
+    kysely,
+    supabase.from("varien_suosio").select("vari_id, kayttokerrat"),
+  ]);
+
+  const kayttokerrat = new Map((suosio ?? []).map((s) => [s.vari_id, s.kayttokerrat]));
 
   // Kokonaishinta lasketaan JS:ssä asetusten arvoilla, joten hintajärjestys
   // tehdään haun jälkeen eikä SQL:ssä.
   const varitHinnoin = (varit ?? []).map((vari) => ({
     vari,
     kokonaishinta: laskeVarinKokonaishinta(vari, asetukset),
+    kayttokerrat: kayttokerrat.get(vari.id) ?? 0,
   }));
 
-  if (valittuJarjestys === "saldo_nouseva" || valittuJarjestys === "saldo_laskeva") {
+  if (valittuJarjestys === "suosituin") {
+    // Käyttökertojen jälkeen nimi, jotta käyttämättömät värit eivät järjesty
+    // sattumanvaraisesti keskenään.
+    varitHinnoin.sort(
+      (a, b) => b.kayttokerrat - a.kayttokerrat || a.vari.nimi.localeCompare(b.vari.nimi, "fi")
+    );
+  } else if (valittuJarjestys === "saldo_nouseva" || valittuJarjestys === "saldo_laskeva") {
     const suunta = valittuJarjestys === "saldo_nouseva" ? 1 : -1;
     varitHinnoin.sort((a, b) => suunta * (a.vari.saldo_g - b.vari.saldo_g));
   } else if (valittuJarjestys !== OLETUS_JARJESTYS) {
@@ -88,13 +129,21 @@ export default async function VaritSivu({
     varitHinnoin.sort((a, b) => suunta * (a.kokonaishinta - b.kokonaishinta));
   }
 
-  type VariHinnalla = { vari: VariRow; kokonaishinta: number };
+  type VariHinnalla = { vari: VariRow; kokonaishinta: number; kayttokerrat: number };
   const ryhmat = new Map<MaaliTyyppi, VariHinnalla[]>();
   for (const rivi of varitHinnoin) {
     const lista = ryhmat.get(rivi.vari.tyyppi) ?? [];
     lista.push(rivi);
     ryhmat.set(rivi.vari.tyyppi, lista);
   }
+
+  // Rajaukseksi lasketaan tyyppi, sävy, haku ja poistettujen näyttö - ei
+  // järjestys, joka ei rajaa mitään.
+  const ryhmittele =
+    tyyppiSuodattimet.length > 0 ||
+    savySuodattimet.length > 0 ||
+    Boolean(q) ||
+    naytaPoistetut === "1";
 
   const naytettavatTyypit =
     tyyppiSuodattimet.length > 0
@@ -118,41 +167,59 @@ export default async function VaritSivu({
         )}
       </div>
 
-      <VarienSuodattimet
-        naytaPoistetutValinta={kayttaja.role === "admin"}
-        naytaHinnat={naytaHinnat}
-      />
+      {/* Työpöydällä suodattimet omana sivupalkkinaan ja värit sen oikealla
+          puolella - kapealla näytöllä ne pinoutuvat allekkain. */}
+      <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start">
+        <aside className="lg:sticky lg:top-6">
+          <VarienSuodattimet naytaPoistetutValinta={kayttaja.role === "admin"} />
+        </aside>
 
-      {(varit ?? []).length === 0 && (
-        <p className="text-muted-foreground">Ei värejä hakuehdoilla.</p>
-      )}
+        <div className="grid gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <VarienJarjestysValinta naytaHinnat={naytaHinnat} />
+            <p className="text-sm text-muted-foreground">
+              {varitHinnoin.length} {varitHinnoin.length === 1 ? "väri" : "väriä"}
+            </p>
+          </div>
 
-      <div className="grid gap-8">
-        {naytettavatTyypit.map(({ arvo, nimi }) => {
-          const ryhmanVarit = ryhmat.get(arvo);
-          if (!ryhmanVarit || ryhmanVarit.length === 0) return null;
-          return (
-            <section key={arvo} className="grid gap-4">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                {nimi}
-                <span className="text-sm font-normal text-muted-foreground">
-                  ({ryhmanVarit.length})
-                </span>
-              </h2>
-              <div className="grid auto-rows-fr grid-cols-2 gap-4 lg:grid-cols-3">
-                {ryhmanVarit.map(({ vari, kokonaishinta }) => (
-                  <VariKortti
-                    key={vari.id}
-                    vari={vari}
-                    oletusHalytysraja={asetukset.oletus_halytysraja_g}
-                    naytaHinnat={naytaHinnat}
-                    kokonaishinta={kokonaishinta}
-                  />
-                ))}
+          {varitHinnoin.length === 0 && (
+            <p className="text-muted-foreground">Ei värejä hakuehdoilla.</p>
+          )}
+
+          {/* Ilman rajauksia värit ovat yhtenä listana: kategoriaotsikot
+              pilkkoisivat selailun turhaan. Kun jotain on rajattu, ryhmittely
+              maalityypeittäin auttaa hahmottamaan mitä valinta tuotti. */}
+          {varitHinnoin.length > 0 &&
+            (ryhmittele ? (
+              <div className="grid gap-8">
+                {naytettavatTyypit.map(({ arvo, nimi }) => {
+                  const ryhmanVarit = ryhmat.get(arvo);
+                  if (!ryhmanVarit || ryhmanVarit.length === 0) return null;
+                  return (
+                    <section key={arvo} className="grid gap-4">
+                      <h2 className="flex items-center gap-2 text-lg font-semibold">
+                        {nimi}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          ({ryhmanVarit.length})
+                        </span>
+                      </h2>
+                      <VariRuudukko
+                        varit={ryhmanVarit}
+                        oletusHalytysraja={asetukset.oletus_halytysraja_g}
+                        naytaHinnat={naytaHinnat}
+                      />
+                    </section>
+                  );
+                })}
               </div>
-            </section>
-          );
-        })}
+            ) : (
+              <VariRuudukko
+                varit={varitHinnoin}
+                oletusHalytysraja={asetukset.oletus_halytysraja_g}
+                naytaHinnat={naytaHinnat}
+              />
+            ))}
+        </div>
       </div>
     </div>
   );

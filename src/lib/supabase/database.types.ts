@@ -445,6 +445,13 @@ export interface Database {
       };
     };
     Views: {
+      varien_suosio: {
+        Row: {
+          vari_id: string;
+          kayttokerrat: number;
+        };
+        Relationships: EiSuhteita;
+      };
       varit_halytykset: {
         Row: Database["public"]["Tables"]["varit"]["Row"] & {
           efektiivinen_halytysraja_g: number;

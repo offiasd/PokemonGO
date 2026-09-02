@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
-  JARJESTYKSET,
   MAALI_TYYPIT,
   OLETUS_JARJESTYS,
   VARISAVYN_VARIKOODI,
@@ -68,10 +67,8 @@ function Osio({
 
 export function VarienSuodattimet({
   naytaPoistetutValinta,
-  naytaHinnat,
 }: {
   naytaPoistetutValinta: boolean;
-  naytaHinnat: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -108,11 +105,11 @@ export function VarienSuodattimet({
     (jarjestys !== OLETUS_JARJESTYS ? 1 : 0) +
     (naytaPoistetut ? 1 : 0);
 
-  const jarjestysvaihtoehdot = JARJESTYKSET.filter((j) => naytaHinnat || !j.vaatiiHinnat);
-
   return (
-    <div className="grid gap-3">
-      <div className="relative w-full max-w-xs">
+    // Sivupalkki: haku, rajaukset allekkain. Järjestys on erikseen listan
+    // yläpuolella (varien-jarjestys.tsx), koska se ei rajaa mitään.
+    <div className="grid content-start gap-4 rounded-lg border p-4">
+      <div className="relative w-full">
         <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Hae nimellä tai valmistajalla..."
@@ -122,87 +119,66 @@ export function VarienSuodattimet({
         />
       </div>
 
-      {/* Maalityypit vasemmalla, värit keskellä, järjestys oikealla. Kapealla
-          näytöllä osiot pinoutuvat allekkain samassa järjestyksessä. */}
-      <div className="grid gap-5 rounded-lg border p-4 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_minmax(0,12rem)] lg:gap-6">
-        <Osio otsikko="Maalityyppi">
-          <div className="flex flex-wrap gap-2">
-            {MAALI_TYYPIT.map(({ arvo, nimi }) => (
-              <SuodatinNappi
-                key={arvo}
-                valittu={valitutTyypit.includes(arvo)}
-                onClick={() => vaihdaArvo("tyyppi", arvo)}
-              >
-                {nimi}
-              </SuodatinNappi>
-            ))}
-          </div>
-        </Osio>
+      <Osio otsikko="Maalityyppi">
+        <div className="flex flex-wrap gap-2">
+          {MAALI_TYYPIT.map(({ arvo, nimi }) => (
+            <SuodatinNappi
+              key={arvo}
+              valittu={valitutTyypit.includes(arvo)}
+              onClick={() => vaihdaArvo("tyyppi", arvo)}
+            >
+              {nimi}
+            </SuodatinNappi>
+          ))}
+        </div>
+      </Osio>
 
-        <Osio otsikko="Väri" className="lg:border-l lg:pl-6">
-          <div className="flex flex-wrap gap-2">
-            {VARISAVYT.map(({ arvo, nimi }) => (
-              <SuodatinNappi
-                key={arvo}
-                valittu={valitutSavyt.includes(arvo)}
-                onClick={() => vaihdaArvo("savy", arvo)}
-              >
-                <span
-                  className="inline-block size-3 shrink-0 rounded-full border"
-                  style={{ backgroundColor: VARISAVYN_VARIKOODI[arvo] }}
-                />
-                {nimi}
-              </SuodatinNappi>
-            ))}
-          </div>
-        </Osio>
+      <Osio otsikko="Väri" className="border-t pt-4">
+        <div className="flex flex-wrap gap-2">
+          {VARISAVYT.map(({ arvo, nimi }) => (
+            <SuodatinNappi
+              key={arvo}
+              valittu={valitutSavyt.includes(arvo)}
+              onClick={() => vaihdaArvo("savy", arvo)}
+            >
+              <span
+                className="inline-block size-3 shrink-0 rounded-full border"
+                style={{ backgroundColor: VARISAVYN_VARIKOODI[arvo] }}
+              />
+              {nimi}
+            </SuodatinNappi>
+          ))}
+        </div>
+      </Osio>
 
-        <Osio otsikko="Järjestys" className="lg:border-l lg:pl-6">
-          <div className="flex flex-wrap gap-2 lg:grid">
-            {jarjestysvaihtoehdot.map(({ arvo, nimi }) => (
-              <SuodatinNappi
-                key={arvo}
-                valittu={jarjestys === arvo}
-                onClick={() => paivita({ jarjestys: arvo === OLETUS_JARJESTYS ? null : arvo })}
-                className="lg:justify-center"
-              >
-                {nimi}
-              </SuodatinNappi>
-            ))}
-          </div>
-
-          {(naytaPoistetutValinta || suodattimiaValittu > 0) && (
-            <div className="mt-1 grid gap-2">
-              {naytaPoistetutValinta && (
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="naytaPoistetut"
-                    checked={naytaPoistetut}
-                    onCheckedChange={(tila) =>
-                      paivita({ naytaPoistetut: tila === true ? "1" : null })
-                    }
-                  />
-                  <Label htmlFor="naytaPoistetut" className="font-normal">
-                    Näytä poistetut
-                  </Label>
-                </div>
-              )}
-              {suodattimiaValittu > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="justify-start px-0 text-muted-foreground lg:justify-center lg:px-3"
-                  onClick={() =>
-                    paivita({ tyyppi: null, savy: null, jarjestys: null, naytaPoistetut: null })
-                  }
-                >
-                  Tyhjennä ({suodattimiaValittu})
-                </Button>
-              )}
+      {(naytaPoistetutValinta || suodattimiaValittu > 0) && (
+        <div className="grid gap-2 border-t pt-4">
+          {naytaPoistetutValinta && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="naytaPoistetut"
+                checked={naytaPoistetut}
+                onCheckedChange={(tila) => paivita({ naytaPoistetut: tila === true ? "1" : null })}
+              />
+              <Label htmlFor="naytaPoistetut" className="font-normal">
+                Näytä poistetut
+              </Label>
             </div>
           )}
-        </Osio>
-      </div>
+          {suodattimiaValittu > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start px-0 text-muted-foreground"
+              onClick={() =>
+                paivita({ tyyppi: null, savy: null, jarjestys: null, naytaPoistetut: null })
+              }
+            >
+              Tyhjennä ({suodattimiaValittu})
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
