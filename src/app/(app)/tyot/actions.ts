@@ -58,6 +58,53 @@ export async function aloitaTyo(asiakas: string | null, rivit: TyonRiviSyote[]):
   return tyo.id as string;
 }
 
+/**
+ * Korvaa keskeneräisen työn rivit ja päivittää asiakastiedon.
+ *
+ * Rivit kulkevat kannan korvaa_tyon_rivit-funktion kautta, joka poistaa vanhat
+ * ja lisää uudet samassa transaktiossa. Varaukset (varit.varattu_g) hoituvat
+ * rivitriggerillä: poisto vapauttaa vanhan varauksen, lisäys tekee uuden. Näin
+ * vaihdettu väri, muuttunut määrä ja poistettu osa vapauttavat vanhan varauksen
+ * ilman erillistä laskentaa täällä.
+ */
+export async function paivitaTyo(
+  tyoId: string,
+  asiakas: string | null,
+  rivit: TyonRiviSyote[]
+): Promise<void> {
+  await vaaditaanKayttaja();
+  if (rivit.length === 0) {
+    throw new Error("Työssä pitää olla vähintään yksi osa.");
+  }
+  const supabase = await createClient();
+
+  const { data: tyo } = await supabase.from("tyot").select("tila").eq("id", tyoId).single();
+  if (!tyo) throw new Error("Työtä ei löytynyt.");
+  if (tyo.tila === "valmis") throw new Error("Valmista työtä ei voi muokata.");
+
+  const { error: rpcVirhe } = await supabase.rpc("korvaa_tyon_rivit", {
+    p_tyo_id: tyoId,
+    p_rivit: rivit.map((r) => ({
+      osa_id: r.osaId,
+      vari_id: r.variId,
+      kappalemaara: r.kappalemaara,
+      arvioitu_kulutus_g: r.arvioituKulutusG,
+      yksikkohinta_eur: r.yksikkohintaEur,
+      toinen_vari_id: r.toinenVariId ?? null,
+      toinen_vari_rooli: r.toinenVariRooli ?? null,
+      toinen_arvioitu_kulutus_g: r.toinenArvioituKulutusG ?? null,
+    })),
+  });
+  if (rpcVirhe) throw new Error(rpcVirhe.message);
+
+  const { error: tyoVirhe } = await supabase.from("tyot").update({ asiakas }).eq("id", tyoId);
+  if (tyoVirhe) throw new Error(tyoVirhe.message);
+
+  revalidatePath("/tyot");
+  revalidatePath("/varit");
+  revalidatePath("/");
+}
+
 export interface RiviPaivitys {
   riviId: string;
   toteutunutKulutusG: number;

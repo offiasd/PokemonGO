@@ -437,6 +437,10 @@ export interface Database {
           osuvuus: number;
         }[];
       };
+      korvaa_tyon_rivit: {
+        Args: { p_tyo_id: string; p_rivit: unknown };
+        Returns: undefined;
+      };
       kuukauden_kaytetyin_vari: {
         Args: { p_kuukausi?: string };
         Returns: {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
@@ -115,7 +115,13 @@ export default async function TyotSivu() {
                       {new Date(tyo.aloitettu).toLocaleString("fi-FI")}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/tyot/${tyo.id}/muokkaa`}>
+                        <Pencil className="size-4" />
+                        Muokkaa
+                      </Link>
+                    </Button>
                     {kayttaja.role === "admin" && <PeruTyo tyoId={tyo.id} />}
                     <MerkitseValmiiksi
                       tyoId={tyo.id}

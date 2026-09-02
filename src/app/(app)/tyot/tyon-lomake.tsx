@@ -35,7 +35,7 @@ import {
 } from "@/lib/vakiot";
 import type { MaaliTyyppi, MyytavaMaaliTyyppi, ToinenVariRooli } from "@/lib/supabase/database.types";
 
-import { aloitaTyo } from "./actions";
+import { aloitaTyo, paivitaTyo } from "./actions";
 
 interface Osa {
   id: string;
@@ -72,7 +72,7 @@ interface VariKategoria {
   maali_tyyppi: MaaliTyyppi;
 }
 
-interface KoriRivi {
+export interface KoriRivi {
   avain: string;
   osaNimi: string;
   variNimi: string;
@@ -91,15 +91,20 @@ export function TyonLomake({
   varit,
   kategoriahinnat,
   variKategoriat,
+  muokattavaTyo,
 }: {
   osat: Osa[];
   varit: Vari[];
   kategoriahinnat: Kategoriahinta[];
   variKategoriat: VariKategoria[];
+  /** Annettuna lomake muokkaa olemassa olevaa keskeneräistä työtä. */
+  muokattavaTyo?: { id: string; asiakas: string | null; rivit: KoriRivi[] };
 }) {
   const router = useRouter();
   const [kaynnissa, aloita] = useTransition();
-  const seuraavaAvain = useRef(0);
+  // Muokkauksessa avaimet jatkuvat valmiiden rivien perästä, jottei uusi rivi
+  // saa samaa avainta kuin jo korissa oleva.
+  const seuraavaAvain = useRef(muokattavaTyo?.rivit.length ?? 0);
 
   const variKategoriaKartta = useMemo(() => {
     const kartta = new Map<string, Set<MaaliTyyppi>>();
@@ -111,8 +116,8 @@ export function TyonLomake({
     return kartta;
   }, [variKategoriat]);
 
-  const [asiakas, setAsiakas] = useState("");
-  const [kori, setKori] = useState<KoriRivi[]>([]);
+  const [asiakas, setAsiakas] = useState(muokattavaTyo?.asiakas ?? "");
+  const [kori, setKori] = useState<KoriRivi[]>(muokattavaTyo?.rivit ?? []);
 
   const [osaId, setOsaId] = useState("");
   const [kategoria, setKategoria] = useState<MyytavaMaaliTyyppi | "">("");
@@ -255,30 +260,44 @@ export function TyonLomake({
 
   const koriYhteensa = kori.reduce((s, r) => s + r.yksikkohintaEur, 0);
 
-  function kasitteleAloitus() {
+  function kasitteleTallennus() {
     if (kori.length === 0) {
-      toast.error("Lisää vähintään yksi osa koriin ennen aloitusta.");
+      toast.error(
+        muokattavaTyo
+          ? "Työssä pitää olla vähintään yksi osa."
+          : "Lisää vähintään yksi osa koriin ennen aloitusta."
+      );
       return;
     }
+    const syotteet = kori.map((r) => ({
+      osaId: r.osaId,
+      variId: r.variId,
+      kappalemaara: 1,
+      arvioituKulutusG: r.arvioituKulutusG,
+      yksikkohintaEur: r.yksikkohintaEur,
+      toinenVariId: r.toinenVariId,
+      toinenVariRooli: r.toinenVariRooli,
+      toinenArvioituKulutusG: r.toinenArvioituKulutusG,
+    }));
+
     aloita(async () => {
       try {
-        await aloitaTyo(
-          asiakas.trim() || null,
-          kori.map((r) => ({
-            osaId: r.osaId,
-            variId: r.variId,
-            kappalemaara: 1,
-            arvioituKulutusG: r.arvioituKulutusG,
-            yksikkohintaEur: r.yksikkohintaEur,
-            toinenVariId: r.toinenVariId,
-            toinenVariRooli: r.toinenVariRooli,
-            toinenArvioituKulutusG: r.toinenArvioituKulutusG,
-          }))
-        );
-        toast.success("Työ aloitettu ja maali varattu varastosta.");
+        if (muokattavaTyo) {
+          await paivitaTyo(muokattavaTyo.id, asiakas.trim() || null, syotteet);
+          toast.success("Työ päivitetty ja varaukset korjattu varastoon.");
+        } else {
+          await aloitaTyo(asiakas.trim() || null, syotteet);
+          toast.success("Työ aloitettu ja maali varattu varastosta.");
+        }
         router.push("/tyot");
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Työn aloitus epäonnistui.");
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : muokattavaTyo
+              ? "Työn päivitys epäonnistui."
+              : "Työn aloitus epäonnistui."
+        );
       }
     });
   }
@@ -483,9 +502,13 @@ export function TyonLomake({
             </div>
           )}
           <div>
-            <Button type="button" onClick={kasitteleAloitus} disabled={kaynnissa || kori.length === 0}>
+            <Button
+              type="button"
+              onClick={kasitteleTallennus}
+              disabled={kaynnissa || kori.length === 0}
+            >
               {kaynnissa && <Loader2 className="size-4 animate-spin" />}
-              Aloita työ
+              {muokattavaTyo ? "Tallenna muutokset" : "Aloita työ"}
             </Button>
           </div>
         </CardContent>
