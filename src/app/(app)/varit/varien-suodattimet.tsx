@@ -1,10 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -120,19 +118,10 @@ export function VarienSuodattimet({
   const suodattimiaValittu = laskeValitutSuodattimet(searchParams);
 
   return (
-    // Sivupalkki: haku, rajaukset allekkain. Järjestys on erikseen listan
-    // yläpuolella (varien-jarjestys.tsx), koska se ei rajaa mitään.
+    // Sivupalkki: rajaukset allekkain. Haku ja järjestys ovat erikseen listan
+    // yläpuolella (varien-haku.tsx, varien-jarjestys.tsx): haku on käytetyin
+    // rajaus ja järjestys ei rajaa mitään.
     <div className={cn("grid content-start gap-4", kehys && "rounded-lg border p-4")}>
-      <div className="relative w-full">
-        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Hae nimellä tai valmistajalla..."
-          defaultValue={searchParams.get("q") ?? ""}
-          className="pl-8"
-          onChange={(e) => paivita({ q: e.target.value || null })}
-        />
-      </div>
-
       <Osio otsikko="Maalityyppi">
         <div className="flex flex-wrap gap-2">
           {MAALI_TYYPIT.map(({ arvo, nimi }) => (

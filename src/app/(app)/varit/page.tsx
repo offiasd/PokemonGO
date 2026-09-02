@@ -19,6 +19,7 @@ import type { Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.ty
 import type { VarienJarjestys } from "@/lib/vakiot";
 
 import { VarienJarjestysValinta } from "./varien-jarjestys";
+import { VarienHaku } from "./varien-haku";
 import { SuodatinPaneeli } from "./suodatin-paneeli";
 import { VarienSuodattimet } from "./varien-suodattimet";
 import { Sivutus } from "@/components/sivutus";
@@ -191,6 +192,8 @@ export default async function VaritSivu({
         </aside>
 
         <div className="grid gap-4">
+          <VarienHaku />
+
           <div className="flex flex-wrap items-end justify-between gap-3">
             <VarienJarjestysValinta naytaHinnat={naytaHinnat} />
             <div className="flex flex-wrap items-center gap-3">
