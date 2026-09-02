@@ -23,6 +23,12 @@ export interface VariHinta {
 
 export interface KustannusarvioRivi {
   avain: string;
+  /**
+   * Kategoria, jonka hinnoittelua rivi koskee. Lakattu vaihtoehto on oma
+   * rivinsä mutta samaa kategoriaa kuin lakkaamaton, joten avain ei yksin
+   * riitä kategoriahinnan hakemiseen.
+   */
+  kategoria: MyytavaMaaliTyyppi;
   nimi: string;
   kustannusMin: number;
   kustannusMax: number;
@@ -78,6 +84,7 @@ function suositushinta(kustannus: number, osa: OsaRow, asetukset: AsetuksetRow):
 
 function rakennaRivi(
   avain: string,
+  kategoria: MyytavaMaaliTyyppi,
   nimi: string,
   kustannukset: number[],
   osa: OsaRow,
@@ -88,6 +95,7 @@ function rakennaRivi(
   const kustannusMax = pyoristaSentteihin(Math.max(...kustannukset));
   return {
     avain,
+    kategoria,
     nimi,
     kustannusMin,
     kustannusMax,
@@ -100,6 +108,7 @@ function rakennaRivi(
 // kattaa kaikki pääväri- ja lakkayhdistelmät.
 function laskeLakatunKategorianRivi(
   avain: string,
+  kategoria: MyytavaMaaliTyyppi,
   nimi: string,
   hinta: KategoriahintaRow,
   paavarit: VariHinta[],
@@ -118,7 +127,7 @@ function laskeLakatunKategorianRivi(
       );
     }
   }
-  return rakennaRivi(avain, nimi, kustannukset, osa, asetukset);
+  return rakennaRivi(avain, kategoria, nimi, kustannukset, osa, asetukset);
 }
 
 // Laskee kustannusarvion (maali omalla todellisella hinnalla + työ) ja
@@ -171,7 +180,7 @@ export function laskeKategoriaKustannukset({
     const kustannukset = kategoriaVarit("solid").map(
       (v) => (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("solid")
     );
-    const rivi = rakennaRivi("solid", "Perusvärit", kustannukset, osa, asetukset);
+    const rivi = rakennaRivi("solid", "solid", "Perusvärit", kustannukset, osa, asetukset);
     if (rivi) rivit.push(rivi);
 
     // Perusvärille lakkaus on valinnainen lisä, joten se näytetään omana
@@ -193,6 +202,7 @@ export function laskeKategoriaKustannukset({
       }
       const lakattuRivi = rakennaRivi(
         "solid-lakattu",
+        "solid",
         "Perusvärit + lakkaus",
         lakatut,
         osa,
@@ -210,11 +220,12 @@ export function laskeKategoriaKustannukset({
     const kustannukset = kategoriaVarit("metallic").map(
       (v) => (metallicHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("metallic")
     );
-    const rivi = rakennaRivi("metallic", "Metallic", kustannukset, osa, asetukset);
+    const rivi = rakennaRivi("metallic", "metallic", "Metallic", kustannukset, osa, asetukset);
     if (rivi) rivit.push(rivi);
 
     const lakattuRivi = laskeLakatunKategorianRivi(
       "metallic-lakattu",
+      "metallic",
       "Metallic + lakkaus",
       metallicHinta,
       kategoriaVarit("metallic"),
@@ -240,13 +251,14 @@ export function laskeKategoriaKustannukset({
         );
       }
     }
-    const rivi = rakennaRivi("candy", "Candy", kustannukset, osa, asetukset);
+    const rivi = rakennaRivi("candy", "candy", "Candy", kustannukset, osa, asetukset);
     if (rivi) rivit.push(rivi);
   }
 
   const illusionHinta = kategoriaHinta("illusion");
   if (illusionHinta) {
     const rivi = laskeLakatunKategorianRivi(
+      "illusion",
       "illusion",
       "Illusion",
       illusionHinta,

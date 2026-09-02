@@ -259,11 +259,12 @@ export function OsaLomake({ osa, tyovaiheet = [], kategoriahinnat = [], formActi
         <div>
           <Label className="font-medium">Myytävät kategoriat</Label>
           <p className="text-xs text-muted-foreground">
-            Vain maalinkulutus on pakollinen - asiakashinta lasketaan sen perusteella
-            automaattisesti värin ostohinnasta ja katteesta. Kiinteä hinta on valinnainen ja
-            ohittaa automaattisen laskennan Osat-listan hintanäytössä, jos se on asetettu. Vain
-            valitut kategoriat ovat myytävissä tälle osalle Työt-sivulla. Perusvärin lakkauksen
-            kulutus on valinnainen: tyhjänä lakkausta ei tarjota tälle osalle.
+            Vain maalinkulutus on pakollinen - ilman kiinteää hintaa asiakashinta lasketaan
+            sen perusteella automaattisesti värin ostohinnasta ja katteesta. Kiinteä hinta on
+            valinnainen ja käytössä aina kun se on asetettu: Osat-listan hintaskaalassa, osan
+            hinnoittelussa ja Työt-sivulla. Vain valitut kategoriat ovat myytävissä tälle osalle
+            Työt-sivulla. Perusvärin lakkauksen kulutus on valinnainen: tyhjänä lakkausta ei
+            tarjota tälle osalle.
           </p>
         </div>
         <div className="grid gap-3">

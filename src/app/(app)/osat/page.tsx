@@ -107,11 +107,17 @@ export default async function OsatSivu({
         variKategoriat: variKategoriaVastaus.data ?? [],
       });
 
-      // Admin voi asettaa kategorialle kiinteän hinnan, joka ohittaa listan
-      // hintanäytössä automaattisen (väri + kate -pohjaisen) suositushinnan.
+      // Hintaskaala rakennetaan adminin asettamista kiinteistä kategoriahinnoista
+      // ja vain niiltä osin kuin niitä ei ole asetettu, lasketusta
+      // suositushinnasta. Haku tehdään rivin kategorialla eikä avaimella, koska
+      // lakattu vaihtoehto ("Perusvärit + lakkaus") on oma rivinsä mutta samaa
+      // kategoriaa - kiinteä hinta kattaa senkin, sillä se korvaa koko
+      // kustannuslaskennan.
       if (rivit.length > 0) {
         const rajat = rivit.map((r) => {
-          const kiinteaHinta = omatKategoriahinnat.find((k) => k.maali_tyyppi === r.avain)?.hinta;
+          const kiinteaHinta = omatKategoriahinnat.find(
+            (k) => k.maali_tyyppi === r.kategoria
+          )?.hinta;
           return kiinteaHinta != null
             ? { min: kiinteaHinta, max: kiinteaHinta }
             : { min: r.suositusMin, max: r.suositusMax };

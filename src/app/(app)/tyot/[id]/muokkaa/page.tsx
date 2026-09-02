@@ -52,7 +52,7 @@ export default async function MuokkaaTyotaSivu({
       .order("nimi"),
     supabase
       .from("osa_kategoriahinnat")
-      .select("osa_id, maali_tyyppi, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"),
+      .select("osa_id, maali_tyyppi, hinta, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
     supabase
       .from("osa_tyovaiheet")

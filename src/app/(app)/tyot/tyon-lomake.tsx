@@ -63,6 +63,8 @@ interface Vari {
 interface Kategoriahinta {
   osa_id: string;
   maali_tyyppi: MyytavaMaaliTyyppi;
+  /** Adminin asettama kiinteä asiakashinta. Null = hinta lasketaan. */
+  hinta: number | null;
   arvioitu_kulutus_g: number;
   toinen_arvioitu_kulutus_g: number | null;
 }
@@ -166,9 +168,12 @@ export function TyonLomake({
     ? (valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? 0)
     : (valittuOsa?.lakkaus_kulutus_g ?? 0);
 
-  // Asiakashinta lasketaan värin todellisesta ostohinnasta + katteesta, ei
-  // erikseen asetetusta kiinteästä kategoriahinnasta - sama laskentaperuste
-  // kuin osan omalla sivulla näkyvässä kustannusarviossa.
+  // Hinnoittelujärjestys on sama kuin osan omalla sivulla: adminin kategorialle
+  // asettama kiinteä hinta ensin, sitten osan manuaalinen hinta, ja vasta jos
+  // kumpaakaan ei ole asetettu, värin ostohinnasta + katteesta laskettu
+  // suositushinta. Kiinteä hinta korvaa koko kustannuslaskennan, joten sitä ei
+  // koroteta työkustannuksella eikä maalin hinnalla - vain värikohtaisella
+  // hintalisällä, kuten laskettuakin hintaa.
   const yksikkohintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari || !valittuOsa) return null;
     // Maalaus ja suojaus tehdään jokaiselle värikerrokselle erikseen.
@@ -187,6 +192,7 @@ export function TyonLomake({
       kustannus += (toinenArvioituKulutusG / 1000) * valittuToinenVari.kokonaishinta;
     }
     const kategorianHinta =
+      valittuKategoriahinta.hinta ??
       valittuOsa.manuaalinen_hinta ??
       Math.round((kustannus * (1 + valittuOsa.kateProsentti / 100) + valittuOsa.kateKiintea) * 100) /
         100;
