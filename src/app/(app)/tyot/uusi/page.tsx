@@ -48,8 +48,8 @@ export default async function UusiTyoSivu() {
     if (t.vaihe) tuntiveloitukset.set(t.vaihe, t.tuntihinta);
   }
 
-  // Asiakashinta lasketaan värin ostohinnasta + katteesta, ei kiinteästä
-  // kategoriahinnasta - siksi jokaiselle värille lasketaan todellinen
+  // Kiinteän kategoriahinnan puuttuessa asiakashinta lasketaan värin
+  // ostohinnasta + katteesta, joten jokaiselle värille haetaan todellinen
   // kokonaishinta ja jokaiselle osalle sen työkustannus + kateasetukset.
   const osat = (osatVastaus.data ?? []).map((osa) => {
     const omatVaiheet = (tyovaiheetVastaus.data ?? []).filter((v) => v.osa_id === osa.id);

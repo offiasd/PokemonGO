@@ -132,7 +132,9 @@ function laskeLakatunKategorianRivi(
 
 // Laskee kustannusarvion (maali omalla todellisella hinnalla + työ) ja
 // suositushinnan asteikkona halvimmasta kalleimpaan kategoriassa olevien
-// värien mukaan - ei admin-asettamalla kiinteällä kategoriahinnalla.
+// värien mukaan. Adminin kiinteä kategoriahinta ei kuulu tänne: tämä on se
+// laskettu suositus, jonka kutsuja korvaa kiinteällä hinnalla silloin kun
+// sellainen on asetettu (ks. rivin kategoria-kenttä).
 // Candy, Metallic ja Illusion sisältävät aina pakollisen pohjavärin/lakan
 // kulutuksen ja hinnan, ja niiden asteikko kattaa kaikki väri- ja
 // pohjaväri-/lakkayhdistelmät. Metallic vaatii lakkauksen aina kun sitä
