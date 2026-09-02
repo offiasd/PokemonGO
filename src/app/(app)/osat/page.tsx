@@ -14,8 +14,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ajoneuvotyypinNimi, muotoileValiEuro } from "@/lib/vakiot";
+import { ajoneuvotyypinNimi, muotoileValiEuro, SIVUKOKO, rajaaSivu } from "@/lib/vakiot";
 import type { AjoneuvoTyyppi, TyoVaihe } from "@/lib/supabase/database.types";
+
+import { Sivutus } from "@/components/sivutus";
 
 import { OsienSuodattimet } from "./osien-suodattimet";
 import { laskeKategoriaKustannukset, laskeTyokustannusKerroksittain } from "./kustannusarvio";
@@ -24,6 +26,7 @@ interface Hakuparametrit {
   q?: string;
   ajoneuvotyyppi?: string;
   naytaPoistetut?: string;
+  sivu?: string;
 }
 
 export default async function OsatSivu({
@@ -31,7 +34,7 @@ export default async function OsatSivu({
 }: {
   searchParams: Promise<Hakuparametrit>;
 }) {
-  const { q, ajoneuvotyyppi, naytaPoistetut } = await searchParams;
+  const { q, ajoneuvotyyppi, naytaPoistetut, sivu } = await searchParams;
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
@@ -68,7 +71,13 @@ export default async function OsatSivu({
     supabase.from("tuntiveloitukset").select("vaihe, tuntihinta"),
   ]);
 
-  const osat = osatVastaus.data ?? [];
+  const kaikkiOsat = osatVastaus.data ?? [];
+
+  // Sivutus viipaloidaan haun jälkeen: näin hintaskaalat lasketaan vain sivulla
+  // näkyville osille eikä koko listalle.
+  const sivuja = Math.max(1, Math.ceil(kaikkiOsat.length / SIVUKOKO));
+  const nykyinenSivu = rajaaSivu(sivu, sivuja);
+  const osat = kaikkiOsat.slice((nykyinenSivu - 1) * SIVUKOKO, nykyinenSivu * SIVUKOKO);
 
   // Näytetään korteissa asiakashinta-asteikko (halvin-kallein sellinen kategoria)
   // kaikille käyttäjärooleille - kyseessä on asiakkaalle näkyvä hinta, ei
@@ -156,6 +165,14 @@ export default async function OsatSivu({
         ajoneuvotyypit={ajoneuvotyypit}
       />
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {kaikkiOsat.length} {kaikkiOsat.length === 1 ? "osa" : "osaa"}
+          {sivuja > 1 && ` - sivu ${nykyinenSivu}/${sivuja}`}
+        </p>
+        <Sivutus sivu={nykyinenSivu} sivuja={sivuja} />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {osat.map((osa) => {
           const hinta = hintaskaalat.get(osa.id);
@@ -209,6 +226,8 @@ export default async function OsatSivu({
           <p className="text-muted-foreground">Ei osia hakuehdoilla.</p>
         )}
       </div>
+
+      <Sivutus sivu={nykyinenSivu} sivuja={sivuja} className="justify-center" />
     </div>
   );
 }

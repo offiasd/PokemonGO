@@ -32,6 +32,9 @@ export function VarienJarjestysValinta({ naytaHinnat }: { naytaHinnat: boolean }
     } else {
       params.set("jarjestys", arvo);
     }
+    // Järjestys sekoittaa listan kokonaan, joten sivunumerolla ei ole enää
+    // merkitystä - palataan ensimmäiselle sivulle.
+    params.delete("sivu");
     router.push(`/varit?${params.toString()}`);
   }
 

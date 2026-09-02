@@ -31,6 +31,9 @@ export function OsienSuodattimet({
     } else {
       params.delete(avain);
     }
+    // Rajauksen muuttuessa palataan alkuun: vanha sivunumero osoittaisi
+    // helposti tyhjään kohtaan lyhentynyttä listaa.
+    params.delete("sivu");
     router.push(`/osat?${params.toString()}`);
   }
 

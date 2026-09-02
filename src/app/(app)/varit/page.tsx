@@ -9,8 +9,10 @@ import {
   JARJESTYKSET,
   MAALI_TYYPIT,
   OLETUS_JARJESTYS,
+  SIVUKOKO,
   VARISAVYT,
   lueLista,
+  rajaaSivu,
 } from "@/lib/vakiot";
 import { laskeVarinKokonaishinta } from "@/lib/hinnat";
 import type { Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
@@ -18,6 +20,8 @@ import type { VarienJarjestys } from "@/lib/vakiot";
 
 import { VarienJarjestysValinta } from "./varien-jarjestys";
 import { VarienSuodattimet } from "./varien-suodattimet";
+import { Sivutus } from "@/components/sivutus";
+
 import { VariKortti } from "./vari-kortti";
 
 type VariRow = Database["public"]["Tables"]["varit"]["Row"];
@@ -59,9 +63,10 @@ export default async function VaritSivu({
     tyyppi?: string;
     savy?: string;
     jarjestys?: string;
+    sivu?: string;
   }>;
 }) {
-  const { q, naytaPoistetut, tyyppi, savy, jarjestys } = await searchParams;
+  const { q, naytaPoistetut, tyyppi, savy, jarjestys, sivu } = await searchParams;
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
@@ -129,9 +134,16 @@ export default async function VaritSivu({
     varitHinnoin.sort((a, b) => suunta * (a.kokonaishinta - b.kokonaishinta));
   }
 
+  // Sivutus tehdään lajittelun jälkeen JS:ssä, koska hinta-, saldo- ja
+  // suosiojärjestys lasketaan täällä eikä kannassa: kannan range-rajaus
+  // palauttaisi väärän viipaleen.
+  const sivuja = Math.max(1, Math.ceil(varitHinnoin.length / SIVUKOKO));
+  const nykyinenSivu = rajaaSivu(sivu, sivuja);
+  const sivunVarit = varitHinnoin.slice((nykyinenSivu - 1) * SIVUKOKO, nykyinenSivu * SIVUKOKO);
+
   type VariHinnalla = { vari: VariRow; kokonaishinta: number; kayttokerrat: number };
   const ryhmat = new Map<MaaliTyyppi, VariHinnalla[]>();
-  for (const rivi of varitHinnoin) {
+  for (const rivi of sivunVarit) {
     const lista = ryhmat.get(rivi.vari.tyyppi) ?? [];
     lista.push(rivi);
     ryhmat.set(rivi.vari.tyyppi, lista);
@@ -177,9 +189,13 @@ export default async function VaritSivu({
         <div className="grid gap-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <VarienJarjestysValinta naytaHinnat={naytaHinnat} />
-            <p className="text-sm text-muted-foreground">
-              {varitHinnoin.length} {varitHinnoin.length === 1 ? "väri" : "väriä"}
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                {varitHinnoin.length} {varitHinnoin.length === 1 ? "väri" : "väriä"}
+                {sivuja > 1 && ` - sivu ${nykyinenSivu}/${sivuja}`}
+              </p>
+              <Sivutus sivu={nykyinenSivu} sivuja={sivuja} />
+            </div>
           </div>
 
           {varitHinnoin.length === 0 && (
@@ -189,7 +205,7 @@ export default async function VaritSivu({
           {/* Ilman rajauksia värit ovat yhtenä listana: kategoriaotsikot
               pilkkoisivat selailun turhaan. Kun jotain on rajattu, ryhmittely
               maalityypeittäin auttaa hahmottamaan mitä valinta tuotti. */}
-          {varitHinnoin.length > 0 &&
+          {sivunVarit.length > 0 &&
             (ryhmittele ? (
               <div className="grid gap-8">
                 {naytettavatTyypit.map(({ arvo, nimi }) => {
@@ -214,11 +230,13 @@ export default async function VaritSivu({
               </div>
             ) : (
               <VariRuudukko
-                varit={varitHinnoin}
+                varit={sivunVarit}
                 oletusHalytysraja={asetukset.oletus_halytysraja_g}
                 naytaHinnat={naytaHinnat}
               />
             ))}
+
+          <Sivutus sivu={nykyinenSivu} sivuja={sivuja} className="justify-center pt-2" />
         </div>
       </div>
     </div>

@@ -209,6 +209,16 @@ export type VarienJarjestys =
   | "hinta_nouseva"
   | "hinta_laskeva";
 
+/** Montako tuotetta yhdelle sivulle mahtuu osa- ja värilistoilla. */
+export const SIVUKOKO = 20;
+
+/** Rajaa sivunumeron olemassa olevien sivujen joukkoon (vähintään 1). */
+export function rajaaSivu(sivu: string | undefined, sivuja: number): number {
+  const numero = Number(sivu);
+  if (!Number.isInteger(numero) || numero < 1) return 1;
+  return Math.min(numero, Math.max(sivuja, 1));
+}
+
 export const OLETUS_JARJESTYS: VarienJarjestys = "nimi";
 
 export const JARJESTYKSET: { arvo: VarienJarjestys; nimi: string; vaatiiHinnat: boolean }[] = [

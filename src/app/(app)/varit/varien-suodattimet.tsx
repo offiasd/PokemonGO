@@ -87,6 +87,9 @@ export function VarienSuodattimet({
         params.delete(avain);
       }
     }
+    // Rajauksen muuttuessa palataan alkuun: vanha sivunumero osoittaisi
+    // helposti tyhjään kohtaan lyhentynyttä listaa.
+    params.delete("sivu");
     router.push(`/varit?${params.toString()}`);
   }
 
