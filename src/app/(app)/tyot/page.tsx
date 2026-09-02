@@ -28,7 +28,7 @@ const ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
 };
 
 export default async function TyotSivu() {
-  const kayttaja = await vaaditaanKayttaja();
+  await vaaditaanKayttaja();
   const supabase = await createClient();
 
   const [tyotVastaus, profiilitVastaus] = await Promise.all([
@@ -122,7 +122,7 @@ export default async function TyotSivu() {
                         Muokkaa
                       </Link>
                     </Button>
-                    {kayttaja.role === "admin" && <PeruTyo tyoId={tyo.id} />}
+                    <PeruTyo tyoId={tyo.id} />
                     <MerkitseValmiiksi
                       tyoId={tyo.id}
                       rivit={tyonRivit.map((r) => ({

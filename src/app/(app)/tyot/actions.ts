@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { vaaditaanAdmin, vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
+import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import type { ToinenVariRooli } from "@/lib/supabase/database.types";
 
 export interface TyonRiviSyote {
@@ -144,8 +144,16 @@ export async function merkitseTyoValmiiksi(
   revalidatePath("/");
 }
 
+/**
+ * Peruu keskeneräisen työn ja vapauttaa sen varaamat maalisaldot.
+ *
+ * Kaikki kirjautuneet saavat perua: työn aloitus ja muokkaus ovat samoin
+ * kaikkien käytettävissä, ja virheellisen työn huomaa yleensä sen kirjaaja.
+ * Valmista työtä ei peruta - sen maali on jo kulutettu varastosta - ja saman
+ * rajauksen tekee myös kannan rivitason käytäntö.
+ */
 export async function peruTyo(tyoId: string): Promise<void> {
-  await vaaditaanAdmin();
+  await vaaditaanKayttaja();
   const supabase = await createClient();
 
   const { data: tyo } = await supabase.from("tyot").select("tila").eq("id", tyoId).single();
