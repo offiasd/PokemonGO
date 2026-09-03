@@ -51,15 +51,19 @@ interface KategoriahintaSyote {
   toinen_arvioitu_kulutus_g: number | null;
 }
 
-// Palauttaa [käytössä-olevat kategoriahinnat, pois-jätettyjen kategorioiden tyypit].
-// Kategorian aktivointi vaatii vain maalinkulutuksen. Hinta on valinnainen
-// kiinteä ylikirjoitus - jos sitä ei aseteta, asiakashinta lasketaan värin
+// Kategorian aktivointi vaatii maalinkulutuksen. Hinta on valinnainen kiinteä
+// ylikirjoitus - jos sitä ei aseteta, asiakashinta lasketaan värin
 // ostohinnasta + katteesta (ks. kustannusarvio.ts / osat-listan hintaskaala).
+//
+// Puutteellinen kategoria on oma tuloksensa eikä sama kuin pois valittu:
+// aiemmin valittu mutta vajaa kategoria putosi hiljaa poistettaviin, jolloin
+// tallennus ilmoitti onnistuneensa mutta hinnat katosivat.
 function lueKategoriahinnat(formData: FormData) {
   const kaytossa: KategoriahintaSyote[] = [];
   const poistettavat: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"][] = [];
+  const puutteelliset: string[] = [];
 
-  for (const { arvo } of MYYTAVAT_MAALI_TYYPIT) {
+  for (const { arvo, nimi } of MYYTAVAT_MAALI_TYYPIT) {
     const kaytossaTama = formData.get(`kategoria_${arvo}_kaytossa`) === "on";
     const hinta = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_hinta`));
     const hintaLakattu = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_hinta_lakattu`));
@@ -81,11 +85,23 @@ function lueKategoriahinnat(formData: FormData) {
         arvioitu_kulutus_g: kulutus,
         toinen_arvioitu_kulutus_g: toinenVaadittu ? toinenKulutus : null,
       });
+    } else if (kaytossaTama) {
+      puutteelliset.push(nimi);
     } else {
       poistettavat.push(arvo);
     }
   }
-  return { kaytossa, poistettavat };
+  return { kaytossa, poistettavat, puutteelliset };
+}
+
+/**
+ * Virheteksti puutteellisista kategorioista, tai null kun kaikki on kunnossa.
+ * Tarkistetaan ennen kuin mitään tallennetaan, jottei osa jää puolitiehen.
+ */
+function kategorioidenVirhe(formData: FormData): string | null {
+  const { puutteelliset } = lueKategoriahinnat(formData);
+  if (puutteelliset.length === 0) return null;
+  return `Täytä maalinkulutus (ja pakollinen toinen kulutus) kategorioille: ${puutteelliset.join(", ")}. Kategoria ilman kulutusta ei tallennu.`;
 }
 
 async function tallennaKategoriahinnat(
@@ -126,6 +142,10 @@ export async function luoOsa(
   if (!kentat.nimi) {
     return { virhe: "Nimi vaaditaan." };
   }
+  const kategoriaVirhe = kategorioidenVirhe(formData);
+  if (kategoriaVirhe) {
+    return { virhe: kategoriaVirhe };
+  }
 
   const { data, error } = await supabase.from("osat").insert(kentat).select("id").single();
   if (error || !data) {
@@ -138,9 +158,9 @@ export async function luoOsa(
     return { virhe: vaiheVirhe.message };
   }
 
-  const kategoriaVirhe = await tallennaKategoriahinnat(supabase, data.id, formData);
-  if (kategoriaVirhe) {
-    return { virhe: kategoriaVirhe };
+  const tallennusVirhe = await tallennaKategoriahinnat(supabase, data.id, formData);
+  if (tallennusVirhe) {
+    return { virhe: tallennusVirhe };
   }
 
   revalidatePath("/osat");
@@ -162,6 +182,10 @@ export async function paivitaOsa(
   if (!kentat.nimi) {
     return { virhe: "Nimi vaaditaan." };
   }
+  const kategoriaVirhe = kategorioidenVirhe(formData);
+  if (kategoriaVirhe) {
+    return { virhe: kategoriaVirhe };
+  }
 
   const { error } = await supabase.from("osat").update(kentat).eq("id", osaId);
   if (error) {
@@ -176,9 +200,9 @@ export async function paivitaOsa(
     return { virhe: vaiheVirhe.message };
   }
 
-  const kategoriaVirhe = await tallennaKategoriahinnat(supabase, osaId, formData);
-  if (kategoriaVirhe) {
-    return { virhe: kategoriaVirhe };
+  const tallennusVirhe = await tallennaKategoriahinnat(supabase, osaId, formData);
+  if (tallennusVirhe) {
+    return { virhe: tallennusVirhe };
   }
 
   revalidatePath("/osat");

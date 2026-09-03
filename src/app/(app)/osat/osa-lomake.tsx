@@ -129,6 +129,9 @@ function KategoriaRivi({
   const toinenKentta = toisenKulutuksenKentta(arvo);
   const lakkausValinnainen = arvo === "solid";
   const lakattuHinta = LAKATTU_HINTA_KATEGORIAT.includes(arvo);
+  // Kategoria tallentuu vain kulutuksen kanssa, joten selain vaatii sen jo
+  // ennen lähetystä. Solidin lakkaus on ainoa valinnainen toinen kulutus.
+  const toinenPakollinen = Boolean(toinenLabel) && !lakkausValinnainen;
 
   return (
     <div className="grid gap-3 rounded-md border p-3">
@@ -180,7 +183,7 @@ function KategoriaRivi({
           )}
           <div className="grid gap-1">
             <Label htmlFor={`kategoria_${arvo}_kulutus`} className="text-xs text-muted-foreground">
-              Maalinkulutus (g)
+              Maalinkulutus (g) *
             </Label>
             <Input
               id={`kategoria_${arvo}_kulutus`}
@@ -188,6 +191,7 @@ function KategoriaRivi({
               type="number"
               min="0"
               step="1"
+              required
               defaultValue={oletusKulutus ?? ""}
             />
           </div>
@@ -202,6 +206,7 @@ function KategoriaRivi({
                 type="number"
                 min="0"
                 step="1"
+                required={toinenPakollinen}
                 placeholder={lakkausValinnainen ? "Ei lakkausta" : undefined}
                 defaultValue={oletusToinenKulutus ?? ""}
               />
