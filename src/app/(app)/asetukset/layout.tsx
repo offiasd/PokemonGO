@@ -26,8 +26,26 @@ export default async function AsetuksetLayout({
         <aside className="min-w-0 lg:sticky lg:top-6">
           <AsetustenNavigaatio onAdmin={kayttaja.role === "admin"} />
         </aside>
-        <div className="grid min-w-0 gap-6">{children}</div>
+        <div className="grid min-w-0 gap-6">
+          {children}
+          <Versio />
+        </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Käynnissä olevan version tunniste.
+ *
+ * Render kertoo julkaisun valmistuneen, mutta selaimessa voi silti näkyä vanha
+ * sivu välimuistista. Tämä kertoo mikä versio palvelimella oikeasti pyörii:
+ * jos tunniste ei vastaa uusinta commitia, julkaisu on vielä kesken.
+ */
+function Versio() {
+  const commit = process.env.RENDER_GIT_COMMIT;
+  if (!commit) return null;
+  return (
+    <p className="text-xs text-muted-foreground">Versio {commit.slice(0, 7)}</p>
   );
 }
