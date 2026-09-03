@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
-import type { TyoVaihe } from "@/lib/supabase/database.types";
+import { vaaditaanAdmin, vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
+import type { Database, TyoVaihe } from "@/lib/supabase/database.types";
 import { ajoneuvotyypinAvain } from "@/lib/vakiot";
 
 export interface AsetuksetTila {
@@ -17,35 +17,83 @@ function parseNumero(formData: FormData, kentta: string): number {
   return Number.isFinite(arvo) ? arvo : 0;
 }
 
+/**
+ * Tallentaa vain ne asetukset jotka lomake lähetti.
+ *
+ * Asetukset on jaettu useaan lomakkeeseen eri välilehdille, joten koko rivin
+ * ylikirjoittaminen nollaisi muiden välilehtien arvot. Valintakytkin ei lähetä
+ * mitään pois päältä ollessaan, joten sen mukanaolo kerrotaan piilokentällä.
+ */
 export async function paivitaAsetukset(
   _edellinenTila: AsetuksetTila,
   formData: FormData
 ): Promise<AsetuksetTila> {
   await vaaditaanAdmin();
 
+  const numerokentat = [
+    "oletus_halytysraja_g",
+    "tullimaksu_prosentti_oletus",
+    "alv_prosentti_oletus",
+    "kate_prosentti_oletus",
+    "yleinen_tuntihinta",
+    "toimituskulu_per_kg_eu_oletus",
+    "toimituskulu_per_kg_usa_oletus",
+    "toimituskulu_per_kg_muu_oletus",
+  ] as const;
+
+  type AsetusMuutos = Partial<Database["public"]["Tables"]["asetukset"]["Update"]>;
+  const muutokset: AsetusMuutos = {};
+  for (const kentta of numerokentat) {
+    if (formData.has(kentta)) muutokset[kentta] = parseNumero(formData, kentta);
+  }
+  if (formData.has("yrityksen_osoite")) {
+    muutokset.yrityksen_osoite = String(formData.get("yrityksen_osoite") ?? "").trim() || null;
+  }
+  if (formData.has("nayta_hinnat_maalaajalle_lomakkeella")) {
+    muutokset.nayta_hinnat_maalaajalle = formData.get("nayta_hinnat_maalaajalle") === "on";
+  }
+
+  if (Object.keys(muutokset).length === 0) {
+    return { virhe: "Ei tallennettavia muutoksia.", viesti: null };
+  }
+
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("asetukset")
-    .update({
-      oletus_halytysraja_g: parseNumero(formData, "oletus_halytysraja_g"),
-      tullimaksu_prosentti_oletus: parseNumero(formData, "tullimaksu_prosentti_oletus"),
-      alv_prosentti_oletus: parseNumero(formData, "alv_prosentti_oletus"),
-      kate_prosentti_oletus: parseNumero(formData, "kate_prosentti_oletus"),
-      yleinen_tuntihinta: parseNumero(formData, "yleinen_tuntihinta"),
-      nayta_hinnat_maalaajalle: formData.get("nayta_hinnat_maalaajalle") === "on",
-      yrityksen_osoite: String(formData.get("yrityksen_osoite") ?? "").trim() || null,
-      toimituskulu_per_kg_eu_oletus: parseNumero(formData, "toimituskulu_per_kg_eu_oletus"),
-      toimituskulu_per_kg_usa_oletus: parseNumero(formData, "toimituskulu_per_kg_usa_oletus"),
-      toimituskulu_per_kg_muu_oletus: parseNumero(formData, "toimituskulu_per_kg_muu_oletus"),
-    })
-    .eq("id", true);
+  const { error } = await supabase.from("asetukset").update(muutokset).eq("id", true);
 
   if (error) {
     return { virhe: error.message, viesti: null };
   }
 
-  revalidatePath("/asetukset");
+  revalidatePath("/asetukset", "layout");
+  revalidatePath("/");
+  revalidatePath("/varit");
+  revalidatePath("/osat");
   return { virhe: null, viesti: "Asetukset tallennettu." };
+}
+
+/** Käyttäjän oma näyttönimi. Sähköpostia ja roolia ei voi muuttaa itse. */
+export async function paivitaOmatTiedot(
+  _edellinenTila: AsetuksetTila,
+  formData: FormData
+): Promise<AsetuksetTila> {
+  const kayttaja = await vaaditaanKayttaja();
+  const nimi = String(formData.get("full_name") ?? "").trim();
+  if (!nimi) {
+    return { virhe: "Nimi ei voi olla tyhjä.", viesti: null };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: nimi })
+    .eq("id", kayttaja.id);
+
+  if (error) {
+    return { virhe: error.message, viesti: null };
+  }
+
+  revalidatePath("/asetukset", "layout");
+  return { virhe: null, viesti: "Tiedot tallennettu." };
 }
 
 export async function paivitaTuntiveloitus(vaihe: TyoVaihe, tuntihinta: number) {
@@ -60,7 +108,7 @@ export async function paivitaTuntiveloitus(vaihe: TyoVaihe, tuntihinta: number) 
     throw new Error(error.message);
   }
 
-  revalidatePath("/asetukset");
+  revalidatePath("/asetukset", "layout");
 }
 
 export async function poistaTuntiveloitusYlikirjoitus(vaihe: TyoVaihe) {
@@ -73,7 +121,7 @@ export async function poistaTuntiveloitusYlikirjoitus(vaihe: TyoVaihe) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/asetukset");
+  revalidatePath("/asetukset", "layout");
 }
 
 /**
@@ -109,7 +157,7 @@ export async function lisaaAjoneuvotyyppi(nimi: string) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/asetukset");
+  revalidatePath("/asetukset", "layout");
   revalidatePath("/osat");
 }
 
@@ -125,7 +173,7 @@ export async function nimeaAjoneuvotyyppi(avain: string, nimi: string) {
     .eq("avain", avain);
   if (error) throw new Error(error.message);
 
-  revalidatePath("/asetukset");
+  revalidatePath("/asetukset", "layout");
   revalidatePath("/osat");
 }
 
@@ -146,6 +194,6 @@ export async function poistaAjoneuvotyyppi(avain: string) {
   const { error } = await supabase.from("ajoneuvotyypit").delete().eq("avain", avain);
   if (error) throw new Error(error.message);
 
-  revalidatePath("/asetukset");
+  revalidatePath("/asetukset", "layout");
   revalidatePath("/osat");
 }

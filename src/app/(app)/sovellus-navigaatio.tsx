@@ -29,7 +29,9 @@ const LINKIT = [
   { href: "/raportit", label: "Raportit", icon: BarChart3, adminVain: false },
   { href: "/halytykset", label: "Hälytykset", icon: AlertTriangle, adminVain: false },
   { href: "/kayttajat", label: "Käyttäjät", icon: Users, adminVain: true },
-  { href: "/asetukset", label: "Asetukset", icon: Settings, adminVain: true },
+  // Asetukset on kaikille: maalaaja hallitsee siellä omia tietojaan ja
+  // kirjautumisen suojausta, admin lisäksi maalaamon asetuksia.
+  { href: "/asetukset", label: "Asetukset", icon: Settings, adminVain: false },
 ];
 
 function nimikirjaimet(nimi: string | null) {
