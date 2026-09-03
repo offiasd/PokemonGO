@@ -17,6 +17,7 @@ export default async function UusiTyoSivu() {
     osatVastaus,
     varitVastaus,
     kategoriahintaVastaus,
+    poikkeusVastaus,
     variKategoriaVastaus,
     tyovaiheetVastaus,
     tuntiveloitusVastaus,
@@ -40,6 +41,7 @@ export default async function UusiTyoSivu() {
       .select(
         "osa_id, maali_tyyppi, hinta, hinta_lakattu, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"
       ),
+    supabase.from("osan_poikkeukset").select("osa_id, nimi, lisahinta_eur").order("jarjestys"),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
     supabase
       .from("osa_tyovaiheet")
@@ -95,6 +97,7 @@ export default async function UusiTyoSivu() {
             osat={osat}
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
+            poikkeukset={poikkeusVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
           />
         </CardContent>

@@ -148,6 +148,10 @@ export default async function TyotSivu() {
     if (rivi.toinen_vari_id && rivi.toinen_vari_rooli) {
       teksti += ` + ${ROOLIN_NIMI[rivi.toinen_vari_rooli]}: ${variNimi(rivi.toinen_vari_id)}`;
     }
+    // Poikkeus ja lisäväri kertovat miksi rivi on olemassa tai miksi sen hinta
+    // on nolla, joten ne kuuluvat riville näkyviin.
+    const lisatiedot = [rivi.poikkeus, rivi.lisavari ? "lisäväri" : null].filter(Boolean);
+    if (lisatiedot.length > 0) teksti += ` (${lisatiedot.join(", ")})`;
     return teksti;
   }
 

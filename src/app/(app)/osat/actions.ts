@@ -110,6 +110,54 @@ function kategorioidenVirhe(formData: FormData): string | null {
   return `Täytä kaikki kulutukset kategorioille: ${puutteelliset.join(", ")}. Varasto varataan ja vähennetään kulutusten mukaan, joten kategoria ei tallennu ilman niitä.`;
 }
 
+/**
+ * Poikkeukset tulevat lomakkeelta JSONina, koska niitä lisätään ja poistetaan
+ * selaimessa ennen tallennusta. Vanhat korvataan kokonaan: poistettu rivi
+ * katoaa myös kannasta, mutta jo tehdyillä työriveillä poikkeuksen nimi
+ * säilyy, koska se on kopioitu riville.
+ */
+async function tallennaPoikkeukset(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  osaId: string,
+  formData: FormData
+) {
+  let syotteet: { nimi: string; lisahinta_eur: number }[] = [];
+  try {
+    const raaka = JSON.parse(String(formData.get("poikkeukset") ?? "[]"));
+    if (Array.isArray(raaka)) {
+      syotteet = raaka
+        .map((r) => ({
+          nimi: String(r?.nimi ?? "").trim(),
+          lisahinta_eur: Number(r?.lisahinta_eur) || 0,
+        }))
+        .filter((r) => r.nimi !== "" && r.lisahinta_eur >= 0);
+    }
+  } catch {
+    return "Poikkeusten luku epäonnistui.";
+  }
+
+  // Sama nimi kahdesti rikkoisi kannan yksilöivän ehdon, ja kaksi samannimistä
+  // poikkeusta olisi työtä koottaessa muutenkin mahdoton erottaa toisistaan.
+  const nimet = new Set(syotteet.map((r) => r.nimi.toLowerCase()));
+  if (nimet.size !== syotteet.length) {
+    return "Poikkeuksilla pitää olla eri nimet.";
+  }
+
+  const { error: poistoVirhe } = await supabase
+    .from("osan_poikkeukset")
+    .delete()
+    .eq("osa_id", osaId);
+  if (poistoVirhe) return poistoVirhe.message;
+
+  if (syotteet.length > 0) {
+    const { error } = await supabase.from("osan_poikkeukset").insert(
+      syotteet.map((r, jarjestys) => ({ ...r, osa_id: osaId, jarjestys }))
+    );
+    if (error) return error.message;
+  }
+  return null;
+}
+
 async function tallennaKategoriahinnat(
   supabase: Awaited<ReturnType<typeof createClient>>,
   osaId: string,
@@ -169,6 +217,11 @@ export async function luoOsa(
     return { virhe: tallennusVirhe };
   }
 
+  const poikkeusVirhe = await tallennaPoikkeukset(supabase, data.id, formData);
+  if (poikkeusVirhe) {
+    return { virhe: poikkeusVirhe };
+  }
+
   revalidatePath("/osat");
   revalidatePath(`/osat/${data.id}`);
   // Takaisin listaan, ja ilmoitus osoiteparametrina: toast tarvitsee
@@ -209,6 +262,11 @@ export async function paivitaOsa(
   const tallennusVirhe = await tallennaKategoriahinnat(supabase, osaId, formData);
   if (tallennusVirhe) {
     return { virhe: tallennusVirhe };
+  }
+
+  const poikkeusVirhe = await tallennaPoikkeukset(supabase, osaId, formData);
+  if (poikkeusVirhe) {
+    return { virhe: poikkeusVirhe };
   }
 
   revalidatePath("/osat");

@@ -26,6 +26,10 @@ export interface TyonRiviSyote {
   toinenVariId?: string | null;
   toinenVariRooli?: ToinenVariRooli | null;
   toinenArvioituKulutusG?: number | null;
+  /** Valitun poikkeuksen nimi, esim. "50/50 kahdella värillä". */
+  poikkeus?: string | null;
+  /** Saman osan toinen väri: varaa maalia mutta ei veloita osaa uudelleen. */
+  lisavari?: boolean;
 }
 
 /**
@@ -76,6 +80,8 @@ export async function aloitaTyo(
       toinen_vari_id: r.toinenVariId ?? null,
       toinen_vari_rooli: r.toinenVariRooli ?? null,
       toinen_arvioitu_kulutus_g: r.toinenArvioituKulutusG ?? null,
+      poikkeus: r.poikkeus ?? null,
+      lisavari: r.lisavari ?? false,
     }))
   );
   if (riviVirhe) {
@@ -126,6 +132,8 @@ export async function paivitaTyo(
       toinen_vari_id: r.toinenVariId ?? null,
       toinen_vari_rooli: r.toinenVariRooli ?? null,
       toinen_arvioitu_kulutus_g: r.toinenArvioituKulutusG ?? null,
+      poikkeus: r.poikkeus ?? null,
+      lisavari: r.lisavari ?? false,
     })),
   });
   if (rpcVirhe) throw new Error(rpcVirhe.message);

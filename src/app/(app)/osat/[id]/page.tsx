@@ -54,6 +54,7 @@ export default async function OsaSivu({
     tyovaiheetVastaus,
     variVastaus,
     kategoriahintaVastaus,
+    poikkeusVastaus,
     variKategoriaVastaus,
     tuntiveloitusVastaus,
   ] = await Promise.all([
@@ -65,6 +66,7 @@ export default async function OsaSivu({
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase.from("osa_kategoriahinnat").select("*").eq("osa_id", id),
+    supabase.from("osan_poikkeukset").select("*").eq("osa_id", id).order("jarjestys"),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
     supabase.from("tuntiveloitukset").select("vaihe, tuntihinta"),
   ]);
@@ -285,6 +287,7 @@ export default async function OsaSivu({
             osa={osa}
             tyovaiheet={tyovaiheetVastaus.data ?? []}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
+            poikkeukset={poikkeusVastaus.data ?? []}
             ajoneuvotyypit={ajoneuvotyypit}
             formAction={paivitaOsa.bind(null, osa.id)}
           />

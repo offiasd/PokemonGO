@@ -34,6 +34,7 @@ export default async function MuokkaaTyotaSivu({
     osatVastaus,
     varitVastaus,
     kategoriahintaVastaus,
+    poikkeusVastaus,
     variKategoriaVastaus,
     tyovaiheetVastaus,
     tuntiveloitusVastaus,
@@ -58,6 +59,7 @@ export default async function MuokkaaTyotaSivu({
       .select(
         "osa_id, maali_tyyppi, hinta, hinta_lakattu, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"
       ),
+    supabase.from("osan_poikkeukset").select("osa_id, nimi, lisahinta_eur").order("jarjestys"),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
     supabase
       .from("osa_tyovaiheet")
@@ -115,6 +117,8 @@ export default async function MuokkaaTyotaSivu({
     toinenVariNimi: varinNimi(rivi.toinen_vari_id),
     toinenVariRooli: rivi.toinen_vari_rooli,
     toinenArvioituKulutusG: rivi.toinen_arvioitu_kulutus_g,
+    poikkeus: rivi.poikkeus,
+    lisavari: rivi.lisavari,
   }));
 
   return (
@@ -136,6 +140,7 @@ export default async function MuokkaaTyotaSivu({
             osat={osat}
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
+            poikkeukset={poikkeusVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
             muokattavaTyo={{
               id: tyo.id,

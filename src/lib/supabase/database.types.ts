@@ -390,6 +390,8 @@ export interface Database {
           toinen_vari_rooli: ToinenVariRooli | null;
           toinen_arvioitu_kulutus_g: number | null;
           toinen_toteutunut_kulutus_g: number | null;
+          poikkeus: string | null;
+          lisavari: boolean;
         };
         Insert: Partial<Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"]>;
@@ -399,6 +401,30 @@ export interface Database {
             columns: ["tyo_id"];
             isOneToOne: false;
             referencedRelation: "arkistoidut_tyot";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      osan_poikkeukset: {
+        Row: {
+          id: string;
+          osa_id: string;
+          /** Poikkeuksen nimi, esim. "50/50 perusvärit". */
+          nimi: string;
+          lisahinta_eur: number;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["osan_poikkeukset"]["Row"]> & {
+          osa_id: string;
+          nimi: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["osan_poikkeukset"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "osan_poikkeukset_osa_id_fkey";
+            columns: ["osa_id"];
+            isOneToOne: false;
+            referencedRelation: "osat";
             referencedColumns: ["id"];
           },
         ];
@@ -475,6 +501,10 @@ export interface Database {
           toinen_toteutunut_kulutus_g: number | null;
           /** Onko rivin varaus jo purettu (työ valmistunut). */
           varaus_purettu: boolean;
+          /** Valitun poikkeuksen nimi työn tekohetkellä. */
+          poikkeus: string | null;
+          /** Saman osan toinen väri: varaa maalia mutta ei veloita osaa uudelleen. */
+          lisavari: boolean;
           yksikkohinta_eur: number;
         };
         Insert: Partial<Database["public"]["Tables"]["tyon_rivit"]["Row"]> & {
