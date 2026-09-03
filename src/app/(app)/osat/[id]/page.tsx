@@ -201,11 +201,7 @@ export default async function OsaSivu({
                     <li key={k.avain} className="flex justify-between">
                       <span>{k.nimi}</span>
                       <span className="text-muted-foreground">
-                        {/* Kiinteä hinta korvaa lasketun suosituksen: se on se
-                            mitä asiakkaalta veloitetaan. */}
-                        {k.kiinteaHinta != null
-                          ? muotoileEuro(k.kiinteaHinta)
-                          : muotoileValiEuro(k.suositusMin, k.suositusMax)}
+                        {muotoileValiEuro(k.suositusMin, k.suositusMax)}
                       </span>
                     </li>
                   ))}
@@ -266,18 +262,7 @@ export default async function OsaSivu({
                   <TableRow key={k.avain}>
                     <TableCell className="font-medium">{k.nimi}</TableCell>
                     <TableCell>{muotoileValiEuro(k.kustannusMin, k.kustannusMax)}</TableCell>
-                    <TableCell>
-                      {k.kiinteaHinta != null ? (
-                        <span className="flex flex-wrap items-center gap-2">
-                          {muotoileEuro(k.kiinteaHinta)}
-                          <span className="text-xs text-muted-foreground">
-                            kiinteä (laskettu {muotoileValiEuro(k.suositusMin, k.suositusMax)})
-                          </span>
-                        </span>
-                      ) : (
-                        muotoileValiEuro(k.suositusMin, k.suositusMax)
-                      )}
-                    </TableCell>
+                    <TableCell>{muotoileValiEuro(k.suositusMin, k.suositusMax)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

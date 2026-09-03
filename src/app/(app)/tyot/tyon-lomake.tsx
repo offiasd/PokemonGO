@@ -409,12 +409,14 @@ export function TyonLomake({
                 value={variId}
                 onValueChange={(uusiId) => {
                   setVariId(uusiId);
-                  // Lakkaus ei ole enää kategoriakohtainen pakko vaan
-                  // värikohtainen tieto, joten se ehdotetaan valinnan
-                  // yhteydessä. Käyttäjä voi ottaa sen pois - siksi ehdotus.
-                  if (varit.find((v) => v.id === uusiId)?.vaatii_lakkauksen) {
-                    setLakkausValittu(true);
-                  }
+                  // Lakkaus ei ole kategoriakohtainen pakko vaan värikohtainen
+                  // tieto, joten valinta seuraa väriä molempiin suuntiin: uusi
+                  // väri joka vaatii lakkauksen kytkee sen päälle ja väri joka
+                  // ei vaadi ottaa sen pois. Käyttäjä voi silti muuttaa
+                  // valintaa itse - siksi se on ehdotus eikä lukko.
+                  setLakkausValittu(
+                    varit.find((v) => v.id === uusiId)?.vaatii_lakkauksen === true
+                  );
                 }}
               >
                 <SelectTrigger id="vari_id" className="w-full">
