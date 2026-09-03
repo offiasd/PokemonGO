@@ -37,7 +37,9 @@ export default async function UusiTyoSivu() {
       .order("nimi"),
     supabase
       .from("osa_kategoriahinnat")
-      .select("osa_id, maali_tyyppi, hinta, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"),
+      .select(
+        "osa_id, maali_tyyppi, hinta, hinta_lakattu, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"
+      ),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
     supabase
       .from("osa_tyovaiheet")

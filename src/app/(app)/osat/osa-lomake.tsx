@@ -95,6 +95,11 @@ const TOINEN_KULUTUS_LABEL: Partial<Record<MyytavaMaaliTyyppi, string>> = {
   illusion: "Lakan kulutus (g)",
 };
 
+// Kategoriat joissa lakkaus on valinnainen lisä, eli joilla voi olla oma
+// kiinteä hinta lakattuna. Candy ja illusion sisältävät lakan aina, joten
+// niillä kategorian oma hinta riittää.
+const LAKATTU_HINTA_KATEGORIAT: MyytavaMaaliTyyppi[] = ["solid", "metallic"];
+
 // Solidin valinnaisen lakkauksen kulutus on osan oma sarake
 // (osat.lakkaus_kulutus_g), muiden kategorioiden toinen kulutus tallentuu
 // kategoriahinnan riville.
@@ -107,6 +112,7 @@ function KategoriaRivi({
   nimi,
   oletusKaytossa,
   oletusHinta,
+  oletusHintaLakattu,
   oletusKulutus,
   oletusToinenKulutus,
 }: {
@@ -114,6 +120,7 @@ function KategoriaRivi({
   nimi: string;
   oletusKaytossa: boolean;
   oletusHinta: number | null;
+  oletusHintaLakattu: number | null;
   oletusKulutus: number | null;
   oletusToinenKulutus: number | null;
 }) {
@@ -121,6 +128,7 @@ function KategoriaRivi({
   const toinenLabel = TOINEN_KULUTUS_LABEL[arvo];
   const toinenKentta = toisenKulutuksenKentta(arvo);
   const lakkausValinnainen = arvo === "solid";
+  const lakattuHinta = LAKATTU_HINTA_KATEGORIAT.includes(arvo);
 
   return (
     <div className="grid gap-3 rounded-md border p-3">
@@ -136,7 +144,7 @@ function KategoriaRivi({
         </Label>
       </div>
       {kaytossa && (
-        <div className={toinenLabel ? "grid gap-3 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}>
+        <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="grid gap-1">
             <Label htmlFor={`kategoria_${arvo}_hinta`} className="text-xs text-muted-foreground">
               Kiinteä hinta € (valinnainen)
@@ -151,6 +159,25 @@ function KategoriaRivi({
               defaultValue={oletusHinta ?? ""}
             />
           </div>
+          {lakattuHinta && (
+            <div className="grid gap-1">
+              <Label
+                htmlFor={`kategoria_${arvo}_hinta_lakattu`}
+                className="text-xs text-muted-foreground"
+              >
+                Kiinteä hinta lakattuna €
+              </Label>
+              <Input
+                id={`kategoria_${arvo}_hinta_lakattu`}
+                name={`kategoria_${arvo}_hinta_lakattu`}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Sama kuin yllä"
+                defaultValue={oletusHintaLakattu ?? ""}
+              />
+            </div>
+          )}
           <div className="grid gap-1">
             <Label htmlFor={`kategoria_${arvo}_kulutus`} className="text-xs text-muted-foreground">
               Maalinkulutus (g)
@@ -297,7 +324,9 @@ export function OsaLomake({
             valinnainen ja käytössä aina kun se on asetettu: Osat-listan hintaskaalassa, osan
             hinnoittelussa ja Työt-sivulla. Vain valitut kategoriat ovat myytävissä tälle osalle
             Työt-sivulla. Perusvärin lakkauksen kulutus on valinnainen: tyhjänä lakkausta ei
-            tarjota tälle osalle.
+            tarjota tälle osalle. Lakattu työ on kalliimpi kuin lakkaamaton, joten perusvärille
+            ja metallicille voi antaa oman kiinteän hinnan lakattuna - tyhjänä käytetään
+            kategorian omaa kiinteää hintaa.
           </p>
         </div>
         <div className="grid gap-3">
@@ -310,6 +339,7 @@ export function OsaLomake({
                 nimi={nimi}
                 oletusKaytossa={Boolean(olemassaOleva)}
                 oletusHinta={olemassaOleva?.hinta ?? null}
+                oletusHintaLakattu={olemassaOleva?.hinta_lakattu ?? null}
                 oletusKulutus={olemassaOleva?.arvioitu_kulutus_g ?? null}
                 oletusToinenKulutus={
                   arvo === "solid"

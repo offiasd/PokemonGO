@@ -22,7 +22,7 @@ import {
   VALINNAINEN_TOINEN_VARI_ROOLI,
 } from "@/lib/vakiot";
 import type { Alkupera, MaaliTyyppi, MyytavaMaaliTyyppi } from "@/lib/supabase/database.types";
-import { valitseKate, type Kateprosentit } from "@/lib/hinnat";
+import { kategorianKiinteaHinta, valitseKate, type Kateprosentit } from "@/lib/hinnat";
 
 interface Vari {
   id: string;
@@ -35,6 +35,8 @@ interface Vari {
 interface Kategoriahinta {
   maali_tyyppi: MyytavaMaaliTyyppi;
   hinta: number | null;
+  /** Kiinteä hinta kun työhön kuuluu lakkaus. Null = käytä hinta-kenttää. */
+  hinta_lakattu: number | null;
   arvioitu_kulutus_g: number;
   toinen_arvioitu_kulutus_g: number | null;
 }
@@ -143,8 +145,11 @@ export function OsanHinnoittelu({
       valittuVari.alkupera,
       pakollinenRooli ? valittuToinenVari?.alkupera : undefined
     );
+    // Lakattu työ voi olla omalla kiinteällä hinnallaan: se on kalliimpi kuin
+    // lakkaamaton. Candyllä ja illusionilla lakka kuuluu hintaan aina, joten
+    // niillä kategorian oma hinta on ainoa.
     const kategorianHinta =
-      valittuKategoriahinta.hinta ??
+      kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakkausValittu) ??
       manuaalinenHinta ??
       Math.round((kustannus * (1 + kate / 100) + kateKiintea) * 100) / 100;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);

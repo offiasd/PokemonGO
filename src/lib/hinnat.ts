@@ -134,3 +134,19 @@ export function valitseKate(
   const eiEu = alkuperat.some((a) => a !== null && a !== undefined && a !== "EU");
   return eiEu ? kate.eiEu : kate.eu;
 }
+
+/**
+ * Kategorian kiinteä asiakashinta, lakkaus huomioiden.
+ *
+ * Lakattu työ on kalliimpi (kaksi värikerrosta ja lakan kulutus), joten sille
+ * voi asettaa oman kiinteän hinnan. Tyhjänä lakattu työ käyttää kategorian
+ * omaa kiinteää hintaa - näin vanhat osat toimivat kuten ennenkin.
+ */
+export function kategorianKiinteaHinta(
+  kategoriahinta: { hinta: number | null; hinta_lakattu?: number | null } | null | undefined,
+  lakattu: boolean
+): number | null {
+  if (!kategoriahinta) return null;
+  if (lakattu) return kategoriahinta.hinta_lakattu ?? kategoriahinta.hinta;
+  return kategoriahinta.hinta;
+}

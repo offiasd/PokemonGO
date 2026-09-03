@@ -327,7 +327,10 @@ export interface Database {
           id: string;
           osa_id: string;
           maali_tyyppi: MyytavaMaaliTyyppi;
+          /** Kiinteä asiakashinta lakkaamattomalle työlle. Null = hinta lasketaan. */
           hinta: number | null;
+          /** Kiinteä asiakashinta kun työhön kuuluu lakkaus. Null = käytä hinta-saraketta. */
+          hinta_lakattu: number | null;
           arvioitu_kulutus_g: number;
           toinen_arvioitu_kulutus_g: number | null;
         };

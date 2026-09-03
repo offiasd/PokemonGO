@@ -45,6 +45,8 @@ const TOISEN_KULUTUKSEN_KATEGORIAT = new Set(["candy", "metallic", "illusion"]);
 interface KategoriahintaSyote {
   maali_tyyppi: (typeof MYYTAVAT_MAALI_TYYPIT)[number]["arvo"];
   hinta: number | null;
+  /** Kiinteä hinta lakatulle työlle; null = käytä hinta-kenttää. */
+  hinta_lakattu: number | null;
   arvioitu_kulutus_g: number;
   toinen_arvioitu_kulutus_g: number | null;
 }
@@ -60,6 +62,7 @@ function lueKategoriahinnat(formData: FormData) {
   for (const { arvo } of MYYTAVAT_MAALI_TYYPIT) {
     const kaytossaTama = formData.get(`kategoria_${arvo}_kaytossa`) === "on";
     const hinta = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_hinta`));
+    const hintaLakattu = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_hinta_lakattu`));
     const kulutus = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_kulutus`));
     const toinenKulutus = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_toinen_kulutus`));
     const toinenVaadittu = TOISEN_KULUTUKSEN_KATEGORIAT.has(arvo);
@@ -74,6 +77,7 @@ function lueKategoriahinnat(formData: FormData) {
       kaytossa.push({
         maali_tyyppi: arvo,
         hinta,
+        hinta_lakattu: hintaLakattu !== null && hintaLakattu >= 0 ? hintaLakattu : null,
         arvioitu_kulutus_g: kulutus,
         toinen_arvioitu_kulutus_g: toinenVaadittu ? toinenKulutus : null,
       });

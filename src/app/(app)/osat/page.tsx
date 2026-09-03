@@ -129,19 +129,15 @@ export default async function OsatSivu({
 
       // Hintaskaala rakennetaan adminin asettamista kiinteistä kategoriahinnoista
       // ja vain niiltä osin kuin niitä ei ole asetettu, lasketusta
-      // suositushinnasta. Haku tehdään rivin kategorialla eikä avaimella, koska
-      // lakattu vaihtoehto ("Perusvärit + lakkaus") on oma rivinsä mutta samaa
-      // kategoriaa - kiinteä hinta kattaa senkin, sillä se korvaa koko
-      // kustannuslaskennan.
+      // suositushinnasta. Rivi tietää itse oman kiinteän hintansa, joten
+      // lakattu vaihtoehto ("Perusvärit + lakkaus") käyttää sille erikseen
+      // asetettua hintaa.
       if (rivit.length > 0) {
-        const rajat = rivit.map((r) => {
-          const kiinteaHinta = omatKategoriahinnat.find(
-            (k) => k.maali_tyyppi === r.kategoria
-          )?.hinta;
-          return kiinteaHinta != null
-            ? { min: kiinteaHinta, max: kiinteaHinta }
-            : { min: r.suositusMin, max: r.suositusMax };
-        });
+        const rajat = rivit.map((r) =>
+          r.kiinteaHinta != null
+            ? { min: r.kiinteaHinta, max: r.kiinteaHinta }
+            : { min: r.suositusMin, max: r.suositusMax }
+        );
         hintaskaalat.set(osa.id, {
           min: Math.min(...rajat.map((r) => r.min)),
           max: Math.max(...rajat.map((r) => r.max)),

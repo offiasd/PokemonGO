@@ -40,7 +40,7 @@ import type {
   MyytavaMaaliTyyppi,
   ToinenVariRooli,
 } from "@/lib/supabase/database.types";
-import { valitseKate, type Kateprosentit } from "@/lib/hinnat";
+import { kategorianKiinteaHinta, valitseKate, type Kateprosentit } from "@/lib/hinnat";
 
 import { aloitaTyo, paivitaTyo } from "./actions";
 
@@ -73,6 +73,8 @@ interface Kategoriahinta {
   maali_tyyppi: MyytavaMaaliTyyppi;
   /** Adminin asettama kiinteä asiakashinta. Null = hinta lasketaan. */
   hinta: number | null;
+  /** Kiinteä hinta kun työhön kuuluu lakkaus. Null = käytä hinta-kenttää. */
+  hinta_lakattu: number | null;
   arvioitu_kulutus_g: number;
   toinen_arvioitu_kulutus_g: number | null;
 }
@@ -217,8 +219,11 @@ export function TyonLomake({
       valittuVari.alkupera,
       toinenVariAktiivinen ? valittuToinenVari?.alkupera : undefined
     );
+    // Lakattu työ voi olla omalla kiinteällä hinnallaan: se on kalliimpi kuin
+    // lakkaamaton. Candyllä ja illusionilla lakka kuuluu hintaan aina, joten
+    // niillä kategorian oma hinta on ainoa.
     const kategorianHinta =
-      valittuKategoriahinta.hinta ??
+      kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakkausValittu) ??
       valittuOsa.manuaalinen_hinta ??
       Math.round((kustannus * (1 + kate / 100) + valittuOsa.kateKiintea) * 100) / 100;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
@@ -233,6 +238,7 @@ export function TyonLomake({
     toinenArvioituKulutusG,
     kategoria,
     lakkausValittu,
+    pakollinenRooli,
   ]);
 
   function vaihdaOsa(v: string) {

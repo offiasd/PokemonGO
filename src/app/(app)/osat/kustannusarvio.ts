@@ -7,7 +7,12 @@ import type {
   MyytavaMaaliTyyppi,
   TyoVaihe,
 } from "@/lib/supabase/database.types";
-import { osanKateprosentit, valitseKate, type Kateprosentit } from "@/lib/hinnat";
+import {
+  kategorianKiinteaHinta,
+  osanKateprosentit,
+  valitseKate,
+  type Kateprosentit,
+} from "@/lib/hinnat";
 import {
   kategorianVarienMaara,
   VARIKERROKSITTAIN_KERTAUTUVAT_VAIHEET,
@@ -48,6 +53,11 @@ export interface KustannusarvioRivi {
   kustannusMax: number;
   suositusMin: number;
   suositusMax: number;
+  /**
+   * Adminin asettama kiinteä hinta juuri tälle vaihtoehdolle (lakattu erikseen),
+   * tai null jos hinta lasketaan. Kiinteä hinta korvaa suositushinnan kokonaan.
+   */
+  kiinteaHinta: number | null;
 }
 
 function pyoristaSentteihin(arvo: number): number {
@@ -107,7 +117,8 @@ function rakennaRivi(
   nimi: string,
   yhdistelmat: Yhdistelma[],
   osa: OsaRow,
-  kateprosentit: Kateprosentit
+  kateprosentit: Kateprosentit,
+  kiinteaHinta: number | null
 ): KustannusarvioRivi | null {
   if (yhdistelmat.length === 0) return null;
   const kustannukset = yhdistelmat.map((y) => y.kustannus);
@@ -122,6 +133,7 @@ function rakennaRivi(
     kustannusMax: pyoristaSentteihin(Math.max(...kustannukset)),
     suositusMin: pyoristaSentteihin(Math.min(...hinnat)),
     suositusMax: pyoristaSentteihin(Math.max(...hinnat)),
+    kiinteaHinta,
   };
 }
 
@@ -136,7 +148,8 @@ function laskeLakatunKategorianRivi(
   lakkaVarit: VariHinta[],
   tyokustannus: number,
   osa: OsaRow,
-  kateprosentit: Kateprosentit
+  kateprosentit: Kateprosentit,
+  kiinteaHinta: number | null
 ): KustannusarvioRivi | null {
   const yhdistelmat: Yhdistelma[] = [];
   for (const paavari of paavarit) {
@@ -150,7 +163,7 @@ function laskeLakatunKategorianRivi(
       });
     }
   }
-  return rakennaRivi(avain, kategoria, nimi, yhdistelmat, osa, kateprosentit);
+  return rakennaRivi(avain, kategoria, nimi, yhdistelmat, osa, kateprosentit, kiinteaHinta);
 }
 
 // Laskee kustannusarvion (maali omalla todellisella hinnalla + työ) ja
@@ -207,7 +220,15 @@ export function laskeKategoriaKustannukset({
       kustannus: (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("solid"),
       alkuperat: [v.alkupera],
     }));
-    const rivi = rakennaRivi("solid", "solid", "Perusvärit", yhdistelmat, osa, kateprosentit);
+    const rivi = rakennaRivi(
+      "solid",
+      "solid",
+      "Perusvärit",
+      yhdistelmat,
+      osa,
+      kateprosentit,
+      kategorianKiinteaHinta(solidHinta, false)
+    );
     if (rivi) rivit.push(rivi);
 
     // Perusvärille lakkaus on valinnainen lisä, joten se näytetään omana
@@ -235,7 +256,8 @@ export function laskeKategoriaKustannukset({
         "Perusvärit + lakkaus",
         lakatut,
         osa,
-        kateprosentit
+        kateprosentit,
+        kategorianKiinteaHinta(solidHinta, true)
       );
       if (lakattuRivi) rivit.push(lakattuRivi);
     }
@@ -251,7 +273,15 @@ export function laskeKategoriaKustannukset({
         (metallicHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("metallic"),
       alkuperat: [v.alkupera],
     }));
-    const rivi = rakennaRivi("metallic", "metallic", "Metallic", yhdistelmat, osa, kateprosentit);
+    const rivi = rakennaRivi(
+      "metallic",
+      "metallic",
+      "Metallic",
+      yhdistelmat,
+      osa,
+      kateprosentit,
+      kategorianKiinteaHinta(metallicHinta, false)
+    );
     if (rivi) rivit.push(rivi);
 
     const lakattuRivi = laskeLakatunKategorianRivi(
@@ -263,7 +293,8 @@ export function laskeKategoriaKustannukset({
       kategoriaVarit("transparent"),
       tyokustannusVareilla(2),
       osa,
-      kateprosentit
+      kateprosentit,
+      kategorianKiinteaHinta(metallicHinta, true)
     );
     if (lakattuRivi) rivit.push(lakattuRivi);
   }
@@ -284,7 +315,15 @@ export function laskeKategoriaKustannukset({
         });
       }
     }
-    const rivi = rakennaRivi("candy", "candy", "Candy", yhdistelmat, osa, kateprosentit);
+    const rivi = rakennaRivi(
+      "candy",
+      "candy",
+      "Candy",
+      yhdistelmat,
+      osa,
+      kateprosentit,
+      kategorianKiinteaHinta(candyHinta, false)
+    );
     if (rivi) rivit.push(rivi);
   }
 
@@ -299,7 +338,8 @@ export function laskeKategoriaKustannukset({
       kategoriaVarit("transparent"),
       tyokustannus("illusion"),
       osa,
-      kateprosentit
+      kateprosentit,
+      kategorianKiinteaHinta(illusionHinta, false)
     );
     if (rivi) rivit.push(rivi);
   }
