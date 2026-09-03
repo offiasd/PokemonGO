@@ -127,11 +127,12 @@ function KategoriaRivi({
   const [kaytossa, setKaytossa] = useState(oletusKaytossa);
   const toinenLabel = TOINEN_KULUTUS_LABEL[arvo];
   const toinenKentta = toisenKulutuksenKentta(arvo);
-  const lakkausValinnainen = arvo === "solid";
+  // Solidin lakkauskulutus tallentuu osan omaan sarakkeeseen, joten kategoriaa
+  // pois valittaessa arvo pitää lähettää piilokentässä ettei se katoa.
+  const lakkausOsanKentassa = arvo === "solid";
   const lakattuHinta = LAKATTU_HINTA_KATEGORIAT.includes(arvo);
-  // Kategoria tallentuu vain kulutuksen kanssa, joten selain vaatii sen jo
-  // ennen lähetystä. Solidin lakkaus on ainoa valinnainen toinen kulutus.
-  const toinenPakollinen = Boolean(toinenLabel) && !lakkausValinnainen;
+  // Jokainen kulutus on pakollinen: varasto vähenee näiden lukujen mukaan,
+  // joten puuttuva arvo varaisi ja kuluttaisi nolla grammaa.
 
   return (
     <div className="grid gap-3 rounded-md border p-3">
@@ -189,7 +190,7 @@ function KategoriaRivi({
               id={`kategoria_${arvo}_kulutus`}
               name={`kategoria_${arvo}_kulutus`}
               type="number"
-              min="0"
+              min="1"
               step="1"
               required
               defaultValue={oletusKulutus ?? ""}
@@ -198,23 +199,23 @@ function KategoriaRivi({
           {toinenLabel && (
             <div className="grid gap-1">
               <Label htmlFor={toinenKentta} className="text-xs text-muted-foreground">
-                {toinenLabel}
+                {toinenLabel} *
               </Label>
               <Input
                 id={toinenKentta}
                 name={toinenKentta}
                 type="number"
-                min="0"
+                min="1"
                 step="1"
-                required={toinenPakollinen}
-                placeholder={lakkausValinnainen ? "Ei lakkausta" : undefined}
+                required
+                placeholder={undefined}
                 defaultValue={oletusToinenKulutus ?? ""}
               />
             </div>
           )}
         </div>
       )}
-      {lakkausValinnainen && !kaytossa && (
+      {lakkausOsanKentassa && !kaytossa && (
         <input type="hidden" name={toinenKentta} value={oletusToinenKulutus ?? ""} />
       )}
     </div>
@@ -324,14 +325,14 @@ export function OsaLomake({
         <div>
           <Label className="font-medium">Myytävät kategoriat</Label>
           <p className="text-xs text-muted-foreground">
-            Vain maalinkulutus on pakollinen - ilman kiinteää hintaa asiakashinta lasketaan
-            sen perusteella automaattisesti värin ostohinnasta ja katteesta. Kiinteä hinta on
+            Kulutukset ovat pakollisia - ilman kiinteää hintaa asiakashinta lasketaan niiden
+            perusteella automaattisesti värin ostohinnasta ja katteesta. Kiinteä hinta on
             valinnainen ja käytössä aina kun se on asetettu: Osat-listan hintaskaalassa, osan
             hinnoittelussa ja Työt-sivulla. Vain valitut kategoriat ovat myytävissä tälle osalle
-            Työt-sivulla. Perusvärin lakkauksen kulutus on valinnainen: tyhjänä lakkausta ei
-            tarjota tälle osalle. Lakattu työ on kalliimpi kuin lakkaamaton, joten perusvärille
-            ja metallicille voi antaa oman kiinteän hinnan lakattuna - tyhjänä käytetään
-            kategorian omaa kiinteää hintaa.
+            Työt-sivulla. Tähdellä merkityt kulutukset ovat pakollisia: varasto varataan ja
+            vähennetään niiden mukaan. Lakattu työ on kalliimpi kuin lakkaamaton, joten
+            perusvärille ja metallicille voi antaa oman kiinteän hinnan lakattuna - tyhjänä
+            käytetään kategorian omaa kiinteää hintaa.
           </p>
         </div>
         <div className="grid gap-3">

@@ -40,6 +40,7 @@ function lueTyovaiheet(formData: FormData) {
 }
 
 // Candy vaatii pohjavärin kulutuksen, metallic ja illusion lakan kulutuksen.
+// Solidin lakkauskulutus tallentuu osan omaan sarakkeeseen (lakkaus_kulutus_g).
 const TOISEN_KULUTUKSEN_KATEGORIAT = new Set(["candy", "metallic", "illusion"]);
 
 interface KategoriahintaSyote {
@@ -69,14 +70,19 @@ function lueKategoriahinnat(formData: FormData) {
     const hintaLakattu = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_hinta_lakattu`));
     const kulutus = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_kulutus`));
     const toinenKulutus = tyhjaksiNumeroksi(formData.get(`kategoria_${arvo}_toinen_kulutus`));
+    const lakkausKulutus = tyhjaksiNumeroksi(formData.get("lakkaus_kulutus_g"));
     const toinenVaadittu = TOISEN_KULUTUKSEN_KATEGORIAT.has(arvo);
 
+    // Kulutuksen pitää olla yli nollan: nolla varaisi ja kuluttaisi varastosta
+    // nolla grammaa, eli saldo ei enää vastaisi todellisuutta.
+    const omaKulutus = arvo === "solid" ? lakkausKulutus : toinenKulutus;
     if (
       kaytossaTama &&
       (hinta === null || hinta >= 0) &&
       kulutus !== null &&
-      kulutus >= 0 &&
-      (!toinenVaadittu || (toinenKulutus !== null && toinenKulutus >= 0))
+      kulutus > 0 &&
+      omaKulutus !== null &&
+      omaKulutus > 0
     ) {
       kaytossa.push({
         maali_tyyppi: arvo,
@@ -101,7 +107,7 @@ function lueKategoriahinnat(formData: FormData) {
 function kategorioidenVirhe(formData: FormData): string | null {
   const { puutteelliset } = lueKategoriahinnat(formData);
   if (puutteelliset.length === 0) return null;
-  return `Täytä maalinkulutus (ja pakollinen toinen kulutus) kategorioille: ${puutteelliset.join(", ")}. Kategoria ilman kulutusta ei tallennu.`;
+  return `Täytä kaikki kulutukset kategorioille: ${puutteelliset.join(", ")}. Varasto varataan ja vähennetään kulutusten mukaan, joten kategoria ei tallennu ilman niitä.`;
 }
 
 async function tallennaKategoriahinnat(

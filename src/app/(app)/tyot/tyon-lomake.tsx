@@ -169,7 +169,20 @@ export function TyonLomake({
 
   const pakollinenRooli = kategoria ? PAKOLLINEN_TOINEN_VARI_ROOLI[kategoria] : undefined;
   const valinnainenRooli = kategoria ? VALINNAINEN_TOINEN_VARI_ROOLI[kategoria] : undefined;
-  const toinenVariRooli = pakollinenRooli ?? (lakkausValittu ? valinnainenRooli : undefined);
+
+  // Toisen maalikerroksen kulutus tulee ensisijaisesti kategorialta (metallicin
+  // ja illusionin lakka, candyn pohjaväri) ja vasta sen puuttuessa osan omasta
+  // lakkauskulutuksesta, joka koskee perusväriä. Aiemmin valinnainen lakkaus
+  // luki aina osan kenttää, jolloin metallicin lakalle varattiin vääriä
+  // grammoja - tai ei mitään, jos kenttä oli tyhjä.
+  const toisenKulutusG =
+    valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? valittuOsa?.lakkaus_kulutus_g ?? 0;
+  // Ilman kulutustietoa lakkausta ei tarjota lainkaan: muuten työhön
+  // varattaisiin lakkaa nolla grammaa eikä varasto vähenisi oikein.
+  const lakkausMahdollinen = Boolean(valinnainenRooli) && !pakollinenRooli && toisenKulutusG > 0;
+  const lakattu = lakkausMahdollinen && lakkausValittu;
+
+  const toinenVariRooli = pakollinenRooli ?? (lakattu ? valinnainenRooli : undefined);
   const toinenVariAktiivinen = Boolean(toinenVariRooli);
   const toisenVarinKategoria: MaaliTyyppi | undefined =
     toinenVariRooli === "pohjavari" ? "pohjavari" : toinenVariRooli === "lakka" ? "transparent" : undefined;
@@ -184,9 +197,7 @@ export function TyonLomake({
   );
 
   const arvioituKulutusG = valittuKategoriahinta?.arvioitu_kulutus_g ?? 0;
-  const toinenArvioituKulutusG = pakollinenRooli
-    ? (valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? 0)
-    : (valittuOsa?.lakkaus_kulutus_g ?? 0);
+  const toinenArvioituKulutusG = toisenKulutusG;
 
   // Hinnoittelujärjestys on sama kuin osan omalla sivulla: adminin kategorialle
   // asettama kiinteä hinta ensin, sitten osan manuaalinen hinta, ja vasta jos
@@ -197,7 +208,7 @@ export function TyonLomake({
   const yksikkohintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari || !valittuOsa) return null;
     // Maalaus ja suojaus tehdään jokaiselle värikerrokselle erikseen.
-    const varienMaara = kategoria ? kategorianVarienMaara(kategoria, lakkausValittu) : 1;
+    const varienMaara = kategoria ? kategorianVarienMaara(kategoria, lakattu) : 1;
     const tyokustannus =
       valittuOsa.tyokustannusKerroksittain[varienMaara - 1] ??
       valittuOsa.tyokustannusKerroksittain[0] ??
@@ -223,7 +234,7 @@ export function TyonLomake({
     // lakkaamaton. Candyllä ja illusionilla lakka kuuluu hintaan aina, joten
     // niillä kategorian oma hinta on ainoa.
     const kategorianHinta =
-      kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakkausValittu) ??
+      kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakattu) ??
       valittuOsa.manuaalinen_hinta ??
       Math.round((kustannus * (1 + kate / 100) + valittuOsa.kateKiintea) * 100) / 100;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
@@ -237,7 +248,7 @@ export function TyonLomake({
     arvioituKulutusG,
     toinenArvioituKulutusG,
     kategoria,
-    lakkausValittu,
+    lakattu,
     pakollinenRooli,
   ]);
 
@@ -440,7 +451,7 @@ export function TyonLomake({
             </div>
           )}
 
-          {valinnainenRooli && !pakollinenRooli && kategoria && (
+          {lakkausMahdollinen && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="lakkaus_kytketty"
