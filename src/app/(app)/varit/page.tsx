@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { ilikeHakuehto } from "@/lib/supabase/hakuehto";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Button } from "@/components/ui/button";
@@ -98,7 +99,7 @@ export default async function VaritSivu({
     kysely = kysely.eq("aktiivinen", true);
   }
   if (q) {
-    kysely = kysely.or(`nimi.ilike.%${q}%,valmistaja.ilike.%${q}%`);
+    kysely = kysely.or(ilikeHakuehto(["nimi", "valmistaja"], q));
   }
   if (tyyppiSuodattimet.length > 0) {
     kysely = kysely.in("tyyppi", tyyppiSuodattimet);
