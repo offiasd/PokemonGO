@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock, Layers, Pencil, Plus } from "lucide-react";
+import { Clock, History, Layers, Pencil, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
@@ -15,14 +15,13 @@ import {
   muotoileEuro,
   muotoileGrammat,
   muotoileKesto,
-  muotoileProsentti,
   odotusPaivat,
-  peruutuksenSyynNimi,
 } from "@/lib/vakiot";
 import type { Database, ToinenVariRooli, TyoVaihe } from "@/lib/supabase/database.types";
 
 import { AloitaTyo } from "./aloita-tyo";
 import { MerkitseValmiiksi } from "./merkitse-valmiiksi";
+import { Summat } from "./summat";
 import { PeruTyo } from "./peru-tyo";
 import { ValmiinTyonToiminnot } from "./valmiin-tyon-toiminnot";
 
@@ -33,58 +32,18 @@ const ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
   lakka: "Lakka",
 };
 
-/**
- * Työn loppusumma. Alennusrivi näytetään vain kun alennus on annettu, jotta
- * tavallinen työ ei saa turhaa "Alennus 0 %" -riviä.
- */
-function Summat({
-  tyo,
-  summat,
-}: {
-  tyo: { alennus_prosentti: number };
-  summat: { valisumma: number; alennusEur: number; loppusumma: number };
-}) {
-  return (
-    <div className="grid gap-1 border-t pt-2 text-sm">
-      {tyo.alennus_prosentti > 0 && (
-        <>
-          <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Välisumma</span>
-            <span>{muotoileEuro(summat.valisumma)}</span>
-          </div>
-          <div className="flex justify-between gap-4 text-muted-foreground">
-            <span>Alennus {muotoileProsentti(tyo.alennus_prosentti)}</span>
-            <span>-{muotoileEuro(summat.alennusEur)}</span>
-          </div>
-        </>
-      )}
-      <div className="flex justify-between gap-4 font-medium">
-        <span>Yhteensä</span>
-        <span>{muotoileEuro(summat.loppusumma)}</span>
-      </div>
-    </div>
-  );
-}
-
 export default async function TyotSivu() {
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const [ajoneuvotyypit, asetukset] = await Promise.all([haeAjoneuvotyypit(), haeAsetukset()]);
 
-  const [tyotVastaus, profiilitVastaus, peruutuksetVastaus, arkistoVastaus, arkistoRivitVastaus] =
-    await Promise.all([
-      supabase.from("tyot").select("*").order("aloitettu", { ascending: false }),
-      supabase.from("profiles").select("id, full_name"),
-      supabase.from("tyon_peruutukset").select("*").order("peruttu", { ascending: false }),
-      supabase.from("arkistoidut_tyot").select("*").order("valmistunut", { ascending: false }),
-      supabase.from("arkistoidut_tyon_rivit").select("*"),
-    ]);
+  const [tyotVastaus, profiilitVastaus] = await Promise.all([
+    supabase.from("tyot").select("*").order("aloitettu", { ascending: false }),
+    supabase.from("profiles").select("id, full_name"),
+  ]);
 
   const tyot = tyotVastaus.data ?? [];
   const profiilit = profiilitVastaus.data ?? [];
-  const peruutukset = peruutuksetVastaus.data ?? [];
-  const arkistoidut = arkistoVastaus.data ?? [];
-  const arkistoRivit = arkistoRivitVastaus.data ?? [];
   const tyoIdt = tyot.map((t) => t.id);
 
   const [rivitVastaus, osatVastaus, varitVastaus, tyovaiheetVastaus] = await Promise.all([
@@ -140,16 +99,6 @@ export default async function TyotSivu() {
       loppusumma: Math.round((valisumma - alennusEur) * 100) / 100,
     };
   }
-
-  const arkistonRivit = (tyoId: string) => arkistoRivit.filter((r) => r.tyo_id === tyoId);
-  const arkistonHinta = (tyo: { id: string; alennus_prosentti: number }) => {
-    const valisumma = arkistonRivit(tyo.id).reduce(
-      (s, r) => s + r.yksikkohinta_eur * r.kappalemaara,
-      0
-    );
-    const alennusEur = Math.round(valisumma * (tyo.alennus_prosentti / 100) * 100) / 100;
-    return { valisumma, alennusEur, loppusumma: Math.round((valisumma - alennusEur) * 100) / 100 };
-  };
 
   const vastaanotetut = tyot
     .filter((t) => t.tila === "vastaanotettu")
@@ -212,12 +161,22 @@ export default async function TyotSivu() {
             työ merkitään valmiiksi.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/tyot/uusi">
-            <Plus className="size-4" />
-            Uusi työ
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Perutut ja arkistoidut ovat harvoin tarvittavaa historiaa, joten ne
+              eivät vie tilaa välilehtiriviltä vaan ovat oman sivunsa takana. */}
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/tyot/historia">
+              <History className="size-4" />
+              Historia
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/tyot/uusi">
+              <Plus className="size-4" />
+              Uusi työ
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="vastaanotettu" className="min-w-0">
@@ -230,8 +189,6 @@ export default async function TyotSivu() {
           <TabsTrigger value="vastaanotettu">Vastaanotetut ({vastaanotetut.length})</TabsTrigger>
           <TabsTrigger value="keskenerainen">Keskeneräiset ({keskenerraiset.length})</TabsTrigger>
           <TabsTrigger value="valmis">Valmistuneet ({valmistuneet.length})</TabsTrigger>
-          <TabsTrigger value="peruttu">Perutut ({peruutukset.length})</TabsTrigger>
-          <TabsTrigger value="arkisto">Arkistoidut ({arkistoidut.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vastaanotettu" className="grid gap-4">
@@ -448,76 +405,6 @@ export default async function TyotSivu() {
           ))}
         </TabsContent>
 
-        <TabsContent value="peruttu" className="grid gap-3">
-          {peruutukset.length === 0 && <p className="text-muted-foreground">Ei peruttuja töitä.</p>}
-          {peruutukset.map((peruutus) => (
-            <Card key={peruutus.id}>
-              <CardHeader className="gap-1 space-y-0">
-                <CardTitle className="text-base">
-                  {peruutus.asiakas ?? "Ei asiakastietoa"}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Perui {profiiliNimi(peruutus.perui_id)} -{" "}
-                  {new Date(peruutus.peruttu).toLocaleString("fi-FI")}
-                </p>
-              </CardHeader>
-              <CardContent className="grid gap-1 text-sm">
-                <p>
-                  <span className="text-muted-foreground">Syy: </span>
-                  {peruutuksenSyynNimi(peruutus.syy)}
-                </p>
-                {peruutus.tarkennus && <p className="break-words">{peruutus.tarkennus}</p>}
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-
-        {/* Arkisto on lukunäkymä: työ on tehty ja maali kulutettu, joten
-            saldoihin ei enää kosketa eikä työtä voi muokata. */}
-        <TabsContent value="arkisto" className="grid gap-3">
-          {arkistoidut.length === 0 && (
-            <p className="text-muted-foreground">
-              Ei arkistoituja töitä. Valmiit työt arkistoituvat itsestään 12 kuukauden kuluttua
-              valmistumisesta.
-            </p>
-          )}
-          {arkistoidut.map((tyo) => {
-            const summat = arkistonHinta(tyo);
-            return (
-              <Card key={tyo.id}>
-                <CardHeader className="gap-1 space-y-0">
-                  <CardTitle className="text-base">{tyo.asiakas ?? "Ei asiakastietoa"}</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Valmistui {profiiliNimi(tyo.valmistui_id)} -{" "}
-                    {tyo.valmistunut ? new Date(tyo.valmistunut).toLocaleString("fi-FI") : "-"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Arkistoitu {new Date(tyo.arkistoitu).toLocaleString("fi-FI")}
-                    {tyo.automaattinen ? " (automaattisesti)" : ` - ${profiiliNimi(tyo.arkistoi_id)}`}
-                  </p>
-                </CardHeader>
-                <CardContent className="grid gap-2">
-                  <ul className="grid gap-1 text-sm">
-                    {arkistonRivit(tyo.id).map((rivi) => (
-                      <li key={rivi.id} className="flex justify-between gap-4">
-                        <span className="min-w-0 break-words">
-                          {osaNimi(rivi.osa_id)} - {variNimi(rivi.vari_id)}
-                          {rivi.toinen_vari_id && rivi.toinen_vari_rooli && (
-                            <> + {ROOLIN_NIMI[rivi.toinen_vari_rooli]}: {variNimi(rivi.toinen_vari_id)}</>
-                          )}
-                        </span>
-                        <span className="shrink-0 text-muted-foreground">
-                          {muotoileEuro(rivi.yksikkohinta_eur * rivi.kappalemaara)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Summat tyo={tyo} summat={summat} />
-                </CardContent>
-              </Card>
-            );
-          })}
-        </TabsContent>
       </Tabs>
     </div>
   );
