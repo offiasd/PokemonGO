@@ -14,12 +14,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { ajoneuvotyypinNimi, muotoileValiEuro, SIVUKOKO, rajaaSivu } from "@/lib/vakiot";
 import type { AjoneuvoTyyppi, TyoVaihe } from "@/lib/supabase/database.types";
 
 import { Sivutus } from "@/components/sivutus";
 
 import { OsienSuodattimet } from "./osien-suodattimet";
+import { TallennusIlmoitus } from "./tallennus-ilmoitus";
 import { laskeKategoriaKustannukset, laskeTyokustannusKerroksittain } from "./kustannusarvio";
 
 interface Hakuparametrit {
@@ -27,6 +29,7 @@ interface Hakuparametrit {
   ajoneuvotyyppi?: string;
   naytaPoistetut?: string;
   sivu?: string;
+  ilmoitus?: string;
 }
 
 export default async function OsatSivu({
@@ -49,7 +52,7 @@ export default async function OsatSivu({
     kysely = kysely.eq("ajoneuvotyyppi", ajoneuvotyyppi as AjoneuvoTyyppi);
   }
   if (q) {
-    kysely = kysely.or(`nimi.ilike.%${q}%,lisatiedot.ilike.%${q}%`);
+    kysely = kysely.or(`nimi.ilike.%${q}%,lisatiedot.ilike.%${q}%,hakusanat.ilike.%${q}%`);
   }
 
   const [
@@ -143,6 +146,8 @@ export default async function OsatSivu({
 
   return (
     <div className="grid gap-6">
+      <TallennusIlmoitus />
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Osat</h1>
@@ -173,15 +178,20 @@ export default async function OsatSivu({
         <Sivutus sivu={nykyinenSivu} sivuja={sivuja} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Kaksi osaa rinnakkain myös puhelimessa - yksi kortti per rivi jätti
+          puolet leveydestä tyhjäksi ja pakotti selaamaan pitkään. */}
+      <div className="grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         {osat.map((osa) => {
           const hinta = hintaskaalat.get(osa.id);
           return (
-            <Link key={osa.id} href={`/osat/${osa.id}`}>
+            <Link key={osa.id} href={`/osat/${osa.id}`} className="block h-full">
               <Card
-                className={
+                className={cn(
+                  // h-full + auto-rows-fr pitää saman rivin kortit samankorkuisina,
+                  // vaikka nimi rivittyisi eri määrälle rivejä.
+                  "h-full",
                   !osa.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"
-                }
+                )}
               >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{osa.nimi}</CardTitle>

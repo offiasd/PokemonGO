@@ -42,7 +42,7 @@ export function OsienSuodattimet({
       <div className="relative w-full max-w-xs">
         <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Hae nimellä tai lisätiedoilla..."
+          placeholder="Hae nimellä, lisätiedoilla tai hakusanalla..."
           defaultValue={searchParams.get("q") ?? ""}
           className="pl-8"
           onChange={(e) => paivitaParametri("q", e.target.value || null)}

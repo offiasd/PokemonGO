@@ -244,6 +244,21 @@ export function OsaLomake({
       </div>
 
       <div className="grid gap-2">
+        <Label htmlFor="hakusanat">Hakusanat</Label>
+        <Textarea
+          id="hakusanat"
+          name="hakusanat"
+          rows={2}
+          defaultValue={osa?.hakusanat ?? ""}
+          placeholder="kytkinkansi, moottorin kansi, am6"
+        />
+        <p className="text-xs text-muted-foreground">
+          Vaihtoehtoisia nimiä ja malleja osan löytämiseksi. Näkyvät vain tällä sivulla, mutta
+          osahaku käy ne läpi.
+        </p>
+      </div>
+
+      <div className="grid gap-2">
         <Label>Kuva osasta</Label>
         <TiedostoLataus
           bucket="osa-kuvat"

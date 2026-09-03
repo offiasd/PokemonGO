@@ -21,6 +21,7 @@ function lueOsaKentat(formData: FormData) {
     nimi: String(formData.get("nimi") ?? "").trim(),
     ajoneuvotyyppi: String(formData.get("ajoneuvotyyppi") ?? "auto") as AjoneuvoTyyppi,
     lisatiedot: String(formData.get("lisatiedot") ?? "").trim() || null,
+    hakusanat: String(formData.get("hakusanat") ?? "").trim() || null,
     vari_tyyppi: String(formData.get("vari_tyyppi") ?? "yksivarinen") as VariTyyppi,
     kuva_url: String(formData.get("kuva_url") ?? "").trim() || null,
     kate_prosentti: tyhjaksiNumeroksi(formData.get("kate_prosentti")),
@@ -139,7 +140,10 @@ export async function luoOsa(
   }
 
   revalidatePath("/osat");
-  redirect(`/osat/${data.id}`);
+  revalidatePath(`/osat/${data.id}`);
+  // Takaisin listaan, ja ilmoitus osoiteparametrina: toast tarvitsee
+  // selainpuolen, mutta tallennus päättyy palvelimen ohjaukseen.
+  redirect("/osat?ilmoitus=lisatty");
 }
 
 export async function paivitaOsa(
@@ -175,7 +179,7 @@ export async function paivitaOsa(
 
   revalidatePath("/osat");
   revalidatePath(`/osat/${osaId}`);
-  return { virhe: null };
+  redirect("/osat?ilmoitus=tallennettu");
 }
 
 export async function asetaOsanAktiivisuus(osaId: string, aktiivinen: boolean) {

@@ -158,6 +158,8 @@ export interface Database {
           nimi: string;
           ajoneuvotyyppi: AjoneuvoTyyppi;
           lisatiedot: string | null;
+          /** Vapaat hakusanat osahakua varten. Ei näytetä listassa. */
+          hakusanat: string | null;
           vari_tyyppi: VariTyyppi;
           arvioitu_kulutus_g: number | null;
           kuva_url: string | null;
