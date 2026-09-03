@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
+import { vaaditaanAdmin, vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import type { PeruutuksenSyy, ToinenVariRooli } from "@/lib/supabase/database.types";
 
 /**
@@ -200,4 +200,68 @@ export async function peruTyo(
   revalidatePath("/tyot");
   revalidatePath("/varit");
   revalidatePath("/");
+}
+
+/**
+ * Palauttaa valmiin työn keskeneräiseksi.
+ *
+ * Tarkoitettu tilanteeseen jossa valmiiksi on painettu vahingossa liian
+ * aikaisin, joten tämä on kaikkien kirjautuneiden käytettävissä kuten
+ * valmiiksi merkitseminenkin. Kanta kumoaa kulutuksen: maali palaa varastoon
+ * ja samalla takaisin varaukseen, koska työ jatkuu.
+ */
+export async function palautaTyoKeskeneraiseksi(tyoId: string): Promise<void> {
+  await vaaditaanKayttaja();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("palauta_tyo_keskeneraiseksi", { p_tyo_id: tyoId });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/tyot");
+  revalidatePath("/varit");
+  revalidatePath("/");
+}
+
+/**
+ * Poistaa valmiin työn ja palauttaa kulutetun maalin varastoon.
+ *
+ * Vain adminille: valmis työ on kirjanpitoa, ja poisto hävittää sen. Syy
+ * kirjataan samaan peruutuslokiin kuin keskeneräisen työn peruminen.
+ */
+export async function poistaValmisTyo(
+  tyoId: string,
+  syy: PeruutuksenSyy,
+  tarkennus?: string | null
+): Promise<void> {
+  await vaaditaanAdmin();
+  const siistittyTarkennus = tarkennus?.trim() ?? "";
+  if (syy === "muu" && siistittyTarkennus === "") {
+    throw new Error("Kirjoita poiston syy.");
+  }
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("poista_valmis_tyo", {
+    p_tyo_id: tyoId,
+    p_syy: syy,
+    p_tarkennus: siistittyTarkennus === "" ? null : siistittyTarkennus,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/tyot");
+  revalidatePath("/varit");
+  revalidatePath("/");
+}
+
+/**
+ * Siirtää valmiin työn arkistoon. Värisaldoihin ei kosketa: maali on kulutettu
+ * jo valmistuessa. Vain adminille, koska työ katoaa aktiivisesta listasta.
+ */
+export async function arkistoiTyo(tyoId: string): Promise<void> {
+  await vaaditaanAdmin();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("arkistoi_tyo", { p_tyo_id: tyoId });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/tyot");
 }

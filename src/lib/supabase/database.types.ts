@@ -336,6 +336,51 @@ export interface Database {
           },
         ];
       };
+      arkistoidut_tyot: {
+        Row: {
+          id: string;
+          asiakas: string | null;
+          aloitti_id: string | null;
+          aloitettu: string;
+          valmistui_id: string | null;
+          valmistunut: string | null;
+          alennus_prosentti: number;
+          arkistoitu: string;
+          /** Kuka arkistoi. Null = automaattinen arkistointi. */
+          arkistoi_id: string | null;
+          automaattinen: boolean;
+        };
+        Insert: Partial<Database["public"]["Tables"]["arkistoidut_tyot"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["arkistoidut_tyot"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      arkistoidut_tyon_rivit: {
+        Row: {
+          id: string;
+          tyo_id: string;
+          osa_id: string;
+          vari_id: string;
+          kappalemaara: number;
+          arvioitu_kulutus_g: number;
+          yksikkohinta_eur: number;
+          toteutunut_kulutus_g: number | null;
+          toinen_vari_id: string | null;
+          toinen_vari_rooli: ToinenVariRooli | null;
+          toinen_arvioitu_kulutus_g: number | null;
+          toinen_toteutunut_kulutus_g: number | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "arkistoidut_tyon_rivit_tyo_id_fkey";
+            columns: ["tyo_id"];
+            isOneToOne: false;
+            referencedRelation: "arkistoidut_tyot";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tyot: {
         Row: {
           id: string;
@@ -402,6 +447,8 @@ export interface Database {
           toinen_arvioitu_kulutus_g: number | null;
           toteutunut_kulutus_g: number | null;
           toinen_toteutunut_kulutus_g: number | null;
+          /** Onko rivin varaus jo purettu (työ valmistunut). */
+          varaus_purettu: boolean;
           yksikkohinta_eur: number;
         };
         Insert: Partial<Database["public"]["Tables"]["tyon_rivit"]["Row"]> & {
@@ -498,6 +545,18 @@ export interface Database {
       };
       peru_tyo: {
         Args: { p_tyo_id: string; p_syy: PeruutuksenSyy; p_tarkennus?: string | null };
+        Returns: undefined;
+      };
+      palauta_tyo_keskeneraiseksi: {
+        Args: { p_tyo_id: string };
+        Returns: undefined;
+      };
+      poista_valmis_tyo: {
+        Args: { p_tyo_id: string; p_syy: PeruutuksenSyy; p_tarkennus?: string | null };
+        Returns: undefined;
+      };
+      arkistoi_tyo: {
+        Args: { p_tyo_id: string; p_automaattinen?: boolean };
         Returns: undefined;
       };
       kuukauden_kaytetyin_vari: {

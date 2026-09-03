@@ -26,9 +26,16 @@ import {
 import { PERUUTUKSEN_SYYT } from "@/lib/vakiot";
 import type { PeruutuksenSyy } from "@/lib/supabase/database.types";
 
-import { peruTyo } from "./actions";
+import { peruTyo, poistaValmisTyo } from "./actions";
 
-export function PeruTyo({ tyoId }: { tyoId: string }) {
+/**
+ * Peruminen kysyy aina syyn.
+ *
+ * Sama ikkuna palvelee keskeneräisen työn perumista ja valmiin työn poistoa:
+ * kummassakin maali palaa varastoon ja syy kirjataan samaan lokiin, vain
+ * sanamuoto ja kutsuttava palvelinfunktio vaihtuvat.
+ */
+export function PeruTyo({ tyoId, valmis = false }: { tyoId: string; valmis?: boolean }) {
   const [auki, setAuki] = useState(false);
   const [syy, setSyy] = useState<PeruutuksenSyy | "">("");
   const [tarkennus, setTarkennus] = useState("");
@@ -42,8 +49,13 @@ export function PeruTyo({ tyoId }: { tyoId: string }) {
     if (syy === "") return;
     aloita(async () => {
       try {
-        await peruTyo(tyoId, syy, tarkennus);
-        toast.success("Työ peruttu - varattu maali vapautui varastoon.");
+        if (valmis) {
+          await poistaValmisTyo(tyoId, syy, tarkennus);
+          toast.success("Työ poistettu - kulutettu maali palautui varastoon.");
+        } else {
+          await peruTyo(tyoId, syy, tarkennus);
+          toast.success("Työ peruttu - varattu maali vapautui varastoon.");
+        }
         setAuki(false);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Peruminen epäonnistui.");
@@ -67,19 +79,21 @@ export function PeruTyo({ tyoId }: { tyoId: string }) {
       <DialogTrigger asChild>
         <Button type="button" variant="ghost" size="sm">
           <X className="size-4" />
-          Peru
+          {valmis ? "Poista" : "Peru"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Peru työ</DialogTitle>
+          <DialogTitle>{valmis ? "Poista valmis työ" : "Peru työ"}</DialogTitle>
           <DialogDescription>
-            Työ poistetaan ja sen varaama maali vapautuu varastoon. Syy jää talteen.
+            {valmis
+              ? "Työ poistetaan ja sen kuluttama maali palautuu varastoon. Syy jää talteen."
+              : "Työ poistetaan ja sen varaama maali vapautuu varastoon. Syy jää talteen."}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor={`syy_${tyoId}`}>Peruutuksen syy</Label>
+            <Label htmlFor={`syy_${tyoId}`}>{valmis ? "Poiston syy" : "Peruutuksen syy"}</Label>
             <Select value={syy} onValueChange={(arvo) => setSyy(arvo as PeruutuksenSyy)}>
               <SelectTrigger id={`syy_${tyoId}`} className="w-full">
                 <SelectValue placeholder="Valitse syy" />
@@ -108,7 +122,7 @@ export function PeruTyo({ tyoId }: { tyoId: string }) {
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setAuki(false)}>
-            Älä peru
+            {valmis ? "Älä poista" : "Älä peru"}
           </Button>
           <Button
             type="button"
@@ -117,7 +131,7 @@ export function PeruTyo({ tyoId }: { tyoId: string }) {
             disabled={kaynnissa || puuttuu}
           >
             {kaynnissa && <Loader2 className="size-4 animate-spin" />}
-            Peru työ
+            {valmis ? "Poista työ" : "Peru työ"}
           </Button>
         </DialogFooter>
       </DialogContent>

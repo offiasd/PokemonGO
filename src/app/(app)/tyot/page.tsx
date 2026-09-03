@@ -17,6 +17,7 @@ import type { Database, ToinenVariRooli } from "@/lib/supabase/database.types";
 
 import { MerkitseValmiiksi } from "./merkitse-valmiiksi";
 import { PeruTyo } from "./peru-tyo";
+import { ValmiinTyonToiminnot } from "./valmiin-tyon-toiminnot";
 
 type TyonRiviRow = Database["public"]["Tables"]["tyon_rivit"]["Row"];
 
@@ -59,19 +60,24 @@ function Summat({
 }
 
 export default async function TyotSivu() {
-  await vaaditaanKayttaja();
+  const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const ajoneuvotyypit = await haeAjoneuvotyypit();
 
-  const [tyotVastaus, profiilitVastaus, peruutuksetVastaus] = await Promise.all([
-    supabase.from("tyot").select("*").order("aloitettu", { ascending: false }),
-    supabase.from("profiles").select("id, full_name"),
-    supabase.from("tyon_peruutukset").select("*").order("peruttu", { ascending: false }),
-  ]);
+  const [tyotVastaus, profiilitVastaus, peruutuksetVastaus, arkistoVastaus, arkistoRivitVastaus] =
+    await Promise.all([
+      supabase.from("tyot").select("*").order("aloitettu", { ascending: false }),
+      supabase.from("profiles").select("id, full_name"),
+      supabase.from("tyon_peruutukset").select("*").order("peruttu", { ascending: false }),
+      supabase.from("arkistoidut_tyot").select("*").order("valmistunut", { ascending: false }),
+      supabase.from("arkistoidut_tyon_rivit").select("*"),
+    ]);
 
   const tyot = tyotVastaus.data ?? [];
   const profiilit = profiilitVastaus.data ?? [];
   const peruutukset = peruutuksetVastaus.data ?? [];
+  const arkistoidut = arkistoVastaus.data ?? [];
+  const arkistoRivit = arkistoRivitVastaus.data ?? [];
   const tyoIdt = tyot.map((t) => t.id);
 
   const [rivitVastaus, osatVastaus, varitVastaus] = await Promise.all([
@@ -112,6 +118,16 @@ export default async function TyotSivu() {
     };
   }
 
+  const arkistonRivit = (tyoId: string) => arkistoRivit.filter((r) => r.tyo_id === tyoId);
+  const arkistonHinta = (tyo: { id: string; alennus_prosentti: number }) => {
+    const valisumma = arkistonRivit(tyo.id).reduce(
+      (s, r) => s + r.yksikkohinta_eur * r.kappalemaara,
+      0
+    );
+    const alennusEur = Math.round(valisumma * (tyo.alennus_prosentti / 100) * 100) / 100;
+    return { valisumma, alennusEur, loppusumma: Math.round((valisumma - alennusEur) * 100) / 100 };
+  };
+
   const keskenerraiset = tyot.filter((t) => t.tila === "vaiheessa");
   const valmistuneet = tyot.filter((t) => t.tila === "valmis");
 
@@ -151,6 +167,7 @@ export default async function TyotSivu() {
           <TabsTrigger value="keskenerainen">Keskeneräiset ({keskenerraiset.length})</TabsTrigger>
           <TabsTrigger value="valmis">Valmistuneet ({valmistuneet.length})</TabsTrigger>
           <TabsTrigger value="peruttu">Perutut ({peruutukset.length})</TabsTrigger>
+          <TabsTrigger value="arkisto">Arkistoidut ({arkistoidut.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="keskenerainen" className="grid gap-4">
@@ -218,7 +235,16 @@ export default async function TyotSivu() {
           {valmistuneet.map((tyo) => (
             <Card key={tyo.id}>
               <CardHeader className="gap-1 space-y-0">
-                <CardTitle className="text-base">{tyo.asiakas ?? "Ei asiakastietoa"}</CardTitle>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <CardTitle className="text-base">{tyo.asiakas ?? "Ei asiakastietoa"}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <ValmiinTyonToiminnot
+                      tyoId={tyo.id}
+                      naytaArkistointi={kayttaja.role === "admin"}
+                    />
+                    {kayttaja.role === "admin" && <PeruTyo tyoId={tyo.id} valmis />}
+                  </div>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Valmistui {profiiliNimi(tyo.valmistui_id)} -{" "}
                   {tyo.valmistunut ? new Date(tyo.valmistunut).toLocaleString("fi-FI") : "-"}
@@ -285,6 +311,53 @@ export default async function TyotSivu() {
               </CardContent>
             </Card>
           ))}
+        </TabsContent>
+
+        {/* Arkisto on lukunäkymä: työ on tehty ja maali kulutettu, joten
+            saldoihin ei enää kosketa eikä työtä voi muokata. */}
+        <TabsContent value="arkisto" className="grid gap-3">
+          {arkistoidut.length === 0 && (
+            <p className="text-muted-foreground">
+              Ei arkistoituja töitä. Valmiit työt arkistoituvat itsestään 12 kuukauden kuluttua
+              valmistumisesta.
+            </p>
+          )}
+          {arkistoidut.map((tyo) => {
+            const summat = arkistonHinta(tyo);
+            return (
+              <Card key={tyo.id}>
+                <CardHeader className="gap-1 space-y-0">
+                  <CardTitle className="text-base">{tyo.asiakas ?? "Ei asiakastietoa"}</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Valmistui {profiiliNimi(tyo.valmistui_id)} -{" "}
+                    {tyo.valmistunut ? new Date(tyo.valmistunut).toLocaleString("fi-FI") : "-"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Arkistoitu {new Date(tyo.arkistoitu).toLocaleString("fi-FI")}
+                    {tyo.automaattinen ? " (automaattisesti)" : ` - ${profiiliNimi(tyo.arkistoi_id)}`}
+                  </p>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  <ul className="grid gap-1 text-sm">
+                    {arkistonRivit(tyo.id).map((rivi) => (
+                      <li key={rivi.id} className="flex justify-between gap-4">
+                        <span className="min-w-0 break-words">
+                          {osaNimi(rivi.osa_id)} - {variNimi(rivi.vari_id)}
+                          {rivi.toinen_vari_id && rivi.toinen_vari_rooli && (
+                            <> + {ROOLIN_NIMI[rivi.toinen_vari_rooli]}: {variNimi(rivi.toinen_vari_id)}</>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {muotoileEuro(rivi.yksikkohinta_eur * rivi.kappalemaara)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Summat tyo={tyo} summat={summat} />
+                </CardContent>
+              </Card>
+            );
+          })}
         </TabsContent>
       </Tabs>
     </div>
