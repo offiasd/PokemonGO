@@ -1,5 +1,6 @@
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Card,
   CardContent,
@@ -16,17 +17,41 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { KaksivaiheinenNappi } from "./kaksivaiheinen-nappi";
 import { KutsuLomake } from "./kutsu-lomake";
 import { RooliValitsin } from "./rooli-valitsin";
+
+/**
+ * Kenellä kaksivaiheinen tunnistus on käytössä. Tieto on auth-skeemassa, johon
+ * pääsee vain service role -avaimella; ilman avainta sarake näyttää tyhjää
+ * eikä sivu kaadu.
+ */
+async function haeKaksivaiheiset(): Promise<Set<string>> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.auth.admin.listUsers({ perPage: 200 });
+    if (error) return new Set();
+    return new Set(
+      (data?.users ?? [])
+        .filter((k) => (k.factors ?? []).some((t) => t.status === "verified"))
+        .map((k) => k.id)
+    );
+  } catch {
+    return new Set();
+  }
+}
 
 export default async function KayttajatSivu() {
   const kayttaja = await vaaditaanAdmin();
   const supabase = await createClient();
 
-  const { data: profiilit } = await supabase
-    .from("profiles")
-    .select("id, full_name, role, created_at")
-    .order("created_at", { ascending: true });
+  const [{ data: profiilit }, kaksivaiheiset] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, role, created_at")
+      .order("created_at", { ascending: true }),
+    haeKaksivaiheiset(),
+  ]);
 
   return (
     <div className="grid gap-6">
@@ -58,7 +83,13 @@ export default async function KayttajatSivu() {
               <TableRow>
                 <TableHead>Nimi</TableHead>
                 <TableHead>Rooli</TableHead>
-                <TableHead>Liittynyt</TableHead>
+                <TableHead>
+                  <span className="sm:hidden">2FA</span>
+                  <span className="hidden sm:inline">Kaksivaiheinen</span>
+                </TableHead>
+                {/* Liittymispäivä on nice-to-know: puhelimessa se veisi tilan
+                    sarakkeilta joilla oikeasti tehdään jotain. */}
+                <TableHead className="hidden sm:table-cell">Liittynyt</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -66,7 +97,9 @@ export default async function KayttajatSivu() {
                 <TableRow key={p.id}>
                   {/* break-all: nimi on käytännössä sähköpostiosoite, eli yksi
                       katkeamaton sana joka piti taulukon puhelinta leveämpänä. */}
-                  <TableCell className="font-medium break-all">{p.full_name ?? "-"}</TableCell>
+                  <TableCell className="min-w-28 font-medium break-all">
+                    {p.full_name ?? "-"}
+                  </TableCell>
                   <TableCell>
                     <RooliValitsin
                       kayttajaId={p.id}
@@ -74,7 +107,14 @@ export default async function KayttajatSivu() {
                       omaId={kayttaja.id}
                     />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell>
+                    <KaksivaiheinenNappi
+                      kayttajaId={p.id}
+                      nimi={p.full_name ?? "käyttäjä"}
+                      kaytossa={kaksivaiheiset.has(p.id)}
+                    />
+                  </TableCell>
+                  <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {new Date(p.created_at).toLocaleDateString("fi-FI")}
                   </TableCell>
                 </TableRow>

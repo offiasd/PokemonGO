@@ -46,11 +46,16 @@ export async function paivitaAsetukset(
   for (const kentta of numerokentat) {
     if (formData.has(kentta)) muutokset[kentta] = parseNumero(formData, kentta);
   }
-  if (formData.has("yrityksen_osoite")) {
-    muutokset.yrityksen_osoite = String(formData.get("yrityksen_osoite") ?? "").trim() || null;
+  for (const kentta of ["yrityksen_osoite", "halytys_ilmoitus_sahkoposti", "halytys_ilmoitus_lahettaja"] as const) {
+    if (formData.has(kentta)) {
+      muutokset[kentta] = String(formData.get(kentta) ?? "").trim() || null;
+    }
   }
   if (formData.has("nayta_hinnat_maalaajalle_lomakkeella")) {
     muutokset.nayta_hinnat_maalaajalle = formData.get("nayta_hinnat_maalaajalle") === "on";
+  }
+  if (formData.has("halytys_ilmoitukset_lomakkeella")) {
+    muutokset.halytys_ilmoitukset_kaytossa = formData.get("halytys_ilmoitukset_kaytossa") === "on";
   }
 
   if (Object.keys(muutokset).length === 0) {
@@ -196,4 +201,40 @@ export async function poistaAjoneuvotyyppi(avain: string) {
 
   revalidatePath("/asetukset", "layout");
   revalidatePath("/osat");
+}
+
+/**
+ * Resendin API-avain menee Vaultiin kannan puolelle, ei asetustauluun:
+ * asetustaulun lukee kuka tahansa kirjautunut, ja avaimella saisi lähetettyä
+ * postia lähettäjän nimissä. Avainta ei myöskään lueta koskaan takaisin -
+ * käyttöliittymä näyttää vain onko se asetettu.
+ */
+export async function tallennaResendAvain(
+  _edellinenTila: AsetuksetTila,
+  formData: FormData
+): Promise<AsetuksetTila> {
+  await vaaditaanAdmin();
+  const avain = String(formData.get("resend_avain") ?? "").trim();
+  if (!avain) {
+    return { virhe: "Anna API-avain.", viesti: null };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("aseta_resend_avain", { p_avain: avain });
+  if (error) {
+    return { virhe: error.message, viesti: null };
+  }
+
+  revalidatePath("/asetukset", "layout");
+  return { virhe: null, viesti: "API-avain tallennettu." };
+}
+
+/** Lähettää testiviestin nykyisillä asetuksilla ja palauttaa kannan kuittauksen. */
+export async function lahetaTestiviesti(): Promise<string> {
+  await vaaditaanAdmin();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("laheta_halytys_testiviesti");
+  if (error) throw new Error(error.message);
+  revalidatePath("/asetukset", "layout");
+  return data ?? "Lähetetty.";
 }

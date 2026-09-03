@@ -94,6 +94,12 @@ export interface Database {
           toimituskulu_per_kg_eu_oletus: number;
           toimituskulu_per_kg_usa_oletus: number;
           toimituskulu_per_kg_muu_oletus: number;
+          /** Lähetetäänkö sähköposti kun väri menee hälytysrajan alle. */
+          halytys_ilmoitukset_kaytossa: boolean;
+          /** Vastaanottajat pilkulla eroteltuna. */
+          halytys_ilmoitus_sahkoposti: string | null;
+          /** Lähettäjä muodossa "Nimi <osoite>". */
+          halytys_ilmoitus_lahettaja: string | null;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["asetukset"]["Row"]>;
@@ -598,6 +604,28 @@ export interface Database {
       osa_suositushinta: {
         Args: { p_osa_id: string; p_vari_id?: string | null };
         Returns: number;
+      };
+      aseta_resend_avain: {
+        Args: { p_avain: string };
+        Returns: undefined;
+      };
+      resend_avain_asetettu: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      laheta_halytys_testiviesti: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      halytys_ilmoitusten_loki: {
+        Args: Record<string, never>;
+        Returns: {
+          luotu: string;
+          tyyppi: string;
+          vastaanottaja: string;
+          varien_maara: number;
+          tila: string;
+        }[];
       };
     };
   };

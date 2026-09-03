@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 import { Kaksivaiheinen } from "./kaksivaiheinen";
 import { SalasananVaihto } from "./salasanan-vaihto";
+import { UloskirjausKaikkialta } from "./uloskirjaus";
 
 export default async function SuojausSivu() {
   const kayttaja = await vaaditaanKayttaja();
@@ -30,6 +31,16 @@ export default async function SuojausSivu() {
         </CardHeader>
         <CardContent>
           <Kaksivaiheinen />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Istunnot</CardTitle>
+          <CardDescription>Kirjautumiset muilla laitteilla.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <UloskirjausKaikkialta />
         </CardContent>
       </Card>
     </>

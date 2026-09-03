@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bell,
   Building2,
   Car,
   Clock,
@@ -24,6 +25,7 @@ const OSIOT = [
   { href: "/asetukset/hinnoittelu", nimi: "Hinnoittelu", ikoni: Euro, adminVain: true },
   { href: "/asetukset/tyoajat", nimi: "Työ ja tuntihinnat", ikoni: Clock, adminVain: true },
   { href: "/asetukset/varasto", nimi: "Varasto", ikoni: Package, adminVain: true },
+  { href: "/asetukset/ilmoitukset", nimi: "Ilmoitukset", ikoni: Bell, adminVain: true },
   { href: "/asetukset/ajoneuvotyypit", nimi: "Ajoneuvotyypit", ikoni: Car, adminVain: true },
   { href: "/asetukset/yritys", nimi: "Yritys", ikoni: Building2, adminVain: true },
 ];

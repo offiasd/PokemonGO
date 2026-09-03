@@ -64,3 +64,32 @@ export async function paivitaRooli(kayttajaId: string, role: KayttajaRooli) {
 
   revalidatePath("/kayttajat");
 }
+
+/**
+ * Poistaa käyttäjän kaksivaiheisen tunnistuksen.
+ *
+ * Tarkoitettu tilanteeseen jossa tunnistussovellus on kadonnut puhelimen
+ * mukana: TOTP:ssä ei ole varakoodeja, joten ilman tätä käyttäjä ei pääse
+ * enää sisään. Vaatii service role -avaimen, koska toisen käyttäjän tekijöihin
+ * ei pääse käsiksi tavallisella istunnolla. Supabase kirjaa käyttäjän samalla
+ * ulos kaikilta laitteilta.
+ */
+export async function poistaKaksivaiheinen(kayttajaId: string): Promise<number> {
+  await vaaditaanAdmin();
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.mfa.listFactors({ userId: kayttajaId });
+  if (error) throw new Error(error.message);
+
+  const tekijat = data?.factors ?? [];
+  for (const tekija of tekijat) {
+    const { error: poistoVirhe } = await admin.auth.admin.mfa.deleteFactor({
+      id: tekija.id,
+      userId: kayttajaId,
+    });
+    if (poistoVirhe) throw new Error(poistoVirhe.message);
+  }
+
+  revalidatePath("/kayttajat");
+  return tekijat.length;
+}

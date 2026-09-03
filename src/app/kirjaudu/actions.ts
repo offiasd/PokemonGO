@@ -49,3 +49,16 @@ export async function kirjauduUlos() {
   await supabase.auth.signOut();
   redirect("/kirjaudu");
 }
+
+/**
+ * Kirjaa ulos kaikilta laitteilta.
+ *
+ * Mitätöi kaikki istunnot palvelimella (scope: global), eli myös työpaikan
+ * koneelle tai kadonneeseen puhelimeen jäänyt kirjautuminen katkeaa. Tavallinen
+ * uloskirjaus koskee vain tätä selainta.
+ */
+export async function kirjauduUlosKaikkialta() {
+  const supabase = await createClient();
+  await supabase.auth.signOut({ scope: "global" });
+  redirect("/kirjaudu");
+}
