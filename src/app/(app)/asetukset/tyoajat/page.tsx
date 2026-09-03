@@ -44,6 +44,50 @@ export default async function TyoajatSivu() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Vastaanotettujen töiden kiireellisyys</CardTitle>
+          <CardDescription>
+            Vastaanotettu työ näkyy Työt-sivulla väritäplällä: vihreä kun aikaa on, keltainen kun
+            työ pitäisi aloittaa ja punainen kun se on myöhässä.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Asetuslomake>
+            <div className="grid items-start gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="vastaanotto_varoitus_paivat">Aloitettava viimeistään (vrk)</Label>
+                <Input
+                  id="vastaanotto_varoitus_paivat"
+                  name="vastaanotto_varoitus_paivat"
+                  type="number"
+                  step="1"
+                  min="0"
+                  defaultValue={asetukset.vastaanotto_varoitus_paivat}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tämän jälkeen täplä muuttuu keltaiseksi.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="vastaanotto_kriittinen_paivat">Myöhässä (vrk)</Label>
+                <Input
+                  id="vastaanotto_kriittinen_paivat"
+                  name="vastaanotto_kriittinen_paivat"
+                  type="number"
+                  step="1"
+                  min="0"
+                  defaultValue={asetukset.vastaanotto_kriittinen_paivat}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tämän jälkeen täplä on punainen ja työ nousee jonon kärkeen.
+                </p>
+              </div>
+            </div>
+          </Asetuslomake>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Vaihekohtainen tuntiveloitus</CardTitle>
           <CardDescription>
             Jätä tyhjäksi käyttääksesi yleistä tuntihintaa kyseiselle vaiheelle.

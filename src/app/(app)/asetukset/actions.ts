@@ -40,6 +40,8 @@ export async function paivitaAsetukset(
     "toimituskulu_per_kg_eu_oletus",
     "toimituskulu_per_kg_usa_oletus",
     "toimituskulu_per_kg_muu_oletus",
+    "vastaanotto_varoitus_paivat",
+    "vastaanotto_kriittinen_paivat",
   ] as const;
 
   type AsetusMuutos = Partial<Database["public"]["Tables"]["asetukset"]["Update"]>;
@@ -74,6 +76,7 @@ export async function paivitaAsetukset(
   revalidatePath("/");
   revalidatePath("/varit");
   revalidatePath("/osat");
+  revalidatePath("/tyot");
   return { virhe: null, viesti: "Asetukset tallennettu." };
 }
 

@@ -50,7 +50,11 @@ export type Varisavy =
   | "ruskea";
 // Kategoriahinnoiteltavat tyypit: myydään aina omana työnä (ei topcoat-lisänä).
 export type MyytavaMaaliTyyppi = "solid" | "metallic" | "candy" | "illusion";
-export type TyonTila = "vaiheessa" | "valmis";
+/**
+ * Työn kulku: vastaanotettu (osat tuotu, maali varattu) -> vaiheessa
+ * (maalaus käynnissä) -> valmis (maali kulutettu).
+ */
+export type TyonTila = "vastaanotettu" | "vaiheessa" | "valmis";
 
 /** Peruutuksen syy: valmiit vaihtoehdot ja vapaa teksti ("muu"). */
 export type PeruutuksenSyy = "asiakas" | "virhe" | "muu";
@@ -91,6 +95,10 @@ export interface Database {
           kate_prosentti_oletus: number;
           /** Kate-% EU:n ulkopuolelta tilatuille väreille. */
           kate_prosentti_ei_eu_oletus: number;
+          /** Monenko päivän jälkeen vastaanotettu työ on kiireellinen. */
+          vastaanotto_varoitus_paivat: number;
+          /** Monenko päivän jälkeen vastaanotettu työ on myöhässä. */
+          vastaanotto_kriittinen_paivat: number;
           nayta_hinnat_maalaajalle: boolean;
           yleinen_tuntihinta: number;
           yrityksen_osoite: string | null;
@@ -401,7 +409,11 @@ export interface Database {
           asiakas: string | null;
           tila: TyonTila;
           aloitti_id: string | null;
+          /** Työn kirjausaika; vastaanotetulla työllä vastaanottohetki. */
           aloitettu: string;
+          /** Milloin maalaus aloitettiin. */
+          tyo_aloitettu: string | null;
+          vastaanotti_id: string | null;
           valmistui_id: string | null;
           valmistunut: string | null;
           alennus_prosentti: number;
@@ -614,6 +626,10 @@ export interface Database {
       osa_suositushinta: {
         Args: { p_osa_id: string; p_vari_id?: string | null };
         Returns: number;
+      };
+      aloita_vastaanotettu_tyo: {
+        Args: { p_tyo_id: string };
+        Returns: undefined;
       };
       aseta_resend_avain: {
         Args: { p_avain: string };

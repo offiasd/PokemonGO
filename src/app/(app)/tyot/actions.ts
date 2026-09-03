@@ -28,10 +28,19 @@ export interface TyonRiviSyote {
   toinenArvioituKulutusG?: number | null;
 }
 
+/**
+ * Luo työn joko vastaanotetuksi tai suoraan maalaukseen.
+ *
+ * Vastaanotettu tarkoittaa että osat on tuotu maalaamolle ja työstä on sovittu,
+ * mutta maalaus ei ole alkanut. Maali varataan molemmissa tapauksissa heti:
+ * varaus syntyy rivitriggerissä, ja se on lupaus asiakkaalle ettei sovittua
+ * väriä kuluteta toiseen työhön.
+ */
 export async function aloitaTyo(
   asiakas: string | null,
   rivit: TyonRiviSyote[],
-  alennusProsentti = 0
+  alennusProsentti = 0,
+  tila: "vastaanotettu" | "vaiheessa" = "vaiheessa"
 ): Promise<string> {
   const kayttaja = await vaaditaanKayttaja();
   if (rivit.length === 0) {
@@ -39,11 +48,15 @@ export async function aloitaTyo(
   }
   const supabase = await createClient();
 
+  const vastaanotettu = tila === "vastaanotettu";
   const { data: tyo, error: tyoVirhe } = await supabase
     .from("tyot")
     .insert({
       asiakas,
-      aloitti_id: kayttaja.id,
+      tila,
+      aloitti_id: vastaanotettu ? null : kayttaja.id,
+      vastaanotti_id: kayttaja.id,
+      tyo_aloitettu: vastaanotettu ? null : new Date().toISOString(),
       alennus_prosentti: tarkistaAlennus(alennusProsentti),
     })
     .select("id")
@@ -264,4 +277,21 @@ export async function arkistoiTyo(tyoId: string): Promise<void> {
   if (error) throw new Error(error.message);
 
   revalidatePath("/tyot");
+}
+
+/**
+ * Siirtää vastaanotetun työn maalaukseen.
+ *
+ * Aloittaja merkitään vasta tässä: vastaanottaja ja maalaaja ovat usein eri
+ * henkilö. Maali on jo varattu vastaanotettaessa, joten saldoihin ei kosketa.
+ */
+export async function aloitaVastaanotettuTyo(tyoId: string): Promise<void> {
+  await vaaditaanKayttaja();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("aloita_vastaanotettu_tyo", { p_tyo_id: tyoId });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/tyot");
+  revalidatePath("/");
 }

@@ -5,6 +5,7 @@ import type {
   PeruutuksenSyy,
   ToinenVariRooli,
   TyoVaihe,
+  TyonTila,
   VariTyyppi,
   Varisavy,
 } from "@/lib/supabase/database.types";
@@ -295,4 +296,77 @@ const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
 export function paattelyVarisavy(nimi: string): Varisavy | null {
   const osuma = VARISAVY_AVAINSANAT.find(([, avainsana]) => avainsana.test(nimi));
   return osuma ? osuma[0] : null;
+}
+
+// ---------------------------------------------------------------------------
+// Työn tila ja kiireellisyys
+// ---------------------------------------------------------------------------
+
+export const TYON_TILAN_NIMI: Record<TyonTila, string> = {
+  vastaanotettu: "Vastaanotettu",
+  vaiheessa: "Keskeneräinen",
+  valmis: "Valmis",
+};
+
+/** Kiireellisyystaso vastaanotetulle työlle: mitä pidempään odottanut, sitä kiireisempi. */
+export type Kiireellisyys = "ok" | "kiire" | "myohassa";
+
+export const KIIREELLISYYDEN_NIMI: Record<Kiireellisyys, string> = {
+  ok: "Aikataulussa",
+  kiire: "Kiireellinen",
+  myohassa: "Myöhässä",
+};
+
+/**
+ * Väritäplän luokat. Punainen ja keltainen tulevat teeman varoitusväreistä,
+ * jotta ne toimivat myös tummassa tilassa.
+ */
+export const KIIREELLISYYDEN_VARI: Record<Kiireellisyys, string> = {
+  ok: "bg-success",
+  kiire: "bg-warning",
+  myohassa: "bg-destructive",
+};
+
+/** Montako vuorokautta työ on odottanut vastaanotosta. */
+export function odotusPaivat(vastaanotettu: string, nyt: Date = new Date()): number {
+  const ero = nyt.getTime() - new Date(vastaanotettu).getTime();
+  return Math.max(0, Math.floor(ero / (24 * 60 * 60 * 1000)));
+}
+
+/**
+ * Kiireellisyys odotusajan ja adminin asettamien rajojen mukaan. Rajat ovat
+ * "työ pitäisi aloittaa x päivän sisällä": varoitusrajalla työ muuttuu
+ * kiireelliseksi ja kriittisellä rajalla myöhässä olevaksi.
+ */
+export function kiireellisyys(
+  odotettuPaivaa: number,
+  rajat: { vastaanotto_varoitus_paivat: number; vastaanotto_kriittinen_paivat: number }
+): Kiireellisyys {
+  if (odotettuPaivaa >= rajat.vastaanotto_kriittinen_paivat) return "myohassa";
+  if (odotettuPaivaa >= rajat.vastaanotto_varoitus_paivat) return "kiire";
+  return "ok";
+}
+
+/** Työaika minuutteina luettavaksi tekstiksi: 95 min -> "1 h 35 min". */
+export function muotoileKesto(minuutit: number): string {
+  const pyoristetty = Math.round(minuutit);
+  if (pyoristetty < 60) return `${pyoristetty} min`;
+  const tunnit = Math.floor(pyoristetty / 60);
+  const jaannos = pyoristetty % 60;
+  return jaannos === 0 ? `${tunnit} h` : `${tunnit} h ${jaannos} min`;
+}
+
+/**
+ * Osan arvioitu työaika minuutteina. Maalaus ja teippaus tehdään jokaiselle
+ * värikerrokselle erikseen, joten ne kertautuvat värien lukumäärällä - sama
+ * sääntö kuin työkustannuksen laskennassa.
+ */
+export function laskeTyoaikaMin(
+  vaiheet: { vaihe: TyoVaihe; arvioitu_kesto_min: number }[],
+  varienMaara = 1
+): number {
+  return vaiheet.reduce((summa, v) => {
+    const kerroin = VARIKERROKSITTAIN_KERTAUTUVAT_VAIHEET.includes(v.vaihe) ? varienMaara : 1;
+    return summa + v.arvioitu_kesto_min * kerroin;
+  }, 0);
 }

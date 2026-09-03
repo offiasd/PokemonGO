@@ -2,11 +2,26 @@ import Link from "next/link";
 import { AlertTriangle, Award, Paintbrush, Wrench } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SaldoPalkki } from "@/components/saldo-palkki";
 
-export default async function EtusivuSivu() {
+import { MaalaajanEtusivu } from "./maalaajan-etusivu";
+
+export default async function EtusivuSivu({
+  searchParams,
+}: {
+  searchParams: Promise<{ jakso?: string }>;
+}) {
+  const kayttaja = await vaaditaanKayttaja();
+
+  // Maalaajalle etusivu on oma työnäkymä: omat työt ja vapaat työt, joista voi
+  // poimia seuraavan. Adminin näkymä on varaston yleiskuva kuten ennenkin.
+  if (kayttaja.role !== "admin") {
+    return <MaalaajanEtusivu kayttaja={kayttaja} jakso={(await searchParams).jakso} />;
+  }
+
   const supabase = await createClient();
 
   const [halytyksetVastaus, kaytetyinVastaus, variMaaraVastaus, osaMaaraVastaus] =

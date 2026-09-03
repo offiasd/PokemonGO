@@ -302,12 +302,14 @@ export function TyonLomake({
   const alennusEur = Math.round(koriYhteensa * (alennusProsentti / 100) * 100) / 100;
   const loppusumma = Math.round((koriYhteensa - alennusEur) * 100) / 100;
 
-  function kasitteleTallennus() {
+  // Uusi työ voidaan joko vastaanottaa (osat tuotu, maalaus alkaa myöhemmin)
+  // tai aloittaa heti. Maali varataan molemmissa tapauksissa.
+  function kasitteleTallennus(tila: "vastaanotettu" | "vaiheessa" = "vaiheessa") {
     if (kori.length === 0) {
       toast.error(
         muokattavaTyo
           ? "Työssä pitää olla vähintään yksi osa."
-          : "Lisää vähintään yksi osa koriin ennen aloitusta."
+          : "Lisää vähintään yksi osa koriin ennen tallennusta."
       );
       return;
     }
@@ -328,8 +330,12 @@ export function TyonLomake({
           await paivitaTyo(muokattavaTyo.id, asiakas.trim() || null, syotteet, alennusProsentti);
           toast.success("Työ päivitetty ja varaukset korjattu varastoon.");
         } else {
-          await aloitaTyo(asiakas.trim() || null, syotteet, alennusProsentti);
-          toast.success("Työ aloitettu ja maali varattu varastosta.");
+          await aloitaTyo(asiakas.trim() || null, syotteet, alennusProsentti, tila);
+          toast.success(
+            tila === "vastaanotettu"
+              ? "Työ vastaanotettu ja maali varattu varastosta."
+              : "Työ aloitettu ja maali varattu varastosta."
+          );
         }
         router.push("/tyot");
       } catch (error) {
@@ -338,7 +344,7 @@ export function TyonLomake({
             ? error.message
             : muokattavaTyo
               ? "Työn päivitys epäonnistui."
-              : "Työn aloitus epäonnistui."
+              : "Työn tallennus epäonnistui."
         );
       }
     });
@@ -604,15 +610,27 @@ export function TyonLomake({
               </div>
             </div>
           )}
-          <div>
+          {/* Vastaanotto on tavallisin: osat tuodaan ensin ja maalataan kun
+              vuoro tulee. Heti aloittaminen on toinen nappi samalla rivillä. */}
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              onClick={kasitteleTallennus}
+              onClick={() => kasitteleTallennus(muokattavaTyo ? "vaiheessa" : "vastaanotettu")}
               disabled={kaynnissa || kori.length === 0}
             >
               {kaynnissa && <Loader2 className="size-4 animate-spin" />}
-              {muokattavaTyo ? "Tallenna muutokset" : "Aloita työ"}
+              {muokattavaTyo ? "Tallenna muutokset" : "Vastaanota työ"}
             </Button>
+            {!muokattavaTyo && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => kasitteleTallennus("vaiheessa")}
+                disabled={kaynnissa || kori.length === 0}
+              >
+                Aloita heti
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
