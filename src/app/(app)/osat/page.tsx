@@ -65,7 +65,7 @@ export default async function OsatSivu({
     tuntiveloitusVastaus,
   ] = await Promise.all([
     kysely,
-    supabase.from("varit").select("id, nimi").eq("aktiivinen", true).order("nimi"),
+    supabase.from("varit").select("id, nimi, alkupera").eq("aktiivinen", true).order("nimi"),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
     supabase.from("osa_kategoriahinnat").select("*"),
     supabase
@@ -93,7 +93,12 @@ export default async function OsatSivu({
     const varitHinnoin = await Promise.all(
       (variVastaus.data ?? []).map(async (vari) => {
         const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
-        return { id: vari.id, nimi: vari.nimi, kokonaishinta: data ?? 0 };
+        return {
+          id: vari.id,
+          nimi: vari.nimi,
+          alkupera: vari.alkupera,
+          kokonaishinta: data ?? 0,
+        };
       })
     );
 

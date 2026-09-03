@@ -21,6 +21,7 @@ import {
   variTyypinNimi,
 } from "@/lib/vakiot";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
+import { osanKateprosentit } from "@/lib/hinnat";
 
 import { paivitaOsa } from "../actions";
 import { OsaLomake } from "../osa-lomake";
@@ -58,7 +59,11 @@ export default async function OsaSivu({
   ] = await Promise.all([
     supabase.from("osat").select("*").eq("id", id).single(),
     supabase.from("osa_tyovaiheet").select("*").eq("osa_id", id),
-    supabase.from("varit").select("id, nimi, hintalisa_prosentti").eq("aktiivinen", true).order("nimi"),
+    supabase
+      .from("varit")
+      .select("id, nimi, alkupera, hintalisa_prosentti")
+      .eq("aktiivinen", true)
+      .order("nimi"),
     supabase.from("osa_kategoriahinnat").select("*").eq("osa_id", id),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
     supabase.from("tuntiveloitukset").select("vaihe, tuntihinta"),
@@ -105,7 +110,7 @@ export default async function OsaSivu({
     tuntiveloitukset,
     asetukset.yleinen_tuntihinta
   );
-  const kateProsentti = osa.kate_prosentti ?? asetukset.kate_prosentti_oletus;
+  const kateprosentit = osanKateprosentit(osa, asetukset);
 
   let tyoaikaMin = 0;
   let tyokustannus = 0;
@@ -169,7 +174,7 @@ export default async function OsaSivu({
           <div className="lg:col-span-2">
             <OsanHinnoittelu
               manuaalinenHinta={osa.manuaalinen_hinta}
-              kateProsentti={kateProsentti}
+              kateprosentit={kateprosentit}
               kateKiintea={osa.kate_kiintea ?? 0}
               perusTyokustannusKerroksittain={perusTyokustannusKerroksittain}
               pesunKustannus={pesunKustannus}

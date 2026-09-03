@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
+import { osanKateprosentit } from "@/lib/hinnat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
 
@@ -47,7 +48,9 @@ export default async function MuokkaaTyotaSivu({
       .order("nimi"),
     supabase
       .from("varit")
-      .select("id, nimi, tyyppi, saldo_g, varattu_g, hintalisa_prosentti, vaatii_lakkauksen")
+      .select(
+        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, hintalisa_prosentti, vaatii_lakkauksen"
+      )
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase
@@ -75,7 +78,7 @@ export default async function MuokkaaTyotaSivu({
         tuntiveloitukset,
         asetukset.yleinen_tuntihinta
       ),
-      kateProsentti: osa.kate_prosentti ?? asetukset.kate_prosentti_oletus,
+      kateprosentit: osanKateprosentit(osa, asetukset),
       kateKiintea: osa.kate_kiintea ?? 0,
     };
   });

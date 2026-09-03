@@ -87,7 +87,10 @@ export interface Database {
           oletus_halytysraja_g: number;
           tullimaksu_prosentti_oletus: number;
           alv_prosentti_oletus: number;
+          /** Kate-% EU-väreille (ja oletus kun alkuperää ei tiedetä). */
           kate_prosentti_oletus: number;
+          /** Kate-% EU:n ulkopuolelta tilatuille väreille. */
+          kate_prosentti_ei_eu_oletus: number;
           nayta_hinnat_maalaajalle: boolean;
           yleinen_tuntihinta: number;
           yrityksen_osoite: string | null;
@@ -599,6 +602,10 @@ export interface Database {
       };
       osa_kustannusarvio: {
         Args: { p_osa_id: string; p_vari_id?: string | null };
+        Returns: number;
+      };
+      osan_kate: {
+        Args: { p_osa_id: string; p_vari_id?: string | null; p_toinen_vari_id?: string | null };
         Returns: number;
       };
       osa_suositushinta: {

@@ -34,7 +34,13 @@ import {
   TOINEN_VARI_ROOLIN_NIMI,
   VALINNAINEN_TOINEN_VARI_ROOLI,
 } from "@/lib/vakiot";
-import type { MaaliTyyppi, MyytavaMaaliTyyppi, ToinenVariRooli } from "@/lib/supabase/database.types";
+import type {
+  Alkupera,
+  MaaliTyyppi,
+  MyytavaMaaliTyyppi,
+  ToinenVariRooli,
+} from "@/lib/supabase/database.types";
+import { valitseKate, type Kateprosentit } from "@/lib/hinnat";
 
 import { aloitaTyo, paivitaTyo } from "./actions";
 
@@ -44,7 +50,8 @@ interface Osa {
   lisatiedot: string | null;
   lakkaus_kulutus_g: number | null;
   tyokustannusKerroksittain: number[];
-  kateProsentti: number;
+  /** Kate-% erikseen EU- ja ei-EU-väreille. */
+  kateprosentit: Kateprosentit;
   kateKiintea: number;
   manuaalinen_hinta: number | null;
 }
@@ -52,6 +59,7 @@ interface Osa {
 interface Vari {
   id: string;
   nimi: string;
+  alkupera: Alkupera;
   tyyppi: MaaliTyyppi;
   saldo_g: number;
   varattu_g: number;
@@ -201,11 +209,18 @@ export function TyonLomake({
     if (toinenVariAktiivinen && valittuToinenVari) {
       kustannus += (toinenArvioituKulutusG / 1000) * valittuToinenVari.kokonaishinta;
     }
+    // Kate valitaan värien alkuperästä: EU:n ulkopuolelta tilaaminen on
+    // työläämpää, joten sille on oma prosentti. Valinnainen lakka lasketaan
+    // mukaan samoin kuin sen maalikustannus.
+    const kate = valitseKate(
+      valittuOsa.kateprosentit,
+      valittuVari.alkupera,
+      toinenVariAktiivinen ? valittuToinenVari?.alkupera : undefined
+    );
     const kategorianHinta =
       valittuKategoriahinta.hinta ??
       valittuOsa.manuaalinen_hinta ??
-      Math.round((kustannus * (1 + valittuOsa.kateProsentti / 100) + valittuOsa.kateKiintea) * 100) /
-        100;
+      Math.round((kustannus * (1 + kate / 100) + valittuOsa.kateKiintea) * 100) / 100;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
     return Math.round((kategorianHinta + lisa) * 100) / 100;
   }, [

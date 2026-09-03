@@ -327,7 +327,7 @@ export function OsaLomake({
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="grid gap-2">
             <Label htmlFor="kate_prosentti" className="text-xs text-muted-foreground">
-              Kate-% (tyhjä = oletus)
+              Kate-% (tyhjä = alkuperän mukaan)
             </Label>
             <Input
               id="kate_prosentti"

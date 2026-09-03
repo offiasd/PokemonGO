@@ -91,3 +91,46 @@ export function laskeVarinKokonaishinta(
 ): number {
   return laskeVarinHintaerittely(vari, asetukset).kokonaishinta;
 }
+
+/**
+ * Osan kate-% alkuperittäin.
+ *
+ * EU:n ulkopuolelta tilaaminen on työläämpää ja kalliimpaa, joten sille on oma
+ * kate-%. Ostohinnan erot (rahti, tulli, maahantuonnin ALV) näkyvät jo värin
+ * kokonaishinnassa - tämä on se katteen osuus, joka jäisi muuten huomiotta.
+ */
+export interface Kateprosentit {
+  eu: number;
+  eiEu: number;
+}
+
+/**
+ * Osakohtainen kate ohittaa molemmat oletukset: se on asetettu nimenomaan
+ * tälle osalle, eikä sitä ole eritelty alkuperittäin.
+ */
+export function osanKateprosentit(
+  osa: { kate_prosentti: number | null },
+  asetukset: AsetuksetRow
+): Kateprosentit {
+  if (osa.kate_prosentti !== null && osa.kate_prosentti !== undefined) {
+    return { eu: osa.kate_prosentti, eiEu: osa.kate_prosentti };
+  }
+  return {
+    eu: asetukset.kate_prosentti_oletus,
+    eiEu: asetukset.kate_prosentti_ei_eu_oletus,
+  };
+}
+
+/**
+ * Kate työssä käytettyjen värien alkuperän mukaan. Jos yksikin väri on EU:n
+ * ulkopuolelta, käytetään ei-EU-katetta: tilaamisen vaiva ei puolitu siitä
+ * että toinen kerros sattuu olemaan EU-väri. Sama sääntö kuin kannan
+ * osan_kate-funktiossa.
+ */
+export function valitseKate(
+  kate: Kateprosentit,
+  ...alkuperat: (Alkupera | null | undefined)[]
+): number {
+  const eiEu = alkuperat.some((a) => a !== null && a !== undefined && a !== "EU");
+  return eiEu ? kate.eiEu : kate.eu;
+}

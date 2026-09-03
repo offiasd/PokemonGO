@@ -21,11 +21,13 @@ import {
   TOINEN_VARI_ROOLIN_NIMI,
   VALINNAINEN_TOINEN_VARI_ROOLI,
 } from "@/lib/vakiot";
-import type { MaaliTyyppi, MyytavaMaaliTyyppi } from "@/lib/supabase/database.types";
+import type { Alkupera, MaaliTyyppi, MyytavaMaaliTyyppi } from "@/lib/supabase/database.types";
+import { valitseKate, type Kateprosentit } from "@/lib/hinnat";
 
 interface Vari {
   id: string;
   nimi: string;
+  alkupera: Alkupera;
   hintalisa_prosentti: number;
   kokonaishinta: number;
 }
@@ -44,7 +46,7 @@ interface VariKategoria {
 
 export function OsanHinnoittelu({
   manuaalinenHinta,
-  kateProsentti,
+  kateprosentit,
   kateKiintea,
   perusTyokustannusKerroksittain,
   pesunKustannus,
@@ -54,7 +56,8 @@ export function OsanHinnoittelu({
   variKategoriat,
 }: {
   manuaalinenHinta: number | null;
-  kateProsentti: number;
+  /** Kate-% erikseen EU- ja ei-EU-väreille. */
+  kateprosentit: Kateprosentit;
   kateKiintea: number;
   /** Työkustannus värien lukumäärän mukaan: [1 väri, 2 väriä]. */
   perusTyokustannusKerroksittain: number[];
@@ -133,10 +136,17 @@ export function OsanHinnoittelu({
     if (pakollinenRooli && valittuToinenVari) {
       kustannus += (toinenArvioituKulutusG / 1000) * valittuToinenVari.kokonaishinta;
     }
+    // Kate valitaan värien alkuperästä: EU:n ulkopuolelta tilaaminen on
+    // työläämpää, joten sille on oma prosentti.
+    const kate = valitseKate(
+      kateprosentit,
+      valittuVari.alkupera,
+      pakollinenRooli ? valittuToinenVari?.alkupera : undefined
+    );
     const kategorianHinta =
       valittuKategoriahinta.hinta ??
       manuaalinenHinta ??
-      Math.round((kustannus * (1 + kateProsentti / 100) + kateKiintea) * 100) / 100;
+      Math.round((kustannus * (1 + kate / 100) + kateKiintea) * 100) / 100;
     const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
 
     const pesuLisa = pesuValittu ? pesunKustannus : 0;
@@ -153,7 +163,7 @@ export function OsanHinnoittelu({
     toinenArvioituKulutusG,
     perusTyokustannusKerroksittain,
     manuaalinenHinta,
-    kateProsentti,
+    kateprosentit,
     kateKiintea,
     kategoria,
     lakkausValittu,

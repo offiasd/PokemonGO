@@ -25,7 +25,7 @@ export default async function HinnoitteluSivu() {
           <Asetuslomake>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="grid gap-2">
-                <Label htmlFor="kate_prosentti_oletus">Kate-% (osan suositushinta)</Label>
+                <Label htmlFor="kate_prosentti_oletus">Kate-% (EU-maalit)</Label>
                 <Input
                   id="kate_prosentti_oletus"
                   name="kate_prosentti_oletus"
@@ -34,6 +34,21 @@ export default async function HinnoitteluSivu() {
                   min="0"
                   defaultValue={asetukset.kate_prosentti_oletus}
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="kate_prosentti_ei_eu_oletus">Kate-% (ei-EU-maalit)</Label>
+                <Input
+                  id="kate_prosentti_ei_eu_oletus"
+                  name="kate_prosentti_ei_eu_oletus"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  defaultValue={asetukset.kate_prosentti_ei_eu_oletus}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Käytetään kun työn väri on EU:n ulkopuolelta (USA/muu). Jos työssä on kaksi
+                  väriä ja jompikumpi on ei-EU, käytetään tätä.
+                </p>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="tullimaksu_prosentti_oletus">Tullimaksu-% (ei-EU)</Label>

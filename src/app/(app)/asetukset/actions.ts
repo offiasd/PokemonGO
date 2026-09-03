@@ -35,6 +35,7 @@ export async function paivitaAsetukset(
     "tullimaksu_prosentti_oletus",
     "alv_prosentti_oletus",
     "kate_prosentti_oletus",
+    "kate_prosentti_ei_eu_oletus",
     "yleinen_tuntihinta",
     "toimituskulu_per_kg_eu_oletus",
     "toimituskulu_per_kg_usa_oletus",

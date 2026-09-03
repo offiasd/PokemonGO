@@ -1,11 +1,13 @@
 import "server-only";
 
 import type {
+  Alkupera,
   Database,
   MaaliTyyppi,
   MyytavaMaaliTyyppi,
   TyoVaihe,
 } from "@/lib/supabase/database.types";
+import { osanKateprosentit, valitseKate, type Kateprosentit } from "@/lib/hinnat";
 import {
   kategorianVarienMaara,
   VARIKERROKSITTAIN_KERTAUTUVAT_VAIHEET,
@@ -19,6 +21,18 @@ export interface VariHinta {
   id: string;
   nimi: string;
   kokonaishinta: number;
+  /** Kate valitaan alkuperän mukaan, joten se kulkee värin mukana. */
+  alkupera: Alkupera;
+}
+
+/**
+ * Yksi hinnoiteltava yhdistelmä: kustannus ja siihen kuuluvat värit. Kate
+ * riippuu väreistä, joten suositushinta lasketaan yhdistelmäkohtaisesti eikä
+ * vasta valmiista kustannushaarukasta.
+ */
+interface Yhdistelma {
+  kustannus: number;
+  alkuperat: (Alkupera | null | undefined)[];
 }
 
 export interface KustannusarvioRivi {
@@ -72,35 +86,42 @@ export function laskeTyokustannusKerroksittain(
 }
 
 // Sama laskentaperuste kuin SQL-funktiolla osa_suositushinta: manuaalinen_hinta
-// ohittaa kaiken, muuten kustannusarvio + kate-% + kiinteä lisä.
-function suositushinta(kustannus: number, osa: OsaRow, asetukset: AsetuksetRow): number {
+// ohittaa kaiken, muuten kustannusarvio + kate-% + kiinteä lisä. Kate tulee
+// värien alkuperästä, joten sama kustannus voi tuottaa eri hinnan.
+function suositushinta(
+  yhdistelma: Yhdistelma,
+  osa: OsaRow,
+  kateprosentit: Kateprosentit
+): number {
   if (osa.manuaalinen_hinta !== null && osa.manuaalinen_hinta !== undefined) {
     return osa.manuaalinen_hinta;
   }
-  const kate = osa.kate_prosentti ?? asetukset.kate_prosentti_oletus;
+  const kate = valitseKate(kateprosentit, ...yhdistelma.alkuperat);
   const kiintea = osa.kate_kiintea ?? 0;
-  return pyoristaSentteihin(kustannus * (1 + kate / 100) + kiintea);
+  return pyoristaSentteihin(yhdistelma.kustannus * (1 + kate / 100) + kiintea);
 }
 
 function rakennaRivi(
   avain: string,
   kategoria: MyytavaMaaliTyyppi,
   nimi: string,
-  kustannukset: number[],
+  yhdistelmat: Yhdistelma[],
   osa: OsaRow,
-  asetukset: AsetuksetRow
+  kateprosentit: Kateprosentit
 ): KustannusarvioRivi | null {
-  if (kustannukset.length === 0) return null;
-  const kustannusMin = pyoristaSentteihin(Math.min(...kustannukset));
-  const kustannusMax = pyoristaSentteihin(Math.max(...kustannukset));
+  if (yhdistelmat.length === 0) return null;
+  const kustannukset = yhdistelmat.map((y) => y.kustannus);
+  // Suositushinta lasketaan jokaisesta yhdistelmästä erikseen: halvin väri ei
+  // välttämättä anna halvinta hintaa, jos kalliimmalla on pienempi kate.
+  const hinnat = yhdistelmat.map((y) => suositushinta(y, osa, kateprosentit));
   return {
     avain,
     kategoria,
     nimi,
-    kustannusMin,
-    kustannusMax,
-    suositusMin: pyoristaSentteihin(suositushinta(kustannusMin, osa, asetukset)),
-    suositusMax: pyoristaSentteihin(suositushinta(kustannusMax, osa, asetukset)),
+    kustannusMin: pyoristaSentteihin(Math.min(...kustannukset)),
+    kustannusMax: pyoristaSentteihin(Math.max(...kustannukset)),
+    suositusMin: pyoristaSentteihin(Math.min(...hinnat)),
+    suositusMax: pyoristaSentteihin(Math.max(...hinnat)),
   };
 }
 
@@ -115,19 +136,21 @@ function laskeLakatunKategorianRivi(
   lakkaVarit: VariHinta[],
   tyokustannus: number,
   osa: OsaRow,
-  asetukset: AsetuksetRow
+  kateprosentit: Kateprosentit
 ): KustannusarvioRivi | null {
-  const kustannukset: number[] = [];
+  const yhdistelmat: Yhdistelma[] = [];
   for (const paavari of paavarit) {
     for (const lakka of lakkaVarit) {
-      kustannukset.push(
-        (hinta.arvioitu_kulutus_g / 1000) * paavari.kokonaishinta +
+      yhdistelmat.push({
+        kustannus:
+          (hinta.arvioitu_kulutus_g / 1000) * paavari.kokonaishinta +
           ((hinta.toinen_arvioitu_kulutus_g ?? 0) / 1000) * lakka.kokonaishinta +
-          tyokustannus
-      );
+          tyokustannus,
+        alkuperat: [paavari.alkupera, lakka.alkupera],
+      });
     }
   }
-  return rakennaRivi(avain, kategoria, nimi, kustannukset, osa, asetukset);
+  return rakennaRivi(avain, kategoria, nimi, yhdistelmat, osa, kateprosentit);
 }
 
 // Laskee kustannusarvion (maali omalla todellisella hinnalla + työ) ja
@@ -166,6 +189,7 @@ export function laskeKategoriaKustannukset({
     varit.filter((v) => kartta.get(v.id)?.has(tyyppi));
   const kategoriaHinta = (tyyppi: MyytavaMaaliTyyppi) =>
     kategoriahinnat.find((k) => k.maali_tyyppi === tyyppi) ?? null;
+  const kateprosentit = osanKateprosentit(osa, asetukset);
 
   // Maalaus ja suojaus kertautuvat värikerroksittain: candy ja illusion ovat
   // aina kahden värin töitä, perusväri ja metallic yhden - metallicille lakkaus
@@ -179,10 +203,11 @@ export function laskeKategoriaKustannukset({
 
   const solidHinta = kategoriaHinta("solid");
   if (solidHinta) {
-    const kustannukset = kategoriaVarit("solid").map(
-      (v) => (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("solid")
-    );
-    const rivi = rakennaRivi("solid", "solid", "Perusvärit", kustannukset, osa, asetukset);
+    const yhdistelmat = kategoriaVarit("solid").map((v) => ({
+      kustannus: (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("solid"),
+      alkuperat: [v.alkupera],
+    }));
+    const rivi = rakennaRivi("solid", "solid", "Perusvärit", yhdistelmat, osa, kateprosentit);
     if (rivi) rivit.push(rivi);
 
     // Perusvärille lakkaus on valinnainen lisä, joten se näytetään omana
@@ -192,14 +217,16 @@ export function laskeKategoriaKustannukset({
     const lakkaVarit = kategoriaVarit("transparent");
     const lakkausKulutusG = osa.lakkaus_kulutus_g ?? 0;
     if (lakkaVarit.length > 0 && lakkausKulutusG > 0) {
-      const lakatut: number[] = [];
+      const lakatut: Yhdistelma[] = [];
       for (const v of kategoriaVarit("solid")) {
         for (const lakka of lakkaVarit) {
-          lakatut.push(
-            (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta +
+          lakatut.push({
+            kustannus:
+              (solidHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta +
               (lakkausKulutusG / 1000) * lakka.kokonaishinta +
-              tyokustannusVareilla(2)
-          );
+              tyokustannusVareilla(2),
+            alkuperat: [v.alkupera, lakka.alkupera],
+          });
         }
       }
       const lakattuRivi = rakennaRivi(
@@ -208,7 +235,7 @@ export function laskeKategoriaKustannukset({
         "Perusvärit + lakkaus",
         lakatut,
         osa,
-        asetukset
+        kateprosentit
       );
       if (lakattuRivi) rivit.push(lakattuRivi);
     }
@@ -219,10 +246,12 @@ export function laskeKategoriaKustannukset({
     // Lakkaus ei ole enää metallicin pakko, joten kategoria näytetään samaan
     // tapaan kuin perusväri: oma rivinsä ilman lakkaa ja toinen sen kanssa.
     // Kaksi värikerrosta veloitetaan vain lakatusta vaihtoehdosta.
-    const kustannukset = kategoriaVarit("metallic").map(
-      (v) => (metallicHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("metallic")
-    );
-    const rivi = rakennaRivi("metallic", "metallic", "Metallic", kustannukset, osa, asetukset);
+    const yhdistelmat = kategoriaVarit("metallic").map((v) => ({
+      kustannus:
+        (metallicHinta.arvioitu_kulutus_g / 1000) * v.kokonaishinta + tyokustannus("metallic"),
+      alkuperat: [v.alkupera],
+    }));
+    const rivi = rakennaRivi("metallic", "metallic", "Metallic", yhdistelmat, osa, kateprosentit);
     if (rivi) rivit.push(rivi);
 
     const lakattuRivi = laskeLakatunKategorianRivi(
@@ -234,7 +263,7 @@ export function laskeKategoriaKustannukset({
       kategoriaVarit("transparent"),
       tyokustannusVareilla(2),
       osa,
-      asetukset
+      kateprosentit
     );
     if (lakattuRivi) rivit.push(lakattuRivi);
   }
@@ -243,17 +272,19 @@ export function laskeKategoriaKustannukset({
   if (candyHinta) {
     const candyVarit = kategoriaVarit("candy");
     const pohjaVarit = kategoriaVarit("pohjavari");
-    const kustannukset: number[] = [];
+    const yhdistelmat: Yhdistelma[] = [];
     for (const c of candyVarit) {
       for (const pohja of pohjaVarit) {
-        kustannukset.push(
-          (candyHinta.arvioitu_kulutus_g / 1000) * c.kokonaishinta +
+        yhdistelmat.push({
+          kustannus:
+            (candyHinta.arvioitu_kulutus_g / 1000) * c.kokonaishinta +
             ((candyHinta.toinen_arvioitu_kulutus_g ?? 0) / 1000) * pohja.kokonaishinta +
-            tyokustannus("candy")
-        );
+            tyokustannus("candy"),
+          alkuperat: [c.alkupera, pohja.alkupera],
+        });
       }
     }
-    const rivi = rakennaRivi("candy", "candy", "Candy", kustannukset, osa, asetukset);
+    const rivi = rakennaRivi("candy", "candy", "Candy", yhdistelmat, osa, kateprosentit);
     if (rivi) rivit.push(rivi);
   }
 
@@ -268,7 +299,7 @@ export function laskeKategoriaKustannukset({
       kategoriaVarit("transparent"),
       tyokustannus("illusion"),
       osa,
-      asetukset
+      kateprosentit
     );
     if (rivi) rivit.push(rivi);
   }
