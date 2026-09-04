@@ -75,11 +75,14 @@ export function MerkitseValmiiksi({ tyoId, rivit }: { tyoId: string; rivit: Valm
           Valmis
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      {/* Osia voi olla monta, jolloin lista ei mahdu puhelimen ruudulle.
+          Otsikko ja vahvistusnappi pysyvät paikallaan ja vain lista vierii,
+          jottei nappia tarvitse etsiä vierittämällä. */}
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Merkitse työ valmiiksi</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4">
+        <div className="grid content-start gap-4 overflow-y-auto">
           <p className="text-sm text-muted-foreground">
             Vahvista toteutunut maalinkulutus - oletuksena arvio, muokkaa tarvittaessa.
           </p>
