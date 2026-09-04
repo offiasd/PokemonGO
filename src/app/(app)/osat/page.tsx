@@ -7,13 +7,7 @@ import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { haeAjoneuvotyypit } from "@/lib/supabase/ajoneuvotyypit";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ajoneuvotyypinNimi, muotoileValiEuro, SIVUKOKO, rajaaSivu } from "@/lib/vakiot";
@@ -189,47 +183,59 @@ export default async function OsatSivu({
             <Link key={osa.id} href={`/osat/${osa.id}`} className="block h-full">
               <Card
                 className={cn(
-                  // h-full + auto-rows-fr pitää saman rivin kortit samankorkuisina,
-                  // vaikka nimi rivittyisi eri määrälle rivejä.
-                  "h-full",
+                  // Kuva alkaa kortin ylälaidasta ja teksti tulee sen alle, joten
+                  // kortin oma pystypehmuste ja väli otetaan pois. h-full +
+                  // auto-rows-fr pitää saman rivin kortit samankorkuisina, ja
+                  // hinta ankkuroituu pohjaan mt-autolla - näin kuva ja hinta
+                  // ovat joka kortissa samalla kohdalla vaikka nimi rivittyisi.
+                  "h-full gap-0 overflow-hidden py-0",
                   !osa.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"
                 )}
               >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{osa.nimi}</CardTitle>
-                  <CardDescription>
-                    {osa.lisatiedot || "Ei lisätietoja"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-                    {osa.kuva_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={osa.kuva_url}
-                        alt={osa.nimi}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-                        Ei kuvaa
-                      </div>
-                    )}
-                    <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
-                      <Badge variant="outline" className="bg-background/90">
-                        {ajoneuvotyypinNimi(osa.ajoneuvotyyppi, ajoneuvotyypit)}
-                      </Badge>
-                      {!osa.aktiivinen && <Badge variant="secondary">Poistettu</Badge>}
+                {/* Kuva täyttää kortin yläosan reunasta reunaan. object-cover
+                    skaalaa kuvan koko alalle ja rajaa ylimenevän, joten laatikko
+                    on aina täynnä kuvasuhteesta riippumatta. Mitään tekstiä ei
+                    aseteta kuvan päälle - se jäisi kuvion sekaan lukukelvottomaksi. */}
+                {/* overflow-hidden on pakollinen: ilman sitä kuva kasvaa omaan
+                    kokoonsa ja venyttää laatikon kuvasuhteen ohi. */}
+                <div className="aspect-[4/3] w-full shrink-0 overflow-hidden bg-muted">
+                  {osa.kuva_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={osa.kuva_url}
+                      alt={osa.nimi}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+                      Ei kuvaa
                     </div>
-                    {hinta && (
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 py-2 text-center">
-                        <span className="text-sm font-semibold text-white">
-                          {muotoileValiEuro(hinta.min, hinta.max)}
-                        </span>
-                      </div>
+                  )}
+                </div>
+
+                <div className="flex flex-1 flex-col gap-1 p-3">
+                  <p className="line-clamp-2 text-sm leading-snug font-semibold break-words">
+                    {osa.nimi}
+                  </p>
+                  <p className="line-clamp-1 text-xs break-words text-muted-foreground">
+                    {osa.lisatiedot || "Ei lisätietoja"}
+                  </p>
+                  <div className="mt-auto flex flex-wrap items-center gap-1 pt-2">
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">
+                      {ajoneuvotyypinNimi(osa.ajoneuvotyyppi, ajoneuvotyypit)}
+                    </span>
+                    {!osa.aktiivinen && (
+                      <Badge variant="secondary" className="shrink-0">
+                        Poistettu
+                      </Badge>
                     )}
                   </div>
-                </CardContent>
+                  {/* Hinta on aina viimeisenä, joten sen etäisyys kortin
+                      pohjasta on sama kaikissa korteissa. */}
+                  <p className="text-sm font-semibold">
+                    {hinta ? muotoileValiEuro(hinta.min, hinta.max) : "Ei hintaa"}
+                  </p>
+                </div>
               </Card>
             </Link>
           );
