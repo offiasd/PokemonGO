@@ -180,6 +180,10 @@ export interface Database {
           vari_tyyppi: VariTyyppi;
           arvioitu_kulutus_g: number | null;
           kuva_url: string | null;
+          /** Kuvan rajaus kortissa: object-position-% ja suurennus. */
+          kuva_x: number;
+          kuva_y: number;
+          kuva_zoom: number;
           kate_prosentti: number | null;
           kate_kiintea: number | null;
           manuaalinen_hinta: number | null;

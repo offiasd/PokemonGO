@@ -658,7 +658,7 @@ export function VariLomake({
             arvo={kuvaUrl}
             onChange={setKuvaUrl}
             hyvaksy="image/*"
-            esikatseluKuva
+            esikatselu="kuva"
             label="Lataa kuva"
           />
         </div>
@@ -669,7 +669,7 @@ export function VariLomake({
             arvo={ohjeTiedostoUrl}
             onChange={setOhjeTiedostoUrl}
             hyvaksy=".pdf,.doc,.docx"
-            esikatseluKuva={false}
+            esikatselu="linkki"
             label="Lataa ohjetiedosto"
           />
         </div>

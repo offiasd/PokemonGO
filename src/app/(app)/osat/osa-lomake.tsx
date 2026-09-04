@@ -17,10 +17,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
+import { siistiRajaus } from "@/lib/kuvarajaus";
 import type { Database, MyytavaMaaliTyyppi } from "@/lib/supabase/database.types";
 import { TYO_VAIHEET, MYYTAVAT_MAALI_TYYPIT } from "@/lib/vakiot";
 
 import type { OsaLomakeTila } from "./actions";
+import { KuvanRajaus } from "./kuvan-rajaus";
 
 type OsaRow = Database["public"]["Tables"]["osat"]["Row"];
 type TyovaiheRow = Database["public"]["Tables"]["osa_tyovaiheet"]["Row"];
@@ -291,15 +293,29 @@ export function OsaLomake({
         </p>
       </div>
 
-      <div className="grid gap-2">
-        <Label>Kuva osasta</Label>
+      <div className="grid gap-3 rounded-md border p-4">
+        <div>
+          <Label className="font-medium">Kuva osasta</Label>
+          <p className="text-xs text-muted-foreground">
+            Kuva täyttää koko kortin Osat-sivulla. Aseta rajaus niin, että osa näkyy
+            kehyksessä haluamallasi tavalla.
+          </p>
+        </div>
         <TiedostoLataus
           bucket="osa-kuvat"
           arvo={kuvaUrl}
           onChange={setKuvaUrl}
           hyvaksy="image/*"
-          esikatseluKuva
-          label="Lataa kuva"
+          // Rajausnäkymä alla toimii esikatseluna, joten erillistä ei tarvita.
+          esikatselu="ei"
+          label={kuvaUrl ? "Vaihda kuva" : "Lataa kuva"}
+        />
+        {/* Avain pakottaa uuden kuvan rajauksen alkutilaan - muuten edellisen
+            kuvan siirtymä jäisi voimaan aivan eri kuvalle. */}
+        <KuvanRajaus
+          key={kuvaUrl ?? "ei-kuvaa"}
+          kuvaUrl={kuvaUrl}
+          alkuarvo={siistiRajaus({ x: osa?.kuva_x, y: osa?.kuva_y, zoom: osa?.kuva_zoom })}
         />
       </div>
 

@@ -8,6 +8,7 @@ import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { haeAjoneuvotyypit } from "@/lib/supabase/ajoneuvotyypit";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { rajauksenTyyli, siistiRajaus } from "@/lib/kuvarajaus";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ajoneuvotyypinNimi, muotoileValiEuro, SIVUKOKO, rajaaSivu } from "@/lib/vakiot";
@@ -183,59 +184,58 @@ export default async function OsatSivu({
             <Link key={osa.id} href={`/osat/${osa.id}`} className="block h-full">
               <Card
                 className={cn(
-                  // Kuva alkaa kortin ylälaidasta ja teksti tulee sen alle, joten
-                  // kortin oma pystypehmuste ja väli otetaan pois. h-full +
-                  // auto-rows-fr pitää saman rivin kortit samankorkuisina, ja
-                  // hinta ankkuroituu pohjaan mt-autolla - näin kuva ja hinta
-                  // ovat joka kortissa samalla kohdalla vaikka nimi rivittyisi.
-                  "h-full gap-0 overflow-hidden py-0",
+                  // Kuva vie koko kortin, joten kortti on pelkkä kuvasuhteinen
+                  // kehys ilman omaa pehmustetta. 3/4 antaa tekstipalkeille
+                  // tilaa peittämättä liikaa kuvaa. overflow-hidden on
+                  // pakollinen: ilman sitä kuva kasvaa omaan kokoonsa ja
+                  // venyttää kehyksen kuvasuhteen ohi.
+                  "relative aspect-[3/4] h-full gap-0 overflow-hidden bg-muted py-0",
                   !osa.aktiivinen ? "opacity-60" : "transition-shadow hover:shadow-md"
                 )}
               >
-                {/* Kuva täyttää kortin yläosan reunasta reunaan. object-cover
-                    skaalaa kuvan koko alalle ja rajaa ylimenevän, joten laatikko
-                    on aina täynnä kuvasuhteesta riippumatta. Mitään tekstiä ei
-                    aseteta kuvan päälle - se jäisi kuvion sekaan lukukelvottomaksi. */}
-                {/* overflow-hidden on pakollinen: ilman sitä kuva kasvaa omaan
-                    kokoonsa ja venyttää laatikon kuvasuhteen ohi. */}
-                <div className="aspect-[4/3] w-full shrink-0 overflow-hidden bg-muted">
-                  {osa.kuva_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={osa.kuva_url}
-                      alt={osa.nimi}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-                      Ei kuvaa
-                    </div>
-                  )}
-                </div>
+                {osa.kuva_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={osa.kuva_url}
+                    alt={osa.nimi}
+                    className="absolute inset-0 h-full w-full"
+                    // Rajaus on osakohtainen ja asetetaan osan lomakkeella.
+                    style={rajauksenTyyli(
+                      siistiRajaus({ x: osa.kuva_x, y: osa.kuva_y, zoom: osa.kuva_zoom })
+                    )}
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                    Ei kuvaa
+                  </div>
+                )}
 
-                <div className="flex flex-1 flex-col gap-1 p-3">
-                  <p className="line-clamp-2 text-sm leading-snug font-semibold break-words">
-                    {osa.nimi}
-                  </p>
-                  <p className="line-clamp-1 text-xs break-words text-muted-foreground">
+                {/* Tekstit kuvan päällä omilla vaaleilla pohjillaan: läpikuultava
+                    tausta erottaa ne myös silloin kun kuva on tekstin värinen.
+                    backdrop-blur pehmentää kuvion, jottei se sotke kirjaimia. */}
+                <div className="absolute inset-x-0 top-0 bg-background/75 px-2 py-1.5 backdrop-blur-sm">
+                  {/* Nimi pysyy yhdellä rivillä: kaksirivinen nimi söisi kuvaa
+                      ja tekisi korteista eri näköisiä. */}
+                  <p className="truncate text-sm leading-tight font-semibold">{osa.nimi}</p>
+                  <p className="truncate text-xs leading-tight text-muted-foreground">
                     {osa.lisatiedot || "Ei lisätietoja"}
                   </p>
-                  <div className="mt-auto flex flex-wrap items-center gap-1 pt-2">
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">
-                      {ajoneuvotyypinNimi(osa.ajoneuvotyyppi, ajoneuvotyypit)}
-                    </span>
-                    {!osa.aktiivinen && (
-                      <Badge variant="secondary" className="shrink-0">
-                        Poistettu
-                      </Badge>
-                    )}
-                  </div>
-                  {/* Hinta on aina viimeisenä, joten sen etäisyys kortin
-                      pohjasta on sama kaikissa korteissa. */}
-                  <p className="text-sm font-semibold">
-                    {hinta ? muotoileValiEuro(hinta.min, hinta.max) : "Ei hintaa"}
-                  </p>
                 </div>
+
+                <div className="absolute inset-x-0 bottom-0 grid gap-0.5 bg-background/75 px-2 py-1.5 text-center backdrop-blur-sm">
+                  <span className="truncate text-xs leading-tight text-muted-foreground">
+                    {ajoneuvotyypinNimi(osa.ajoneuvotyyppi, ajoneuvotyypit)}
+                  </span>
+                  <span className="truncate text-sm leading-tight font-semibold">
+                    {hinta ? muotoileValiEuro(hinta.min, hinta.max) : "Ei hintaa"}
+                  </span>
+                </div>
+
+                {!osa.aktiivinen && (
+                  <Badge variant="secondary" className="absolute top-11 right-2">
+                    Poistettu
+                  </Badge>
+                )}
               </Card>
             </Link>
           );

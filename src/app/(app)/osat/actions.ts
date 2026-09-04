@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+import { siistiRajaus } from "@/lib/kuvarajaus";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import type { AjoneuvoTyyppi, TyoVaihe, VariTyyppi } from "@/lib/supabase/database.types";
@@ -24,6 +25,16 @@ function lueOsaKentat(formData: FormData) {
     hakusanat: String(formData.get("hakusanat") ?? "").trim() || null,
     vari_tyyppi: String(formData.get("vari_tyyppi") ?? "yksivarinen") as VariTyyppi,
     kuva_url: String(formData.get("kuva_url") ?? "").trim() || null,
+    ...(() => {
+      // Rajaus tulee lomakkeelta merkkijonoina; siistiRajaus rajaa ne
+      // sallituille väleille, jotka kanta tarkistaa vielä check-ehdoilla.
+      const rajaus = siistiRajaus({
+        x: Number(formData.get("kuva_x")),
+        y: Number(formData.get("kuva_y")),
+        zoom: Number(formData.get("kuva_zoom")),
+      });
+      return { kuva_x: rajaus.x, kuva_y: rajaus.y, kuva_zoom: rajaus.zoom };
+    })(),
     kate_prosentti: tyhjaksiNumeroksi(formData.get("kate_prosentti")),
     kate_kiintea: tyhjaksiNumeroksi(formData.get("kate_kiintea")),
     manuaalinen_hinta: tyhjaksiNumeroksi(formData.get("manuaalinen_hinta")),

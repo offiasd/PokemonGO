@@ -12,7 +12,8 @@ interface TiedostoLatausProps {
   arvo: string | null;
   onChange: (url: string | null) => void;
   hyvaksy?: string;
-  esikatseluKuva?: boolean;
+  /** "kuva" = pikkukuva, "linkki" = linkki tiedostoon, "ei" = ei kumpaakaan. */
+  esikatselu?: "kuva" | "linkki" | "ei";
   label?: string;
 }
 
@@ -21,7 +22,7 @@ export function TiedostoLataus({
   arvo,
   onChange,
   hyvaksy = "image/*",
-  esikatseluKuva = true,
+  esikatselu = "kuva",
   label = "Lataa tiedosto",
 }: TiedostoLatausProps) {
   const [lataa, setLataa] = useState(false);
@@ -53,7 +54,7 @@ export function TiedostoLataus({
 
   return (
     <div className="grid gap-2">
-      {arvo && esikatseluKuva && (
+      {arvo && esikatselu === "kuva" && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={arvo}
@@ -61,7 +62,7 @@ export function TiedostoLataus({
           className="h-32 w-32 rounded-md border object-cover"
         />
       )}
-      {arvo && !esikatseluKuva && (
+      {arvo && esikatselu === "linkki" && (
         <a
           href={arvo}
           target="_blank"
