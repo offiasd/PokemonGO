@@ -145,7 +145,7 @@ export async function poistaTuntiveloitusYlikirjoitus(vaihe: TyoVaihe) {
 export async function lisaaAjoneuvotyyppi(nimi: string) {
   await vaaditaanAdmin();
   const siistittyNimi = nimi.trim();
-  if (!siistittyNimi) throw new Error("Anna ajoneuvotyypille nimi.");
+  if (!siistittyNimi) throw new Error("Anna osaryhmälle nimi.");
 
   const avain = ajoneuvotyypinAvain(siistittyNimi);
   if (!avain) throw new Error("Nimestä ei saatu kelvollista tunnistetta - käytä kirjaimia.");
@@ -162,7 +162,7 @@ export async function lisaaAjoneuvotyyppi(nimi: string) {
     .from("ajoneuvotyypit")
     .insert({ avain, nimi: siistittyNimi, jarjestys: (suurin?.jarjestys ?? 0) + 1 });
   if (error) {
-    if (error.code === "23505") throw new Error("Samanniminen ajoneuvotyyppi on jo olemassa.");
+    if (error.code === "23505") throw new Error("Samanniminen osaryhmä on jo olemassa.");
     throw new Error(error.message);
   }
 
@@ -173,7 +173,7 @@ export async function lisaaAjoneuvotyyppi(nimi: string) {
 export async function nimeaAjoneuvotyyppi(avain: string, nimi: string) {
   await vaaditaanAdmin();
   const siistittyNimi = nimi.trim();
-  if (!siistittyNimi) throw new Error("Anna ajoneuvotyypille nimi.");
+  if (!siistittyNimi) throw new Error("Anna osaryhmälle nimi.");
 
   const supabase = await createClient();
   const { error } = await supabase

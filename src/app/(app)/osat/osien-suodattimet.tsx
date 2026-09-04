@@ -50,7 +50,7 @@ export function OsienSuodattimet({
       </div>
 
       <div className="grid gap-1.5">
-        <Label className="text-xs text-muted-foreground">Ajoneuvotyyppi</Label>
+        <Label className="text-xs text-muted-foreground">Osaryhmä</Label>
         <Select
           value={searchParams.get("ajoneuvotyyppi") ?? "kaikki"}
           onValueChange={(v) => paivitaParametri("ajoneuvotyyppi", v === "kaikki" ? null : v)}

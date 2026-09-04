@@ -242,13 +242,13 @@ export function OsaLomake({
       </div>
 
       <div className="grid gap-2 sm:max-w-xs">
-        <Label htmlFor="ajoneuvotyyppi">Ajoneuvotyyppi</Label>
+        <Label htmlFor="ajoneuvotyyppi">Osaryhmä</Label>
         <Select
           name="ajoneuvotyyppi"
           defaultValue={osa?.ajoneuvotyyppi ?? ajoneuvotyypit[0]?.avain}
         >
           <SelectTrigger id="ajoneuvotyyppi" className="w-full">
-            <SelectValue placeholder="Valitse tyyppi" />
+            <SelectValue placeholder="Valitse osaryhmä" />
           </SelectTrigger>
           <SelectContent>
             {ajoneuvotyypit.map((t) => (
@@ -260,7 +260,7 @@ export function OsaLomake({
         </Select>
         {ajoneuvotyypit.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            Ajoneuvotyyppejä ei ole vielä lisätty - lisää ne Asetukset-sivulla.
+            Osaryhmiä ei ole vielä lisätty - lisää ne Asetukset-sivulla.
           </p>
         )}
       </div>

@@ -24,10 +24,11 @@ export default async function AjoneuvotyypitSivu() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ajoneuvotyypit</CardTitle>
+        <CardTitle>Osaryhmät</CardTitle>
         <CardDescription>
-          Osalle valittavat tyypit. Käytössä olevaa tyyppiä ei voi poistaa, mutta sen voi nimetä
-          uudelleen - osien viittaukset eivät muutu.
+          Mihin ryhmään osa kuuluu - ajoneuvot, puutarhakalusteet, palkit, työkalut ja mitä
+          maalattavaa vastaan tuleekaan. Käytössä olevaa ryhmää ei voi poistaa, mutta sen voi
+          nimetä uudelleen - osien viittaukset eivät muutu.
         </CardDescription>
       </CardHeader>
       <CardContent>

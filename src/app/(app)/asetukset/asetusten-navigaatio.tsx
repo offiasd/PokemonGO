@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   Building2,
-  Car,
+  Boxes,
   Clock,
   Euro,
   Package,
@@ -26,7 +26,7 @@ const OSIOT = [
   { href: "/asetukset/tyoajat", nimi: "Työ ja tuntihinnat", ikoni: Clock, adminVain: true },
   { href: "/asetukset/varasto", nimi: "Varasto", ikoni: Package, adminVain: true },
   { href: "/asetukset/ilmoitukset", nimi: "Ilmoitukset", ikoni: Bell, adminVain: true },
-  { href: "/asetukset/ajoneuvotyypit", nimi: "Ajoneuvotyypit", ikoni: Car, adminVain: true },
+  { href: "/asetukset/osaryhmat", nimi: "Osaryhmät", ikoni: Boxes, adminVain: true },
   { href: "/asetukset/yritys", nimi: "Yritys", ikoni: Building2, adminVain: true },
 ];
 

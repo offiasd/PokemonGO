@@ -63,14 +63,14 @@ function Rivi({ tyyppi }: { tyyppi: Ajoneuvotyyppi }) {
           type="button"
           variant="ghost"
           size="icon"
-          title="Poista ajoneuvotyyppi"
+          title="Poista osaryhmä"
           disabled={kaynnissa || tyyppi.osia > 0}
           onClick={() =>
             aloita(async () => {
-              if (!window.confirm(`Poistetaanko ajoneuvotyyppi "${tyyppi.nimi}"?`)) return;
+              if (!window.confirm(`Poistetaanko osaryhmä "${tyyppi.nimi}"?`)) return;
               try {
                 await poistaAjoneuvotyyppi(tyyppi.avain);
-                toast.success("Ajoneuvotyyppi poistettu.");
+                toast.success("Osaryhmä poistettu.");
               } catch (error) {
                 toast.error(error instanceof Error ? error.message : "Poisto epäonnistui.");
               }
@@ -120,7 +120,7 @@ export function AjoneuvotyypitLomake({ tyypit }: { tyypit: Ajoneuvotyyppi[] }) {
               try {
                 await lisaaAjoneuvotyyppi(uusi);
                 setUusi("");
-                toast.success("Ajoneuvotyyppi lisätty.");
+                toast.success("Osaryhmä lisätty.");
               } catch (error) {
                 toast.error(error instanceof Error ? error.message : "Lisäys epäonnistui.");
               }
