@@ -224,7 +224,7 @@ export const OLETUS_JARJESTYS: VarienJarjestys = "nimi";
 
 export const JARJESTYKSET: { arvo: VarienJarjestys; nimi: string; vaatiiHinnat: boolean }[] = [
   { arvo: "nimi", nimi: "Nimen mukaan", vaatiiHinnat: false },
-  // Suosio = värin käyttökerrat työriveillä (kannan varien_suosio-näkymä).
+  // Suosio = värin käyttökerrat työriveillä ja arkistossa (varien_suosio-näkymä).
   { arvo: "suosituin", nimi: "Suosituin", vaatiiHinnat: false },
   { arvo: "saldo_laskeva", nimi: "Saldo laskeva", vaatiiHinnat: false },
   { arvo: "saldo_nouseva", nimi: "Saldo nouseva", vaatiiHinnat: false },

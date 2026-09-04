@@ -63,8 +63,9 @@ export default async function RaportitSivu({
   ]);
 
   // Kulutus luetaan valmiiden töiden riveiltä (maalinkulutus_raportoituna):
-  // yksi rivi per käytetty väri, joten pohjaväri ja lakka näkyvät omina
-  // riveinään ja osuvat myös värisuodattimeen.
+  // yksi rivi per käytetty väri, joten pohjaväri, lakka ja custom-työn lisävärit
+  // näkyvät omina riveinään ja osuvat myös värisuodattimeen. Näkymä lukee myös
+  // arkiston, joten arkistoitu työ pysyy raportilla.
   let kysely = supabase.from("maalinkulutus_raportoituna").select("*");
   if (variId) kysely = kysely.eq("vari_id", variId);
   if (osaId) kysely = kysely.eq("osa_id", osaId);
