@@ -134,11 +134,11 @@ export async function poistaTuntiveloitusYlikirjoitus(vaihe: TyoVaihe) {
 }
 
 /**
- * Ajoneuvotyyppien hallinta.
+ * Osaryhmien hallinta.
  *
  * Avain on osien viittaus ja osalistan osoiteparametri, joten se muodostetaan
  * nimestä kerran lisäyksessä eikä muutu enää: uudelleennimeäminen vaihtaa vain
- * näyttönimen. Poisto onnistuu vain jos tyyppiä ei käytetä missään osassa -
+ * näyttönimen. Poisto onnistuu vain jos ryhmää ei käytetä missään osassa -
  * kanta estäisi sen viite-eheydellä, mutta virheteksti tulee tarkistuksesta
  * suomeksi ja kertoo montako osaa on kyseessä.
  */
@@ -196,7 +196,7 @@ export async function poistaAjoneuvotyyppi(avain: string) {
     .eq("ajoneuvotyyppi", avain);
   if (count && count > 0) {
     throw new Error(
-      `Tyyppi on käytössä ${count} osassa. Vaihda niiden ajoneuvotyyppi ensin.`
+      `Osaryhmä on käytössä ${count} osassa. Vaihda niiden osaryhmä ensin.`
     );
   }
 

@@ -92,7 +92,7 @@ export function AjoneuvotyypitLomake({ tyypit }: { tyypit: Ajoneuvotyyppi[] }) {
     <div className="grid gap-4">
       {tyypit.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Ajoneuvotyyppejä ei ole. Lisää ainakin yksi, jotta osille voi valita tyypin.
+          Osaryhmiä ei ole. Lisää ainakin yksi, jotta osille voi valita ryhmän.
         </p>
       )}
       {tyypit.map((t) => (
@@ -101,14 +101,14 @@ export function AjoneuvotyypitLomake({ tyypit }: { tyypit: Ajoneuvotyyppi[] }) {
 
       <div className="grid gap-2 border-t pt-4 sm:grid-cols-[1fr_auto] sm:items-end">
         <div className="grid gap-1.5">
-          <Label htmlFor="uusi_ajoneuvotyyppi" className="text-xs text-muted-foreground">
-            Uusi ajoneuvotyyppi
+          <Label htmlFor="uusi_osaryhma" className="text-xs text-muted-foreground">
+            Uusi osaryhmä
           </Label>
           <Input
-            id="uusi_ajoneuvotyyppi"
+            id="uusi_osaryhma"
             value={uusi}
             onChange={(e) => setUusi(e.target.value)}
-            placeholder="Esimerkiksi Mönkijä"
+            placeholder="Esimerkiksi Puutarhakalusteet"
             disabled={kaynnissa}
           />
         </div>

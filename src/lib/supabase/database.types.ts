@@ -596,6 +596,31 @@ export interface Database {
         };
         Relationships: EiSuhteita;
       };
+      tyojen_talous: {
+        Row: {
+          tyo_id: string;
+          asiakas: string | null;
+          aloitettu: string;
+          valmistunut: string | null;
+          /** Valmistumishetki, tai aloitus jos valmistumista ei ole kirjattu. */
+          ajankohta: string;
+          kuukausi: string;
+          vuosi: string;
+          aloitti_id: string | null;
+          valmistui_id: string | null;
+          arkistoitu: boolean;
+          riveja: number;
+          alennus_prosentti: number;
+          valisumma_eur: number;
+          alennus_eur: number;
+          loppusumma_eur: number;
+          maalikustannus_eur: number;
+          kate_eur: number;
+          kulutus_g: number;
+          kulutus_kg: number;
+        };
+        Relationships: EiSuhteita;
+      };
       maalinkulutus_raportoituna: {
         Row: {
           id: string;
