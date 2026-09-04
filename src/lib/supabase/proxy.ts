@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { evasteenElinaika, lueMuista, MUISTA_EVASTE } from "@/lib/istunto";
+
 import type { Database } from "./database.types";
 
 const JULKISET_POLUT = ["/kirjaudu", "/auth"];
@@ -28,6 +30,9 @@ function aalTaso(accessToken: string): string | null {
 
 export async function paivitaSessio(request: NextRequest) {
   let response = NextResponse.next({ request });
+  // Istunto uusitaan jokaisella pyynnöllä, joten "Muista minut" -valinta on
+  // luettava täälläkin: muuten uusittu eväste saisi Supabasen oletuspituuden.
+  const muista = lueMuista(request.cookies.get(MUISTA_EVASTE)?.value);
 
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,7 +48,7 @@ export async function paivitaSessio(request: NextRequest) {
           }
           response = NextResponse.next({ request });
           for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, evasteenElinaika(options, muista));
           }
         },
       },

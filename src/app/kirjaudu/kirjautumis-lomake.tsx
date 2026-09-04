@@ -5,8 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { Paintbrush } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MUISTA_PAIVAT } from "@/lib/istunto";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { kirjaudu, type KirjautumisTila } from "./actions";
@@ -44,6 +46,20 @@ export function KirjautumisLomake() {
               required
             />
           </div>
+          {/* Oletuksena päällä: maalaamon oma väki kirjautuu samalta laitteelta
+              joka päivä. Valinta on laitekohtainen, joten yhteiskäyttöisellä
+              koneella sen voi ottaa pois - silloin kirjautuminen katoaa kun
+              selain suljetaan. */}
+          <div className="flex items-start gap-2">
+            <Checkbox id="muista" name="muista" defaultChecked className="mt-0.5" />
+            <Label htmlFor="muista" className="font-normal">
+              Muista minut tällä laitteella
+              <span className="block text-xs text-muted-foreground">
+                Pysyt kirjautuneena {MUISTA_PAIVAT} päivää.
+              </span>
+            </Label>
+          </div>
+
           {tila.virhe && (
             <p className="text-sm text-destructive" role="alert">
               {tila.virhe}

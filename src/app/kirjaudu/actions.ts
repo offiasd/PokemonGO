@@ -1,7 +1,9 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { MUISTA_EVASTE } from "@/lib/istunto";
 import { createClient } from "@/lib/supabase/server";
 
 export interface KirjautumisTila {
@@ -15,12 +17,16 @@ export async function kirjaudu(
   const email = String(formData.get("email") ?? "");
   const salasana = String(formData.get("salasana") ?? "");
   const seuraava = String(formData.get("next") ?? "/");
+  // Valitsematon valintaruutu ei lähetä kenttää lainkaan.
+  const muista = formData.get("muista") === "on";
 
   if (!email || !salasana) {
     return { virhe: "Sähköposti ja salasana vaaditaan." };
   }
 
-  const supabase = await createClient();
+  // Valinta annetaan asiakkaalle, jotta se ehtii vaikuttaa jo kirjautumisen
+  // luomiin istuntoevästeisiin - ei vasta seuraavalla pyynnöllä.
+  const supabase = await createClient({ muista });
   const { error } = await supabase.auth.signInWithPassword({
     email,
     password: salasana,
@@ -47,6 +53,7 @@ export async function kirjaudu(
 export async function kirjauduUlos() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  (await cookies()).delete(MUISTA_EVASTE);
   redirect("/kirjaudu");
 }
 
@@ -60,5 +67,6 @@ export async function kirjauduUlos() {
 export async function kirjauduUlosKaikkialta() {
   const supabase = await createClient();
   await supabase.auth.signOut({ scope: "global" });
+  (await cookies()).delete(MUISTA_EVASTE);
   redirect("/kirjaudu");
 }

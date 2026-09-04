@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { ClipboardList } from "lucide-react";
+
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 
 import { KaksivaiheinenNappi } from "./kaksivaiheinen-nappi";
 import { KutsuLomake } from "./kutsu-lomake";
@@ -45,19 +49,33 @@ export default async function KayttajatSivu() {
   const kayttaja = await vaaditaanAdmin();
   const supabase = await createClient();
 
-  const [{ data: profiilit }, kaksivaiheiset] = await Promise.all([
+  const [{ data: profiilit }, kaksivaiheiset, { data: tyot }] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, role, created_at")
       .order("created_at", { ascending: true }),
     haeKaksivaiheiset(),
+    supabase.from("tyot").select("vastaanotti_id, aloitti_id, valmistui_id"),
   ]);
+
+  // Sama työ voi olla vastaanotettu, aloitettu ja valmistettu eri henkilöiden
+  // toimesta, joten jokainen rooli laskee - mutta oma työ vain kerran.
+  const tyomaarat = new Map<string, number>();
+  for (const tyo of tyot ?? []) {
+    for (const id of new Set(
+      [tyo.vastaanotti_id, tyo.aloitti_id, tyo.valmistui_id].filter(Boolean) as string[]
+    )) {
+      tyomaarat.set(id, (tyomaarat.get(id) ?? 0) + 1);
+    }
+  }
 
   return (
     <div className="grid gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Käyttäjät</h1>
-        <p className="text-muted-foreground">Hallitse käyttäjärooleja ja kutsu uusia käyttäjiä.</p>
+        <p className="text-muted-foreground">
+          Hallitse käyttäjärooleja, kutsu uusia käyttäjiä ja katso työntekijöiden töitä.
+        </p>
       </div>
 
       <Card>
@@ -87,6 +105,7 @@ export default async function KayttajatSivu() {
                   <span className="sm:hidden">2FA</span>
                   <span className="hidden sm:inline">Kaksivaiheinen</span>
                 </TableHead>
+                <TableHead>Työt</TableHead>
                 {/* Liittymispäivä on nice-to-know: puhelimessa se veisi tilan
                     sarakkeilta joilla oikeasti tehdään jotain. */}
                 <TableHead className="hidden sm:table-cell">Liittynyt</TableHead>
@@ -113,6 +132,14 @@ export default async function KayttajatSivu() {
                       nimi={p.full_name ?? "käyttäjä"}
                       kaytossa={kaksivaiheiset.has(p.id)}
                     />
+                  </TableCell>
+                  <TableCell>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/kayttajat/${p.id}`}>
+                        <ClipboardList className="size-4" />
+                        {tyomaarat.get(p.id) ?? 0}
+                      </Link>
+                    </Button>
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {new Date(p.created_at).toLocaleDateString("fi-FI")}
