@@ -704,6 +704,11 @@ export interface Database {
         Args: Record<string, never>;
         Returns: string;
       };
+      /** Käyttäjät joilla on vahvistettu kaksivaiheinen tunnistus. Vain adminille. */
+      kaksivaiheiset_kayttajat: {
+        Args: Record<string, never>;
+        Returns: string[];
+      };
       halytys_ilmoitusten_loki: {
         Args: Record<string, never>;
         Returns: {

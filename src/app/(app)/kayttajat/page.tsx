@@ -3,7 +3,6 @@ import { ClipboardList } from "lucide-react";
 
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Card,
   CardContent,
@@ -25,38 +24,22 @@ import { KaksivaiheinenNappi } from "./kaksivaiheinen-nappi";
 import { KutsuLomake } from "./kutsu-lomake";
 import { RooliValitsin } from "./rooli-valitsin";
 
-/**
- * Kenellä kaksivaiheinen tunnistus on käytössä. Tieto on auth-skeemassa, johon
- * pääsee vain service role -avaimella; ilman avainta sarake näyttää tyhjää
- * eikä sivu kaadu.
- */
-async function haeKaksivaiheiset(): Promise<Set<string>> {
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin.auth.admin.listUsers({ perPage: 200 });
-    if (error) return new Set();
-    return new Set(
-      (data?.users ?? [])
-        .filter((k) => (k.factors ?? []).some((t) => t.status === "verified"))
-        .map((k) => k.id)
-    );
-  } catch {
-    return new Set();
-  }
-}
-
 export default async function KayttajatSivu() {
   const kayttaja = await vaaditaanAdmin();
   const supabase = await createClient();
 
-  const [{ data: profiilit }, kaksivaiheiset, { data: tyot }] = await Promise.all([
+  // Tekijät ovat auth-skeemassa, johon PostgREST ei yllä. Kannan funktio lukee
+  // ne adminille - aiemmin tila luettiin listUsers()-vastauksesta, joka ei
+  // palauta tekijöitä lainkaan, joten sarake näytti "Ei käytössä" kaikille.
+  const [{ data: profiilit }, { data: kaksivaiheisetData }, { data: tyot }] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, role, created_at")
       .order("created_at", { ascending: true }),
-    haeKaksivaiheiset(),
+    supabase.rpc("kaksivaiheiset_kayttajat"),
     supabase.from("tyot").select("vastaanotti_id, aloitti_id, valmistui_id"),
   ]);
+  const kaksivaiheiset = new Set<string>(kaksivaiheisetData ?? []);
 
   // Sama työ voi olla vastaanotettu, aloitettu ja valmistettu eri henkilöiden
   // toimesta, joten jokainen rooli laskee - mutta oma työ vain kerran.

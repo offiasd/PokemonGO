@@ -30,7 +30,10 @@ export function SuodatinPaneeli({ naytaPoistetutValinta }: { naytaPoistetutValin
         <Button
           type="button"
           size="lg"
-          className="fixed right-4 bottom-4 z-40 rounded-full shadow-lg lg:hidden"
+          // Alanavigaatio on kiinni ruudun alareunassa alle md:n, joten nappi
+          // nostetaan sen yläpuolelle. Väliltä md-lg palkkia ei ole, jolloin
+          // nappi palaa ruudun alareunaan.
+          className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 rounded-full shadow-lg md:bottom-4 lg:hidden"
         >
           <SlidersHorizontal className="size-4" />
           Suodattimet
@@ -48,7 +51,7 @@ export function SuodatinPaneeli({ naytaPoistetutValinta }: { naytaPoistetutValin
           // Paneelissa ei ole erillistä kuvausta, joten Radixin varoitus
           // puuttuvasta Descriptionista vaimennetaan tarkoituksella.
           aria-describedby={undefined}
-          className="fixed inset-y-0 right-0 z-50 flex w-4/5 max-w-sm flex-col gap-4 border-l bg-background p-4 shadow-lg duration-300 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right lg:hidden"
+          className="fixed inset-y-0 right-0 z-50 flex w-4/5 max-w-sm flex-col gap-4 border-l bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-lg duration-300 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right lg:hidden"
         >
           <div className="flex items-center justify-between gap-2">
             <DialogTitle className="text-base">Suodattimet</DialogTitle>

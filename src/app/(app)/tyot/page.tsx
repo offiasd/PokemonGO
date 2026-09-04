@@ -182,33 +182,34 @@ export default async function TyotSivu() {
 
   return (
     <div className="grid gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+      <div className="grid gap-3">
+        {/* Historia on sivun yläkulmassa: perutut ja arkistoidut ovat harvoin
+            tarvittavaa taustatietoa, joten se ei kilpaile Uusi työ -napin
+            kanssa vaan pysyy poissa tieltä. */}
+        <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-semibold">Työt</h1>
-          <p className="text-muted-foreground">
-            {onAdmin
-              ? "Kokoa osat ja värit työksi - maali varataan jo vastaanotettaessa ja kuluu oikeasti kun työ merkitään valmiiksi."
-              : "Ota vastaanotettu työ itsellesi ja merkitse se valmiiksi kun se on maalattu."}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Perutut ja arkistoidut ovat harvoin tarvittavaa historiaa, joten ne
-              eivät vie tilaa välilehtiriviltä vaan ovat oman sivunsa takana. */}
-          <Button asChild variant="ghost" size="sm">
+          <Button asChild variant="ghost" size="sm" className="-mt-1 shrink-0">
             <Link href="/tyot/historia">
               <History className="size-4" />
               Historia
             </Link>
           </Button>
-          {onAdmin && (
+        </div>
+        <p className="text-muted-foreground">
+          {onAdmin
+            ? "Kokoa osat ja värit työksi - maali varataan jo vastaanotettaessa ja kuluu oikeasti kun työ merkitään valmiiksi."
+            : "Ota vastaanotettu työ itsellesi ja merkitse se valmiiksi kun se on maalattu."}
+        </p>
+        {onAdmin && (
+          <div>
             <Button asChild>
               <Link href="/tyot/uusi">
                 <Plus className="size-4" />
                 Uusi työ
               </Link>
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="vastaanotettu" className="min-w-0">
