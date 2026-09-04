@@ -59,6 +59,18 @@ export default async function TyotSivu() {
   ]);
 
   const rivit = rivitVastaus.data ?? [];
+
+  // Custom-työn kolmas ja sitä seuraavat värit ovat omassa taulussaan, koska
+  // niiden määrää ei ole rajattu.
+  const { data: lisavaritData } =
+    rivit.length > 0
+      ? await supabase
+          .from("tyon_rivin_lisavarit")
+          .select("rivi_id, vari_id")
+          .in("rivi_id", rivit.map((r) => r.id))
+          .order("jarjestys")
+      : { data: [] };
+  const lisavarit = lisavaritData ?? [];
   const osat = osatVastaus.data ?? [];
   const varit = varitVastaus.data ?? [];
   const tyovaiheet = tyovaiheetVastaus.data ?? [];
@@ -148,10 +160,15 @@ export default async function TyotSivu() {
     if (rivi.toinen_vari_id && rivi.toinen_vari_rooli) {
       teksti += ` + ${ROOLIN_NIMI[rivi.toinen_vari_rooli]}: ${variNimi(rivi.toinen_vari_id)}`;
     }
-    // Poikkeus ja lisäväri kertovat miksi rivi on olemassa tai miksi sen hinta
-    // on nolla, joten ne kuuluvat riville näkyviin.
-    const lisatiedot = [rivi.poikkeus, rivi.lisavari ? "lisäväri" : null].filter(Boolean);
-    if (lisatiedot.length > 0) teksti += ` (${lisatiedot.join(", ")})`;
+    // Custom-työn lisävärit ja selite kertovat mitä rivillä oikeasti tehdään -
+    // pelkkä pääväri antaisi monivärityöstä väärän kuvan.
+    const lisat = lisavarit.filter((l) => l.rivi_id === rivi.id);
+    if (lisat.length > 0) {
+      teksti += ` + ${lisat.map((l) => variNimi(l.vari_id)).join(" + ")}`;
+    }
+    if (rivi.kommentti) {
+      teksti += ` (${rivi.kommentti})`;
+    }
     return teksti;
   }
 

@@ -56,6 +56,16 @@ export default async function TyonHistoriaSivu() {
   const peruutukset = peruutuksetVastaus.data ?? [];
   const arkistoidut = arkistoVastaus.data ?? [];
   const arkistoRivit = arkistoRivitVastaus.data ?? [];
+  // Custom-työn lisävärit ovat omassa taulussaan, joten ne haetaan erikseen.
+  const { data: lisavaritData } =
+    arkistoRivit.length > 0
+      ? await supabase
+          .from("arkistoidut_rivin_lisavarit")
+          .select("rivi_id, vari_id")
+          .in("rivi_id", arkistoRivit.map((r) => r.id))
+          .order("jarjestys")
+      : { data: [] };
+  const arkistonLisavarit = lisavaritData ?? [];
   const profiilit = profiilitVastaus.data ?? [];
   const osat = osatVastaus.data ?? [];
   const varit = varitVastaus.data ?? [];
@@ -141,6 +151,16 @@ export default async function TyonHistoriaSivu() {
                               + {TOINEN_VARI_ROOLIN_NIMI[rivi.toinen_vari_rooli]}:{" "}
                               {variNimi(rivi.toinen_vari_id)}
                             </>
+                          )}
+                          {arkistonLisavarit
+                            .filter((l) => l.rivi_id === rivi.id)
+                            .map((l) => (
+                              <span key={l.vari_id}> + {variNimi(l.vari_id)}</span>
+                            ))}
+                          {rivi.kommentti && (
+                            <span className="block text-xs text-muted-foreground italic">
+                              {rivi.kommentti}
+                            </span>
                           )}
                         </span>
                         <span className="shrink-0 text-muted-foreground">

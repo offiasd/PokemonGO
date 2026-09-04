@@ -390,8 +390,8 @@ export interface Database {
           toinen_vari_rooli: ToinenVariRooli | null;
           toinen_arvioitu_kulutus_g: number | null;
           toinen_toteutunut_kulutus_g: number | null;
-          poikkeus: string | null;
-          lisavari: boolean;
+          kommentti: string | null;
+          custom: boolean;
         };
         Insert: Partial<Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"]>;
@@ -401,30 +401,6 @@ export interface Database {
             columns: ["tyo_id"];
             isOneToOne: false;
             referencedRelation: "arkistoidut_tyot";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      osan_poikkeukset: {
-        Row: {
-          id: string;
-          osa_id: string;
-          /** Poikkeuksen nimi, esim. "50/50 perusvärit". */
-          nimi: string;
-          lisahinta_eur: number;
-          jarjestys: number;
-        };
-        Insert: Partial<Database["public"]["Tables"]["osan_poikkeukset"]["Row"]> & {
-          osa_id: string;
-          nimi: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["osan_poikkeukset"]["Row"]>;
-        Relationships: [
-          {
-            foreignKeyName: "osan_poikkeukset_osa_id_fkey";
-            columns: ["osa_id"];
-            isOneToOne: false;
-            referencedRelation: "osat";
             referencedColumns: ["id"];
           },
         ];
@@ -486,6 +462,61 @@ export interface Database {
           },
         ];
       };
+      tyon_rivin_lisavarit: {
+        Row: {
+          id: string;
+          rivi_id: string;
+          vari_id: string;
+          arvioitu_kulutus_g: number;
+          toteutunut_kulutus_g: number | null;
+          /** Onko varaus jo purettu (työ valmistunut). */
+          varaus_purettu: boolean;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["tyon_rivin_lisavarit"]["Row"]> & {
+          rivi_id: string;
+          vari_id: string;
+          arvioitu_kulutus_g: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["tyon_rivin_lisavarit"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "tyon_rivin_lisavarit_rivi_id_fkey";
+            columns: ["rivi_id"];
+            isOneToOne: false;
+            referencedRelation: "tyon_rivit";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tyon_rivin_lisavarit_vari_id_fkey";
+            columns: ["vari_id"];
+            isOneToOne: false;
+            referencedRelation: "varit";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      arkistoidut_rivin_lisavarit: {
+        Row: {
+          id: string;
+          rivi_id: string;
+          vari_id: string;
+          arvioitu_kulutus_g: number;
+          toteutunut_kulutus_g: number | null;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["arkistoidut_rivin_lisavarit"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["arkistoidut_rivin_lisavarit"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "arkistoidut_rivin_lisavarit_rivi_id_fkey";
+            columns: ["rivi_id"];
+            isOneToOne: false;
+            referencedRelation: "arkistoidut_tyon_rivit";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tyon_rivit: {
         Row: {
           id: string;
@@ -501,11 +532,11 @@ export interface Database {
           toinen_toteutunut_kulutus_g: number | null;
           /** Onko rivin varaus jo purettu (työ valmistunut). */
           varaus_purettu: boolean;
-          /** Valitun poikkeuksen nimi työn tekohetkellä. */
-          poikkeus: string | null;
-          /** Saman osan toinen väri: varaa maalia mutta ei veloita osaa uudelleen. */
-          lisavari: boolean;
           yksikkohinta_eur: number;
+          /** Custom-työn selite, esim. "50/50 vanteet". */
+          kommentti: string | null;
+          /** Kulutus ja hinta säädetty käsin, eivät seuraa kategorian oletuksia. */
+          custom: boolean;
         };
         Insert: Partial<Database["public"]["Tables"]["tyon_rivit"]["Row"]> & {
           tyo_id: string;

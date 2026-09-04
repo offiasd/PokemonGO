@@ -26,10 +26,38 @@ export interface TyonRiviSyote {
   toinenVariId?: string | null;
   toinenVariRooli?: ToinenVariRooli | null;
   toinenArvioituKulutusG?: number | null;
-  /** Valitun poikkeuksen nimi, esim. "50/50 kahdella värillä". */
-  poikkeus?: string | null;
-  /** Saman osan toinen väri: varaa maalia mutta ei veloita osaa uudelleen. */
-  lisavari?: boolean;
+  /** Kulutus ja hinta on säädetty käsin. */
+  custom?: boolean;
+  /** Custom-työn selite, esim. "50/50 vanteet". */
+  kommentti?: string | null;
+  /** Rivin kolmas ja sitä seuraavat värit, kukin omalla kulutuksellaan. */
+  lisavarit?: { variId: string; arvioituKulutusG: number }[];
+}
+
+/**
+ * Rivit korvaa_tyon_rivit-funktion odottamassa muodossa.
+ *
+ * Sekä uuden työn että muokkauksen rivit kulkevat saman funktion kautta: se
+ * kirjoittaa rivit ja niiden lisävärit samassa transaktiossa, jolloin varaukset
+ * eivät voi jäädä puolitiehen jos jokin rivi hylätään.
+ */
+function riviPayload(rivit: TyonRiviSyote[]) {
+  return rivit.map((r) => ({
+    osa_id: r.osaId,
+    vari_id: r.variId,
+    kappalemaara: r.kappalemaara,
+    arvioitu_kulutus_g: r.arvioituKulutusG,
+    yksikkohinta_eur: r.yksikkohintaEur,
+    toinen_vari_id: r.toinenVariId ?? null,
+    toinen_vari_rooli: r.toinenVariRooli ?? null,
+    toinen_arvioitu_kulutus_g: r.toinenArvioituKulutusG ?? null,
+    kommentti: r.kommentti ?? null,
+    custom: r.custom ?? false,
+    lisavarit: (r.lisavarit ?? []).map((l) => ({
+      vari_id: l.variId,
+      arvioitu_kulutus_g: l.arvioituKulutusG,
+    })),
+  }));
 }
 
 /**
@@ -69,21 +97,12 @@ export async function aloitaTyo(
     throw new Error(tyoVirhe?.message ?? "Työn aloitus epäonnistui.");
   }
 
-  const { error: riviVirhe } = await supabase.from("tyon_rivit").insert(
-    rivit.map((r) => ({
-      tyo_id: tyo.id,
-      osa_id: r.osaId,
-      vari_id: r.variId,
-      kappalemaara: r.kappalemaara,
-      arvioitu_kulutus_g: r.arvioituKulutusG,
-      yksikkohinta_eur: r.yksikkohintaEur,
-      toinen_vari_id: r.toinenVariId ?? null,
-      toinen_vari_rooli: r.toinenVariRooli ?? null,
-      toinen_arvioitu_kulutus_g: r.toinenArvioituKulutusG ?? null,
-      poikkeus: r.poikkeus ?? null,
-      lisavari: r.lisavari ?? false,
-    }))
-  );
+  // Rivit kirjoitetaan samalla funktiolla kuin muokkauksessa: se osaa myös
+  // rivien lisävärit, jotka tarvitsevat juuri luodun rivin id:n.
+  const { error: riviVirhe } = await supabase.rpc("korvaa_tyon_rivit", {
+    p_tyo_id: tyo.id,
+    p_rivit: riviPayload(rivit),
+  });
   if (riviVirhe) {
     // Siivotaan luotu työ, ettei jää rivittömiä "haamu"-töitä.
     await supabase.from("tyot").delete().eq("id", tyo.id);
@@ -123,18 +142,7 @@ export async function paivitaTyo(
 
   const { error: rpcVirhe } = await supabase.rpc("korvaa_tyon_rivit", {
     p_tyo_id: tyoId,
-    p_rivit: rivit.map((r) => ({
-      osa_id: r.osaId,
-      vari_id: r.variId,
-      kappalemaara: r.kappalemaara,
-      arvioitu_kulutus_g: r.arvioituKulutusG,
-      yksikkohinta_eur: r.yksikkohintaEur,
-      toinen_vari_id: r.toinenVariId ?? null,
-      toinen_vari_rooli: r.toinenVariRooli ?? null,
-      toinen_arvioitu_kulutus_g: r.toinenArvioituKulutusG ?? null,
-      poikkeus: r.poikkeus ?? null,
-      lisavari: r.lisavari ?? false,
-    })),
+    p_rivit: riviPayload(rivit),
   });
   if (rpcVirhe) throw new Error(rpcVirhe.message);
 

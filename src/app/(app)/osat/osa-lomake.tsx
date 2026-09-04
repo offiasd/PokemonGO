@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,6 @@ import type { OsaLomakeTila } from "./actions";
 type OsaRow = Database["public"]["Tables"]["osat"]["Row"];
 type TyovaiheRow = Database["public"]["Tables"]["osa_tyovaiheet"]["Row"];
 type KategoriahintaRow = Database["public"]["Tables"]["osa_kategoriahinnat"]["Row"];
-type PoikkeusRow = Database["public"]["Tables"]["osan_poikkeukset"]["Row"];
 
 const TYHJA_OSA_TILA: OsaLomakeTila = { virhe: null };
 
@@ -33,7 +32,6 @@ interface OsaLomakeProps {
   osa?: OsaRow;
   tyovaiheet?: TyovaiheRow[];
   kategoriahinnat?: KategoriahintaRow[];
-  poikkeukset?: PoikkeusRow[];
   /** Adminin hallinnoima lista, haetaan palvelimella ja annetaan propsina. */
   ajoneuvotyypit: { avain: string; nimi: string }[];
   formAction: (tila: OsaLomakeTila, formData: FormData) => Promise<OsaLomakeTila>;
@@ -224,111 +222,10 @@ function KategoriaRivi({
   );
 }
 
-
-/**
- * Osan poikkeukset: nimettyjä lisätöitä omalla hinnallaan, esim. "50/50
- * kahdella värillä +60 €". Maalaaja valitsee poikkeuksen työtä koottaessa.
- *
- * Rivit ovat lomakkeen omaa tilaa ja lähtevät piilokentässä JSONina, jotta
- * lisäys ja poisto eivät vaadi omaa tallennusta - koko osa tallentuu kerralla.
- */
-function PoikkeusLista({ oletukset }: { oletukset: PoikkeusRow[] }) {
-  const [rivit, setRivit] = useState(
-    oletukset.map((p) => ({ nimi: p.nimi, lisahinta: String(p.lisahinta_eur) }))
-  );
-
-  function paivita(indeksi: number, muutos: Partial<{ nimi: string; lisahinta: string }>) {
-    setRivit((vanhat) => vanhat.map((r, i) => (i === indeksi ? { ...r, ...muutos } : r)));
-  }
-
-  return (
-    <div className="grid gap-4 rounded-md border p-4">
-      <div>
-        <Label className="font-medium">Poikkeukset (valinnainen)</Label>
-        <p className="text-xs text-muted-foreground">
-          Nimetty lisätyö omalla hinnallaan, esim. &quot;50/50 perusvärit&quot; +60 € tai
-          &quot;50/50 erikoisvärit&quot; +80 €. Poikkeus valitaan Uusi työ -sivulla ja sen hinta
-          lisätään osan hintaan. Maalinkulutuksen voi samalla säätää työkohtaisesti.
-        </p>
-      </div>
-
-      <input
-        type="hidden"
-        name="poikkeukset"
-        value={JSON.stringify(
-          rivit
-            .filter((r) => r.nimi.trim() !== "")
-            .map((r) => ({ nimi: r.nimi.trim(), lisahinta_eur: Number(r.lisahinta) || 0 }))
-        )}
-      />
-
-      {rivit.length === 0 && (
-        <p className="text-sm text-muted-foreground">Ei poikkeuksia tälle osalle.</p>
-      )}
-
-      {rivit.map((rivi, indeksi) => (
-        <div key={indeksi} className="grid gap-3 sm:grid-cols-[1fr_9rem_auto] sm:items-end">
-          <div className="grid gap-1">
-            <Label htmlFor={`poikkeus_nimi_${indeksi}`} className="text-xs text-muted-foreground">
-              Nimi
-            </Label>
-            <Input
-              id={`poikkeus_nimi_${indeksi}`}
-              value={rivi.nimi}
-              placeholder="50/50 kahdella värillä"
-              onChange={(e) => paivita(indeksi, { nimi: e.target.value })}
-            />
-          </div>
-          <div className="flex items-end gap-2 sm:contents">
-            <div className="grid min-w-0 flex-1 gap-1 sm:flex-none">
-              <Label
-                htmlFor={`poikkeus_hinta_${indeksi}`}
-                className="text-xs text-muted-foreground"
-              >
-                Lisähinta €
-              </Label>
-              <Input
-                id={`poikkeus_hinta_${indeksi}`}
-                type="number"
-                min="0"
-                step="0.01"
-                value={rivi.lisahinta}
-                onChange={(e) => paivita(indeksi, { lisahinta: e.target.value })}
-              />
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Poista poikkeus"
-              onClick={() => setRivit((vanhat) => vanhat.filter((_, i) => i !== indeksi))}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </div>
-        </div>
-      ))}
-
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setRivit((vanhat) => [...vanhat, { nimi: "", lisahinta: "0" }])}
-        >
-          <Plus className="size-4" />
-          Lisää poikkeus
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export function OsaLomake({
   osa,
   tyovaiheet = [],
   kategoriahinnat = [],
-  poikkeukset = [],
   ajoneuvotyypit,
   formAction,
 }: OsaLomakeProps) {
@@ -460,8 +357,6 @@ export function OsaLomake({
           })}
         </div>
       </div>
-
-      <PoikkeusLista oletukset={poikkeukset} />
 
       <div className="grid gap-4 rounded-md border p-4">
         <Label className="font-medium">Hinnoittelun ylikirjoitukset (valinnainen)</Label>
