@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Clock, History, Layers, Pencil, Plus } from "lucide-react";
+import { Clock, History, Layers, Lock, Pencil, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { haeAjoneuvotyypit } from "@/lib/supabase/ajoneuvotyypit";
 import { KiireellisyysTapla } from "@/components/kiireellisyys-tapla";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -155,6 +156,13 @@ export default async function TyotSivu() {
     (a, b) => new Date(a.vanhin).getTime() - new Date(b.vanhin).getTime()
   );
 
+  // Kesken oleva työ kuuluu sille joka sen nappasi. Admin näkee ja hallinnoi
+  // kaikkia töitä, maalaaja vain omaansa - napit piilotetaan sen mukaan, ja
+  // sama sääntö on rivitason käytännöissä kannassa.
+  const onAdmin = kayttaja.role === "admin";
+  const saaKasitella = (tyo: { tila: string; aloitti_id: string | null }) =>
+    onAdmin || (tyo.tila === "vaiheessa" && tyo.aloitti_id === kayttaja.id);
+
   function riviteksti(rivi: TyonRiviRow) {
     let teksti = `${osaNimi(rivi.osa_id)} - ${variNimi(rivi.vari_id)}`;
     if (rivi.toinen_vari_id && rivi.toinen_vari_rooli) {
@@ -178,8 +186,9 @@ export default async function TyotSivu() {
         <div>
           <h1 className="text-2xl font-semibold">Työt</h1>
           <p className="text-muted-foreground">
-            Kokoa osat ja värit työksi - maali varataan jo vastaanotettaessa ja kuluu oikeasti kun
-            työ merkitään valmiiksi.
+            {onAdmin
+              ? "Kokoa osat ja värit työksi - maali varataan jo vastaanotettaessa ja kuluu oikeasti kun työ merkitään valmiiksi."
+              : "Ota vastaanotettu työ itsellesi ja merkitse se valmiiksi kun se on maalattu."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -191,12 +200,14 @@ export default async function TyotSivu() {
               Historia
             </Link>
           </Button>
-          <Button asChild>
-            <Link href="/tyot/uusi">
-              <Plus className="size-4" />
-              Uusi työ
-            </Link>
-          </Button>
+          {onAdmin && (
+            <Button asChild>
+              <Link href="/tyot/uusi">
+                <Plus className="size-4" />
+                Uusi työ
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -252,7 +263,9 @@ export default async function TyotSivu() {
 
           {vastaanotetut.length === 0 && (
             <p className="text-muted-foreground">
-              Ei vastaanotettuja töitä - lisää työ Uusi työ -napista.
+              {onAdmin
+                ? "Ei vastaanotettuja töitä - lisää työ Uusi työ -napista."
+                : "Ei vastaanotettuja töitä juuri nyt."}
             </p>
           )}
           {vastaanotetut.map((tyo) => {
@@ -271,13 +284,17 @@ export default async function TyotSivu() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button asChild variant="ghost" size="sm">
-                        <Link href={`/tyot/${tyo.id}/muokkaa`}>
-                          <Pencil className="size-4" />
-                          Muokkaa
-                        </Link>
-                      </Button>
-                      <PeruTyo tyoId={tyo.id} />
+                      {onAdmin && (
+                        <>
+                          <Button asChild variant="ghost" size="sm">
+                            <Link href={`/tyot/${tyo.id}/muokkaa`}>
+                              <Pencil className="size-4" />
+                              Muokkaa
+                            </Link>
+                          </Button>
+                          <PeruTyo tyoId={tyo.id} />
+                        </>
+                      )}
                       <AloitaTyo tyoId={tyo.id} />
                     </div>
                   </div>
@@ -325,27 +342,37 @@ export default async function TyotSivu() {
                       {new Date(tyo.tyo_aloitettu ?? tyo.aloitettu).toLocaleString("fi-FI")}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/tyot/${tyo.id}/muokkaa`}>
-                        <Pencil className="size-4" />
-                        Muokkaa
-                      </Link>
-                    </Button>
-                    <PeruTyo tyoId={tyo.id} />
-                    <MerkitseValmiiksi
-                      tyoId={tyo.id}
-                      rivit={tyonRivit.map((r) => ({
-                        id: r.id,
-                        osaNimi: osaNimi(r.osa_id),
-                        variNimi: variNimi(r.vari_id),
-                        arvioituKulutusG: r.arvioitu_kulutus_g,
-                        toinenVariNimi: r.toinen_vari_id ? variNimi(r.toinen_vari_id) : null,
-                        toinenVariRooli: r.toinen_vari_rooli,
-                        toinenArvioituKulutusG: r.toinen_arvioitu_kulutus_g,
-                      }))}
-                    />
-                  </div>
+                  {/* Työ on sen hallussa joka sen nappasi. Muille näytetään
+                      tekijä ilman nappeja, jottei kaksi ihmistä tee samaa työtä
+                      - kanta estää sen joka tapauksessa. */}
+                  {saaKasitella(tyo) ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/tyot/${tyo.id}/muokkaa`}>
+                          <Pencil className="size-4" />
+                          Muokkaa
+                        </Link>
+                      </Button>
+                      <PeruTyo tyoId={tyo.id} />
+                      <MerkitseValmiiksi
+                        tyoId={tyo.id}
+                        rivit={tyonRivit.map((r) => ({
+                          id: r.id,
+                          osaNimi: osaNimi(r.osa_id),
+                          variNimi: variNimi(r.vari_id),
+                          arvioituKulutusG: r.arvioitu_kulutus_g,
+                          toinenVariNimi: r.toinen_vari_id ? variNimi(r.toinen_vari_id) : null,
+                          toinenVariRooli: r.toinen_vari_rooli,
+                          toinenArvioituKulutusG: r.toinen_arvioitu_kulutus_g,
+                        }))}
+                      />
+                    </div>
+                  ) : (
+                    <Badge variant="outline" className="shrink-0 gap-1.5">
+                      <Lock className="size-3" />
+                      {profiiliNimi(tyo.aloitti_id)}
+                    </Badge>
+                  )}
                 </CardHeader>
                 <CardContent className="grid gap-2">
                   <ul className="grid gap-1 text-sm">

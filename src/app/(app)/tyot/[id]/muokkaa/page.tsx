@@ -16,18 +16,23 @@ export default async function MuokkaaTyotaSivu({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await vaaditaanKayttaja();
+  const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
 
   const { data: tyo } = await supabase
     .from("tyot")
-    .select("id, asiakas, tila, alennus_prosentti")
+    .select("id, asiakas, tila, alennus_prosentti, aloitti_id")
     .eq("id", id)
     .single();
   if (!tyo) notFound();
   // Valmiin työn rivit on jo kulutettu varastosta, joten niitä ei muokata.
   if (tyo.tila === "valmis") redirect("/tyot");
+  // Kesken oleva työ kuuluu sille joka sen nappasi, ja vastaanotettu adminille.
+  const saaMuokata =
+    kayttaja.role === "admin" ||
+    (tyo.tila === "vaiheessa" && tyo.aloitti_id === kayttaja.id);
+  if (!saaMuokata) redirect("/tyot");
 
   const [
     rivitVastaus,

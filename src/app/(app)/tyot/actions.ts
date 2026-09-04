@@ -69,6 +69,31 @@ function riviPayload(rivit: TyonRiviSyote[]) {
  */
 export type TyonTulos = { ok: true } | { ok: false; virhe: string };
 
+/**
+ * Varmistaa että kutsuja saa käsitellä työtä.
+ *
+ * Kesken oleva työ kuuluu sille joka sen nappasi: vain hän tai admin voi
+ * muokata, perua tai merkitä sen valmiiksi. Sama sääntö on rivitason
+ * käytännöissä ja kannan funktioissa - tämä antaa siitä suomenkielisen virheen
+ * ennen turhaa kantakutsua.
+ */
+async function vaaditaanTyonKasittelija(tyoId: string) {
+  const kayttaja = await vaaditaanKayttaja();
+  if (kayttaja.role === "admin") return kayttaja;
+
+  const supabase = await createClient();
+  const { data: tyo } = await supabase
+    .from("tyot")
+    .select("tila, aloitti_id")
+    .eq("id", tyoId)
+    .single();
+  if (!tyo) throw new Error("Työtä ei löytynyt.");
+  if (tyo.tila !== "vaiheessa" || tyo.aloitti_id !== kayttaja.id) {
+    throw new Error("Työ on toisen tekijän hallussa.");
+  }
+  return kayttaja;
+}
+
 /** Poimii virheestä maalaajalle näytettävän tekstin. */
 function virheteksti(virhe: unknown, oletus: string): string {
   return virhe instanceof Error && virhe.message ? virhe.message : oletus;
@@ -89,7 +114,8 @@ export async function aloitaTyo(
   tila: "vastaanotettu" | "vaiheessa" = "vaiheessa"
 ): Promise<TyonTulos> {
   try {
-    const kayttaja = await vaaditaanKayttaja();
+    // Vain admin kirjaa töitä: maalaaja ottaa valmiiksi kirjatun työn itselleen.
+    const kayttaja = await vaaditaanAdmin();
     if (rivit.length === 0) {
       return { ok: false, virhe: "Lisää vähintään yksi osa työhön ennen aloitusta." };
     }
@@ -149,7 +175,7 @@ export async function paivitaTyo(
   alennusProsentti = 0
 ): Promise<TyonTulos> {
   try {
-    await vaaditaanKayttaja();
+    await vaaditaanTyonKasittelija(tyoId);
     if (rivit.length === 0) {
       return { ok: false, virhe: "Työssä pitää olla vähintään yksi osa." };
     }
@@ -190,7 +216,7 @@ export async function merkitseTyoValmiiksi(
   tyoId: string,
   riviPaivitykset: RiviPaivitys[]
 ): Promise<void> {
-  const kayttaja = await vaaditaanKayttaja();
+  const kayttaja = await vaaditaanTyonKasittelija(tyoId);
   const supabase = await createClient();
 
   for (const rp of riviPaivitykset) {
@@ -235,7 +261,7 @@ export async function peruTyo(
   syy: PeruutuksenSyy,
   tarkennus?: string | null
 ): Promise<void> {
-  await vaaditaanKayttaja();
+  await vaaditaanTyonKasittelija(tyoId);
   const siistittyTarkennus = tarkennus?.trim() ?? "";
   if (syy === "muu" && siistittyTarkennus === "") {
     throw new Error("Kirjoita peruutuksen syy.");
@@ -263,7 +289,7 @@ export async function peruTyo(
  * ja samalla takaisin varaukseen, koska työ jatkuu.
  */
 export async function palautaTyoKeskeneraiseksi(tyoId: string): Promise<void> {
-  await vaaditaanKayttaja();
+  await vaaditaanAdmin();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("palauta_tyo_keskeneraiseksi", { p_tyo_id: tyoId });

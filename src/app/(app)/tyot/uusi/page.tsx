@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
+import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { osanKateprosentit } from "@/lib/hinnat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,8 @@ import { laskeTyokustannusKerroksittain } from "../../osat/kustannusarvio";
 import { TyonLomake } from "../tyon-lomake";
 
 export default async function UusiTyoSivu() {
-  await vaaditaanKayttaja();
+  // Vain admin kirjaa töitä: maalaaja ottaa kirjatun työn itselleen.
+  await vaaditaanAdmin();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
 
