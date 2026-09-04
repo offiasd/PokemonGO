@@ -316,6 +316,7 @@ export function OsaLomake({
           key={kuvaUrl ?? "ei-kuvaa"}
           kuvaUrl={kuvaUrl}
           alkuarvo={siistiRajaus({ x: osa?.kuva_x, y: osa?.kuva_y, zoom: osa?.kuva_zoom })}
+          nimi={osa?.nimi}
         />
       </div>
 

@@ -28,9 +28,12 @@ import {
 export function KuvanRajaus({
   kuvaUrl,
   alkuarvo,
+  nimi,
 }: {
   kuvaUrl: string | null;
   alkuarvo: Kuvarajaus;
+  /** Näytetään esikatselussa kortin otsikon paikalla. */
+  nimi?: string | null;
 }) {
   const [rajaus, setRajaus] = useState<Kuvarajaus>(() => siistiRajaus(alkuarvo));
   const kehysRef = useRef<HTMLDivElement>(null);
@@ -118,9 +121,19 @@ export function KuvanRajaus({
             </div>
           )}
 
-          {/* Samat tekstipaikat kuin kortissa, jotta rajatessa näkee mihin ne osuvat. */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-9 bg-background/55" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-11 bg-background/55" />
+          {/* Kortin tekstilaatikot samoilla tyyleillä ja paikoilla, jotta
+              rajatessa näkee tarkalleen mitä ne peittävät. */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-1.5">
+            <span className="max-w-full rounded-2xl bg-background/60 px-2.5 py-1 text-center text-xs leading-tight font-semibold backdrop-blur-md">
+              {nimi || "Osan nimi"}
+            </span>
+          </div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-1.5">
+            <span className="grid max-w-full gap-0.5 rounded-2xl bg-background/60 px-2.5 py-1 text-center backdrop-blur-md">
+              <span className="text-[0.6875rem] leading-tight">Osaryhmä</span>
+              <span className="text-xs leading-tight font-semibold">Hinta</span>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -128,7 +141,7 @@ export function KuvanRajaus({
         <>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Move className="size-3.5" />
-            Vedä kuvaa kehyksessä - vaaleat alueet ovat otsikon ja hinnan paikat.
+            Vedä kuvaa kehyksessä - laatikot ovat otsikon ja hinnan paikat.
           </p>
 
           <div className="grid gap-1.5 sm:max-w-xs">

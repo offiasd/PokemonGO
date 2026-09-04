@@ -210,32 +210,33 @@ export default async function OsatSivu({
                   </div>
                 )}
 
-                {/* Tekstit kuvan päällä omilla vaaleilla pohjillaan: läpikuultava
-                    tausta erottaa ne myös silloin kun kuva on tekstin värinen.
-                    backdrop-blur pehmentää kuvion, jottei se sotke kirjaimia. */}
-                <div className="absolute inset-x-0 top-0 bg-background/75 px-2 py-1.5 backdrop-blur-sm">
-                  {/* Nimi pysyy yhdellä rivillä: kaksirivinen nimi söisi kuvaa
-                      ja tekisi korteista eri näköisiä. */}
-                  <p className="truncate text-sm leading-tight font-semibold">{osa.nimi}</p>
-                  <p className="truncate text-xs leading-tight text-muted-foreground">
-                    {osa.lisatiedot || "Ei lisätietoja"}
-                  </p>
+                {/* Tekstit kuvan päällä pyöreissä laatikoissa, jotka mukautuvat
+                    tekstin leveyteen. Tausta on selvästi läpikuultava ja
+                    sumennus tekee luettavuuden: pelkkä läpikuultava väri
+                    katoaisi samanvärisen kuvion päällä, mutta sumennus hajottaa
+                    kuvion kirjainten takaa. */}
+                <div className="absolute inset-x-0 top-0 flex flex-col items-center gap-1 p-1.5">
+                  <span className="max-w-full rounded-2xl bg-background/60 px-2.5 py-1 text-center text-xs leading-tight font-semibold break-words backdrop-blur-md line-clamp-2">
+                    {osa.nimi}
+                  </span>
+                  {!osa.aktiivinen && (
+                    <Badge variant="secondary" className="shrink-0">
+                      Poistettu
+                    </Badge>
+                  )}
                 </div>
 
-                <div className="absolute inset-x-0 bottom-0 grid gap-0.5 bg-background/75 px-2 py-1.5 text-center backdrop-blur-sm">
-                  <span className="truncate text-xs leading-tight text-muted-foreground">
-                    {ajoneuvotyypinNimi(osa.ajoneuvotyyppi, ajoneuvotyypit)}
-                  </span>
-                  <span className="truncate text-sm leading-tight font-semibold">
-                    {hinta ? muotoileValiEuro(hinta.min, hinta.max) : "Ei hintaa"}
+                <div className="absolute inset-x-0 bottom-0 flex justify-center p-1.5">
+                  <span className="grid max-w-full gap-0.5 rounded-2xl bg-background/60 px-2.5 py-1 text-center backdrop-blur-md">
+                    <span className="truncate text-[0.6875rem] leading-tight">
+                      {ajoneuvotyypinNimi(osa.ajoneuvotyyppi, ajoneuvotyypit)}
+                    </span>
+                    <span className="truncate text-xs leading-tight font-semibold">
+                      {hinta ? muotoileValiEuro(hinta.min, hinta.max) : "Ei hintaa"}
+                    </span>
                   </span>
                 </div>
 
-                {!osa.aktiivinen && (
-                  <Badge variant="secondary" className="absolute top-11 right-2">
-                    Poistettu
-                  </Badge>
-                )}
               </Card>
             </Link>
           );
