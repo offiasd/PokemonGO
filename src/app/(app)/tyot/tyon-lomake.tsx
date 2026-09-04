@@ -471,29 +471,26 @@ export function TyonLomake({
       })),
     }));
 
+    // Toiminto palauttaa virheen arvona eikä heitä sitä: tuotannossa Next.js
+    // korvaa heitetyn virheen yleisellä React-virheellä, jolloin maalaaja näki
+    // numerosarjan sen sijaan että olisi tiennyt mikä meni pieleen.
     aloita(async () => {
-      try {
-        if (muokattavaTyo) {
-          await paivitaTyo(muokattavaTyo.id, asiakas.trim() || null, syotteet, alennusProsentti);
-          toast.success("Työ päivitetty ja varaukset korjattu varastoon.");
-        } else {
-          await aloitaTyo(asiakas.trim() || null, syotteet, alennusProsentti, tila);
-          toast.success(
-            tila === "vastaanotettu"
-              ? "Työ vastaanotettu ja maali varattu varastosta."
-              : "Työ aloitettu ja maali varattu varastosta."
-          );
-        }
-        router.push("/tyot");
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : muokattavaTyo
-              ? "Työn päivitys epäonnistui."
-              : "Työn tallennus epäonnistui."
-        );
+      const tulos = muokattavaTyo
+        ? await paivitaTyo(muokattavaTyo.id, asiakas.trim() || null, syotteet, alennusProsentti)
+        : await aloitaTyo(asiakas.trim() || null, syotteet, alennusProsentti, tila);
+
+      if (!tulos.ok) {
+        toast.error(tulos.virhe);
+        return;
       }
+      toast.success(
+        muokattavaTyo
+          ? "Työ päivitetty ja varaukset korjattu varastoon."
+          : tila === "vastaanotettu"
+            ? "Työ vastaanotettu ja maali varattu varastosta."
+            : "Työ aloitettu ja maali varattu varastosta."
+      );
+      router.push("/tyot");
     });
   }
 

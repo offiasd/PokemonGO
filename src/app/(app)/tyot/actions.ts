@@ -61,6 +61,20 @@ function riviPayload(rivit: TyonRiviSyote[]) {
 }
 
 /**
+ * Toiminnon lopputulos, joka kestää palvelimelta selaimeen.
+ *
+ * Next.js piilottaa tuotannossa server actionin heittämän virheen ja korvaa sen
+ * yleisellä React-virheellä, joten maalaaja näki pelkän numerosarjan sen sijaan
+ * että olisi tiennyt mikä meni pieleen. Virhe palautetaan siksi arvona.
+ */
+export type TyonTulos = { ok: true } | { ok: false; virhe: string };
+
+/** Poimii virheestä maalaajalle näytettävän tekstin. */
+function virheteksti(virhe: unknown, oletus: string): string {
+  return virhe instanceof Error && virhe.message ? virhe.message : oletus;
+}
+
+/**
  * Luo työn joko vastaanotetuksi tai suoraan maalaukseen.
  *
  * Vastaanotettu tarkoittaa että osat on tuotu maalaamolle ja työstä on sovittu,
@@ -73,46 +87,50 @@ export async function aloitaTyo(
   rivit: TyonRiviSyote[],
   alennusProsentti = 0,
   tila: "vastaanotettu" | "vaiheessa" = "vaiheessa"
-): Promise<string> {
-  const kayttaja = await vaaditaanKayttaja();
-  if (rivit.length === 0) {
-    throw new Error("Lisää vähintään yksi osa työhön ennen aloitusta.");
-  }
-  const supabase = await createClient();
+): Promise<TyonTulos> {
+  try {
+    const kayttaja = await vaaditaanKayttaja();
+    if (rivit.length === 0) {
+      return { ok: false, virhe: "Lisää vähintään yksi osa työhön ennen aloitusta." };
+    }
+    const supabase = await createClient();
 
-  const vastaanotettu = tila === "vastaanotettu";
-  const { data: tyo, error: tyoVirhe } = await supabase
-    .from("tyot")
-    .insert({
-      asiakas,
-      tila,
-      aloitti_id: vastaanotettu ? null : kayttaja.id,
-      vastaanotti_id: kayttaja.id,
-      tyo_aloitettu: vastaanotettu ? null : new Date().toISOString(),
-      alennus_prosentti: tarkistaAlennus(alennusProsentti),
-    })
-    .select("id")
-    .single();
-  if (tyoVirhe || !tyo) {
-    throw new Error(tyoVirhe?.message ?? "Työn aloitus epäonnistui.");
-  }
+    const vastaanotettu = tila === "vastaanotettu";
+    const { data: tyo, error: tyoVirhe } = await supabase
+      .from("tyot")
+      .insert({
+        asiakas,
+        tila,
+        aloitti_id: vastaanotettu ? null : kayttaja.id,
+        vastaanotti_id: kayttaja.id,
+        tyo_aloitettu: vastaanotettu ? null : new Date().toISOString(),
+        alennus_prosentti: tarkistaAlennus(alennusProsentti),
+      })
+      .select("id")
+      .single();
+    if (tyoVirhe || !tyo) {
+      return { ok: false, virhe: tyoVirhe?.message ?? "Työn tallennus epäonnistui." };
+    }
 
-  // Rivit kirjoitetaan samalla funktiolla kuin muokkauksessa: se osaa myös
-  // rivien lisävärit, jotka tarvitsevat juuri luodun rivin id:n.
-  const { error: riviVirhe } = await supabase.rpc("korvaa_tyon_rivit", {
-    p_tyo_id: tyo.id,
-    p_rivit: riviPayload(rivit),
-  });
-  if (riviVirhe) {
-    // Siivotaan luotu työ, ettei jää rivittömiä "haamu"-töitä.
-    await supabase.from("tyot").delete().eq("id", tyo.id);
-    throw new Error(riviVirhe.message);
-  }
+    // Rivit kirjoitetaan samalla funktiolla kuin muokkauksessa: se osaa myös
+    // rivien lisävärit, jotka tarvitsevat juuri luodun rivin id:n.
+    const { error: riviVirhe } = await supabase.rpc("korvaa_tyon_rivit", {
+      p_tyo_id: tyo.id,
+      p_rivit: riviPayload(rivit),
+    });
+    if (riviVirhe) {
+      // Siivotaan luotu työ, ettei jää rivittömiä "haamu"-töitä.
+      await supabase.from("tyot").delete().eq("id", tyo.id);
+      return { ok: false, virhe: riviVirhe.message };
+    }
 
-  revalidatePath("/tyot");
-  revalidatePath("/varit");
-  revalidatePath("/");
-  return tyo.id as string;
+    revalidatePath("/tyot");
+    revalidatePath("/varit");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (virhe) {
+    return { ok: false, virhe: virheteksti(virhe, "Työn tallennus epäonnistui.") };
+  }
 }
 
 /**
@@ -129,32 +147,37 @@ export async function paivitaTyo(
   asiakas: string | null,
   rivit: TyonRiviSyote[],
   alennusProsentti = 0
-): Promise<void> {
-  await vaaditaanKayttaja();
-  if (rivit.length === 0) {
-    throw new Error("Työssä pitää olla vähintään yksi osa.");
+): Promise<TyonTulos> {
+  try {
+    await vaaditaanKayttaja();
+    if (rivit.length === 0) {
+      return { ok: false, virhe: "Työssä pitää olla vähintään yksi osa." };
+    }
+    const supabase = await createClient();
+
+    const { data: tyo } = await supabase.from("tyot").select("tila").eq("id", tyoId).single();
+    if (!tyo) return { ok: false, virhe: "Työtä ei löytynyt." };
+    if (tyo.tila === "valmis") return { ok: false, virhe: "Valmista työtä ei voi muokata." };
+
+    const { error: rpcVirhe } = await supabase.rpc("korvaa_tyon_rivit", {
+      p_tyo_id: tyoId,
+      p_rivit: riviPayload(rivit),
+    });
+    if (rpcVirhe) return { ok: false, virhe: rpcVirhe.message };
+
+    const { error: tyoVirhe } = await supabase
+      .from("tyot")
+      .update({ asiakas, alennus_prosentti: tarkistaAlennus(alennusProsentti) })
+      .eq("id", tyoId);
+    if (tyoVirhe) return { ok: false, virhe: tyoVirhe.message };
+
+    revalidatePath("/tyot");
+    revalidatePath("/varit");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (virhe) {
+    return { ok: false, virhe: virheteksti(virhe, "Työn päivitys epäonnistui.") };
   }
-  const supabase = await createClient();
-
-  const { data: tyo } = await supabase.from("tyot").select("tila").eq("id", tyoId).single();
-  if (!tyo) throw new Error("Työtä ei löytynyt.");
-  if (tyo.tila === "valmis") throw new Error("Valmista työtä ei voi muokata.");
-
-  const { error: rpcVirhe } = await supabase.rpc("korvaa_tyon_rivit", {
-    p_tyo_id: tyoId,
-    p_rivit: riviPayload(rivit),
-  });
-  if (rpcVirhe) throw new Error(rpcVirhe.message);
-
-  const { error: tyoVirhe } = await supabase
-    .from("tyot")
-    .update({ asiakas, alennus_prosentti: tarkistaAlennus(alennusProsentti) })
-    .eq("id", tyoId);
-  if (tyoVirhe) throw new Error(tyoVirhe.message);
-
-  revalidatePath("/tyot");
-  revalidatePath("/varit");
-  revalidatePath("/");
 }
 
 export interface RiviPaivitys {
