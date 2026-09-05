@@ -54,7 +54,7 @@ export default async function MuokkaaTyotaSivu({
     supabase
       .from("varit")
       .select(
-        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, hintalisa_prosentti, vaatii_lakkauksen"
+        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, vaatii_lakkauksen"
       )
       .eq("aktiivinen", true)
       .order("nimi"),

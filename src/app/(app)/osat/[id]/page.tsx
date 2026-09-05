@@ -61,7 +61,7 @@ export default async function OsaSivu({
     supabase.from("osa_tyovaiheet").select("*").eq("osa_id", id),
     supabase
       .from("varit")
-      .select("id, nimi, alkupera, hintalisa_prosentti")
+      .select("id, nimi, alkupera")
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase.from("osa_kategoriahinnat").select("*").eq("osa_id", id),

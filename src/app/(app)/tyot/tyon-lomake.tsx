@@ -64,7 +64,6 @@ interface Vari {
   tyyppi: MaaliTyyppi;
   saldo_g: number;
   varattu_g: number;
-  hintalisa_prosentti: number;
   vaatii_lakkauksen: boolean;
   kokonaishinta: number;
 }
@@ -308,8 +307,7 @@ export function TyonLomake({
       kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakattu) ??
       valittuOsa.manuaalinen_hinta ??
       Math.round((kustannus * (1 + kate / 100) + valittuOsa.kateKiintea) * 100) / 100;
-    const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
-    return Math.round((kategorianHinta + lisa) * 100) / 100;
+    return kategorianHinta;
   }, [
     valittuKategoriahinta,
     valittuVari,
@@ -601,7 +599,6 @@ export function TyonLomake({
                   {kategorianVarit.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.nimi}
-                      {v.hintalisa_prosentti > 0 && ` (+${v.hintalisa_prosentti} %)`}
                     </SelectItem>
                   ))}
                 </SelectContent>

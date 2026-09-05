@@ -156,7 +156,6 @@ export interface Database {
           alkuperainen_hinta: number | null;
           alkuperainen_valuutta: string | null;
           alkuperainen_yksikko: string | null;
-          hintalisa_prosentti: number;
           varattu_g: number;
           saldo_g: number;
           halytysraja_g: number | null;

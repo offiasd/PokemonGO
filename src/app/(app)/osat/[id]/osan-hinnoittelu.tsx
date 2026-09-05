@@ -28,7 +28,6 @@ interface Vari {
   id: string;
   nimi: string;
   alkupera: Alkupera;
-  hintalisa_prosentti: number;
   kokonaishinta: number;
 }
 
@@ -152,13 +151,10 @@ export function OsanHinnoittelu({
       kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakkausValittu) ??
       manuaalinenHinta ??
       Math.round((kustannus * (1 + kate / 100) + kateKiintea) * 100) / 100;
-    const lisa = kategorianHinta * (valittuVari.hintalisa_prosentti / 100);
 
     const pesuLisa = pesuValittu ? pesunKustannus : 0;
     const maalinpoistoLisa = maalinpoistoValittu ? maalinpoistonKustannus : 0;
-    return (
-      Math.round((kategorianHinta + lisa + pesuLisa + maalinpoistoLisa) * 100) / 100
-    );
+    return Math.round((kategorianHinta + pesuLisa + maalinpoistoLisa) * 100) / 100;
   }, [
     valittuKategoriahinta,
     valittuVari,
@@ -247,7 +243,6 @@ export function OsanHinnoittelu({
                   {kategorianVarit.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.nimi}
-                      {v.hintalisa_prosentti > 0 && ` (+${v.hintalisa_prosentti} %)`}
                     </SelectItem>
                   ))}
                 </SelectContent>
