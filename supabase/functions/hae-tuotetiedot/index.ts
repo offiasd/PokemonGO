@@ -30,6 +30,7 @@ import {
   muunnaPerKg,
   nimiOtsikosta,
   poimiAlkupera,
+  poimiEnglanninOhjeet,
   poimiHinta,
   poimiKiiltoaste,
   poimiKuva,
@@ -216,6 +217,13 @@ async function htmlstaVastaus(html: string, osoite: string): Promise<HaeTiedotVa
   const luokittelut = poimiLuokittelut(html);
   const tyyppi = poimiTyyppi(nimi, luokittelut, kuvausTeksti);
 
+  // Ohjeet luetaan pelkästä tuotekuvauksesta: kuvausTeksti sisältää saman
+  // tekstin kahdesti (og-tagi ja meta-kuvaus) sekä otsikon, eikä otsikossa ole
+  // ohjeita.
+  const tuotekuvaus = dekoodaaHtmlEntiteetit(
+    poimiMeta(html, "og:description") ?? poimiMetaNimella(html, "description") ?? ""
+  );
+
   const raakaHinta = poimiHinta(html);
   let ostohintaPerKg: number | null = null;
   const varoitukset: string[] = [];
@@ -243,6 +251,8 @@ async function htmlstaVastaus(html: string, osoite: string): Promise<HaeTiedotVa
   vastaus.valmistaja = poimiValmistaja(html);
   vastaus.kuva_url = poimiKuva(html, osoite);
   vastaus.ohje_tiedosto_url = poimiOhjeTiedosto(html, osoite);
+  vastaus.ohjeet = poimiEnglanninOhjeet(tuotekuvaus);
+  vastaus.hakusanat = suomennaHakusanat(nimi ?? "");
   vastaus.myyja_linkki = osoite;
   vastaus.kiiltoaste = poimiKiiltoaste(kuvausTeksti);
   vastaus.tyyppi = tyyppi;
@@ -326,7 +336,8 @@ Deno.serve(async (req) => {
       // eurooppalainen kauppa), jolloin nimi lyhenee samalla säännöllä.
       const koodi = await ralKoodi(supabase, vastaus.nimi ?? "");
       if (koodi) {
-        vastaus.hakusanat = suomennaHakusanat(vastaus.nimi ?? "");
+        // Nimi lyhenee koodiksi, joten otsikon sanat siirtyvät hakusanoiksi.
+        vastaus.hakusanat = suomennaHakusanat(vastaus.nimi ?? "") ?? vastaus.hakusanat;
         vastaus.nimi = koodi;
         if (!vastaus.varisavy && vastaus.tyyppi !== "transparent") {
           vastaus.varisavy = await ralVarisavy(supabase, koodi);

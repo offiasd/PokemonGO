@@ -537,6 +537,9 @@ const OHJEOTSIKOT: { saksa: RegExp; suomi: string; mukaan: boolean }[] = [
   { saksa: /^technische datenbl[äa]tter:?$/i, suomi: "", mukaan: false },
   { saksa: /^empfehlung f[üu]r den au[ßs]enbereich:?$/i, suomi: "", mukaan: false },
   { saksa: /^sie haben fragen[:?]*$/i, suomi: "", mukaan: false },
+  // Anti-graffiti-tuotteilla polttoajan perässä on puhdistustaulukko omilla
+  // riveillään. Ilman rajaa se valui polttoajan sekaan saksankielisenä.
+  { saksa: /^anti-?graffiti\b/i, suomi: "", mukaan: false },
 ];
 
 /** Yksittäisen osion pituusraja. Laiteosto-sivuilla "Anwendung" on tuhansien
@@ -863,44 +866,247 @@ export function kaannaSaksasta(teksti: string): string {
   return tulos.replace(/\s+/g, " ").trim();
 }
 
-/** Yhden sanan suomennos hakusanoiksi, tai null jos sanaa ei tunnisteta. */
+/** Yhden sanan suomennokset hakusanoiksi. Tyhjä lista = sanaa ei tunnisteta. */
 function sananSuomennokset(sana: string): string[] {
-  const suomennokset: string[] = [];
   for (const [malli, suomeksi] of TERMIT) {
     if (new RegExp(`^${malli.source.replace(/\\b/g, "")}$`, "i").test(sana)) {
-      suomennokset.push(suomeksi);
-      return suomennokset;
+      return [suomeksi];
     }
   }
-  const vari = VARIPAATTEET.find(([malli]) => malli.test(sana));
-  if (!vari) return suomennokset;
+  for (const [malli, suomeksi] of ENGLANNIN_HAKUSANAT) {
+    if (malli.test(sana)) return [suomeksi];
+  }
 
-  const maare = VARIMAAREET.find(([malli]) => malli.test(sana));
-  suomennokset.push(vari[1]);
-  if (maare) suomennokset.push(`${maare[1]}${vari[1]}`);
-  return suomennokset;
+  // Saksan yhdyssana: perusväri päätteestä, tarkenne alusta.
+  const vari = VARIPAATTEET.find(([malli]) => malli.test(sana));
+  if (vari) {
+    const maare = VARIMAAREET.find(([malli]) => malli.test(sana));
+    return maare ? [vari[1], `${maare[1]}${vari[1]}`] : [vari[1]];
+  }
+
+  // Englanninkielinen värisana ("Cherry", "Navy") sävyn kautta.
+  const savy = tunnistaVarisavy(sana);
+  return savy ? [SAVYN_HAKUSANA[savy]] : [];
 }
 
+// Varisavy-arvot ovat kannan avaimia (ascii), joten hakusanoihin tarvitaan
+// luettava suomenkielinen muoto.
+const SAVYN_HAKUSANA: Record<Varisavy, string> = {
+  punainen: "punainen",
+  oranssi: "oranssi",
+  keltainen: "keltainen",
+  vihrea: "vihreä",
+  sininen: "sininen",
+  liila: "liila",
+  pinkki: "pinkki",
+  musta: "musta",
+  harmaa: "harmaa",
+  valkoinen: "valkoinen",
+  hopea: "hopea",
+  kultainen: "kultainen",
+  bronssi: "pronssi",
+  ruskea: "ruskea",
+};
+
+// Englanninkieliset tuotesanat hakusanoiksi. Erillään saksan termeistä, koska
+// TERMIT kääntää myös ohjetekstin eikä siihen kuulu englantia.
+const ENGLANNIN_HAKUSANAT: [RegExp, string][] = [
+  [/^clears?$/i, "lakka"],
+  [/^(top ?coat|topcoat)$/i, "lakka"],
+  [/^(base ?coat|basecoat|primer)$/i, "pohjaväri"],
+  [/^metallics?$/i, "metallic"],
+  [/^candy$/i, "candy"],
+  [/^illusions?$/i, "illusion"],
+  [/^(sparkles?|glitter)$/i, "kimalle"],
+  [/^(chrome|chromium)$/i, "kromi"],
+  [/^pearls?$/i, "helmiäinen"],
+  [/^(wrinkles?|wrinkled)$/i, "ryppykuvio"],
+  [/^(textures?|textured)$/i, "tekstuuri"],
+  [/^(matte|flat)$/i, "matta"],
+  [/^satin$/i, "satiini"],
+  [/^glossy?$/i, "kiiltävä"],
+  [/^solid$/i, "yksivärinen"],
+  [/^transparent$/i, "läpikuultava"],
+  [/^alumin(?:i)?um$/i, "alumiini"],
+  [/^polished$/i, "kiillotettu"],
+  [/^brushed$/i, "harjattu"],
+  [/^anodized$/i, "anodisoitu"],
+  [/^durable$/i, "kestävä"],
+  [/^fluorescent|florescent$/i, "fluoresoiva"],
+];
+
 /**
- * Hakusanat valmistajan tuoteotsikosta.
+ * Hakusanat valmistajan tuoteotsikosta - suomeksi.
  *
- * Alkuperäinen saksankielinen otsikko säilyy, koska sillä värin löytää samoilla
- * sanoilla kuin myyjän sivulta, ja perään lisätään suomennokset - muuten
- * "syvänmusta" tai "kiiltävä" ei löytäisi väriä jonka nimeksi jäi "RAL 9005".
+ * Otsikko on saksaa tai englantia, eikä värin nimeen jää siitä välttämättä
+ * mitään: "Pulverlack RAL 9005 Tiefschwarz glatt hochglanz HWF" lyhenee muotoon
+ * "RAL 9005". Hakusanoihin poimitaan otsikon sanoista suomenkieliset vastineet,
+ * jotta värin löytää haulla "syvänmusta" tai "korkeakiilto".
  */
 export function suomennaHakusanat(otsikko: string): string | null {
-  const siistitty = otsikko.trim();
-  if (!siistitty) return null;
+  const sanat = otsikko.trim().split(/[^A-Za-zÄÖÜäöüß]+/).filter(Boolean);
+  if (sanat.length === 0) return null;
 
-  const nakyvat = new Set(siistitty.toLowerCase().split(/[^a-zäöüß0-9]+/i).filter(Boolean));
-  const lisattavat: string[] = [];
-  for (const sana of siistitty.split(/[^A-Za-zÄÖÜäöüß]+/).filter(Boolean)) {
+  const nahdyt = new Set<string>();
+  const hakusanat: string[] = [];
+  for (const sana of sanat) {
     for (const suomennos of sananSuomennokset(sana)) {
-      if (!nakyvat.has(suomennos.toLowerCase())) {
-        nakyvat.add(suomennos.toLowerCase());
-        lisattavat.push(suomennos);
+      if (!nahdyt.has(suomennos.toLowerCase())) {
+        nahdyt.add(suomennos.toLowerCase());
+        hakusanat.push(suomennos);
       }
     }
   }
-  return lisattavat.length > 0 ? `${siistitty} - ${lisattavat.join(", ")}` : siistitty;
+  return hakusanat.length > 0 ? hakusanat.join(", ") : null;
+}
+
+// ===========================================================================
+// Englanninkielisen tuotetekstin ohjeet suomeksi (Prismatic Powders)
+// ===========================================================================
+//
+// Prismaticin tuotekuvaus on markkinointitekstiä, jonka seassa on maalarille
+// oikeasti tarpeellista tietoa: lakkavaatimus, pohjaväri, polttoaika ja
+// varoitukset. Sen sijaan että koko teksti käännettäisiin, poimitaan vain ne
+// lauseet joilla on tekemistä maalaamisen kanssa - näin ohjeisiin ei päädy
+// "The possibilities and combinations are unlimited".
+//
+// Poiminta on siis valkoinen lista: tunnistamaton lause jätetään pois, jolloin
+// ohjeisiin ei jää käännöstä vaille jäänyttä englantia.
+
+/** Fahrenheit celsiuksiksi. Prismatic ilmoittaa polttolämmöt vain fahrenheitina. */
+function fahrenheitCelsiuksiksi(f: number): number {
+  return Math.round(((f - 32) * 5) / 9);
+}
+
+const ENGLANNIN_OHJEET: [RegExp, (m: RegExpMatchArray) => string][] = [
+  // Polttoaika. Celsius mukaan, koska uunista luetaan celsiusta.
+  [
+    /(\d+)\s*minutes? at\s*(\d+)\s*°?\s*F(?:\s*PMT)?/i,
+    (m) => `Polttoaika: ${m[1]} min lämpötilassa ${m[2]} °F (${fahrenheitCelsiuksiksi(Number(m[2]))} °C) kappaleen lämpötilana.`,
+  ],
+
+  // Lakkavaatimus ja pohjaväri
+  [
+    /To achieve the color,? displayed,?\s*([A-Za-z0-9 ]{2,30}?)\s*top coat must be applied/i,
+    (m) => `Kuvan mukainen sävy syntyy vasta lakalla ${m[1].trim()}.`,
+  ],
+  [
+    /To achieve this color as shown,\s*([A-Za-z0-9\- ]{2,40}?)\s*must be applied as a base coat/i,
+    (m) => `Kuvan mukainen sävy edellyttää pohjaväriä ${m[1].trim()}.`,
+  ],
+  [
+    /Illusion colors only activate when a clear top coat is applied/i,
+    () => "TÄRKEÄÄ: Illusion-värit aktivoituvat vasta kun päälle levitetään kirkas lakka.",
+  ],
+  [
+    /requires? a clear ?top ?coat/i,
+    () => "Vaatii kirkkaan lakan.",
+  ],
+  [
+    /(?:A|\*+A) clear top coat,?\s*(?:such as\s*([A-Za-z0-9\- ]{2,30}?)\s*,?\s*)?is recommended for exterior use/i,
+    (m) => `Ulkokäyttöön suositellaan kirkasta lakkaa${m[1] ? ` (esimerkiksi ${m[1].trim()})` : ""}.`,
+  ],
+  [
+    /For exterior use, use a clear top coat, such as\s*([A-Za-z0-9\- ]{2,30}?)\s*\./i,
+    (m) => `Ulkokäyttöön suositellaan kirkasta lakkaa (esimerkiksi ${m[1].trim()}).`,
+  ],
+  [
+    /not recommended for exterior exposure without applying a UV-resistant top coat/i,
+    () => "Ei sovellu ulkokäyttöön ilman UV-suojaavaa lakkaa.",
+  ],
+  [
+    /excellent base coat to use under transparent powders/i,
+    () => "Sopii pohjaväriksi läpikuultavien jauheiden alle.",
+  ],
+
+  // Varoitukset ja lopputulokseen vaikuttavat tekijät
+  [
+    /clear top coat may improve UV resistance and the overall durability of the finish, it can occasionally change the appearance of the color/i,
+    () => "Lakka parantaa UV- ja kulutuskestävyyttä, mutta voi muuttaa alla olevan värin ulkonäköä.",
+  ],
+  [
+    /This product has limited flexibility and impact resistance/i,
+    () => "Tuotteen joustavuus ja iskunkestävyys ovat rajalliset.",
+  ],
+  [
+    /This color may have limited UV stability/i,
+    () => "Värin UV-kestävyys voi olla rajallinen.",
+  ],
+  [
+    /Transparent powder coatings allow the underlying substrate to influence the final color, depth, brightness,? and reflectivity/i,
+    () => "Läpikuultavassa jauhemaalissa alusta vaikuttaa lopulliseen sävyyn, syvyyteen, kirkkauteen ja heijastavuuteen.",
+  ],
+  [
+    /Less-reflective substrates may produce a softer or more muted appearance/i,
+    () => "Vähemmän heijastava alusta antaa pehmeämmän ja vaimeamman lopputuloksen.",
+  ],
+  [
+    /(?:We|we) (?:always )?recommend (?:spraying|shooting) a test panel/i,
+    () => "Tee koelevy ennen varsinaista kappaletta.",
+  ],
+  [
+    /Super Durables are made with a durable polyester resin that offers a superior UV resistant package/i,
+    () => "Super Durable -sarja on kestävää polyesterihartsia, joka antaa tavallista paremman UV- ja säänkeston.",
+  ],
+];
+
+// Tuotteen laji ja pinta omalla lauseellaan: "This color is a polyester
+// metallic powder coat and has a high gloss finish."
+const TUOTELAJIT: [RegExp, string][] = [
+  [/polyester\s*\/\s*epoxy hybrid/i, "polyesteri-epoksihybridijauhe"],
+  [/polyurethane/i, "polyuretaanijauhemaali"],
+  [/transparent polyester/i, "läpikuultava polyesterijauhemaali"],
+  [/polyester metallic/i, "polyesteripohjainen metallic-jauhemaali"],
+  [/polyester top ?coat/i, "polyesteripohjainen lakka"],
+  [/polyester solid tone/i, "polyesteripohjainen yksivärinen jauhemaali"],
+  [/polyester wrinkle/i, "polyesteripohjainen ryppykuvioitu jauhemaali"],
+  [/polyester/i, "polyesterijauhemaali"],
+];
+
+const PINNAT: [RegExp, string][] = [
+  [/high gloss/i, "korkeakiiltoinen"],
+  [/semi[- ]?gloss/i, "puolikiiltoinen"],
+  [/satin/i, "satiini"],
+  [/matte/i, "matta"],
+  [/flat/i, "täysmatta"],
+  [/gloss(?:y)?/i, "kiiltävä"],
+];
+
+function ensimmainenOsuma(taulu: [RegExp, string][], teksti: string): string | null {
+  return taulu.find(([malli]) => malli.test(teksti))?.[1] ?? null;
+}
+
+/**
+ * Valmistajan ohjeet englanninkielisestä tuotekuvauksesta.
+ *
+ * Lauseet poimitaan valkoisella listalla ja käännetään suomeksi. Sama ohje
+ * toistuu kuvauksessa usein kahdesti (og-tagi ja meta-kuvaus), joten tulos
+ * karsitaan kertaalleen.
+ */
+export function poimiEnglanninOhjeet(kuvaus: string): string | null {
+  const rivit: string[] = [];
+  const nahdyt = new Set<string>();
+  const lisaa = (rivi: string) => {
+    if (!nahdyt.has(rivi)) {
+      nahdyt.add(rivi);
+      rivit.push(rivi);
+    }
+  };
+
+  const laji = ensimmainenOsuma(TUOTELAJIT, kuvaus.match(/is an? ([^.]{0,80}?)powder coat/i)?.[1] ?? "");
+  const pinta = ensimmainenOsuma(PINNAT, kuvaus.match(/has an? ([^.]{0,40}?)finish/i)?.[1] ?? "");
+  if (laji) lisaa(`Tuote: ${[laji, pinta].filter(Boolean).join(", ")}.`);
+  else if (pinta) lisaa(`Pinta: ${pinta}.`);
+
+  // Tarkempi lakkaohje syrjäyttää yleisen: "Kuvan mukainen sävy syntyy vasta
+  // lakalla X" kertoo saman kuin "Vaatii kirkkaan lakan", mutta enemmän.
+  const tarkkaLakkaohje = /To achieve the color,? displayed,?\s*[A-Za-z0-9 ]{2,30}?\s*top coat must be applied/i.test(kuvaus);
+
+  for (const [malli, suomeksi] of ENGLANNIN_OHJEET) {
+    if (tarkkaLakkaohje && malli.source.startsWith("requires? a clear")) continue;
+    const osuma = kuvaus.match(malli);
+    if (osuma) lisaa(suomeksi(osuma));
+  }
+
+  return rivit.length > 0 ? rivit.join("\n") : null;
 }
