@@ -1,5 +1,6 @@
 import type {
   AjoneuvoTyyppi,
+  Kiiltotaso,
   MaaliTyyppi,
   MyytavaMaaliTyyppi,
   PeruutuksenSyy,
@@ -183,6 +184,19 @@ export function muotoileValiEuro(min: number, max: number): string {
 
 // Silmämääräinen värisävy värien suodatusta varten - ei koske lakkoja
 // (transparent), koska ne ovat kirkkaita eikä niillä ole omaa sävyä.
+// Kiiltoaste on vapaata valmistajatekstiä ("90 GU", "High Gloss (85+ GU)",
+// "Seidenglanz"), joten haku ja suodatus nojaavat kolmeen kiinteään tasoon.
+// Kanta päättelee tason kiiltoasteesta, admin voi ylikirjoittaa.
+export const KIILTOTASOT: { arvo: Kiiltotaso; nimi: string }[] = [
+  { arvo: "kiiltava", nimi: "Kiiltävä" },
+  { arvo: "satiini", nimi: "Satiini" },
+  { arvo: "matta", nimi: "Matta" },
+];
+
+export function kiiltotasonNimi(taso: Kiiltotaso): string {
+  return KIILTOTASOT.find((t) => t.arvo === taso)?.nimi ?? taso;
+}
+
 export const VARISAVYT: { arvo: Varisavy; nimi: string }[] = [
   { arvo: "punainen", nimi: "Punainen" },
   { arvo: "oranssi", nimi: "Oranssi" },

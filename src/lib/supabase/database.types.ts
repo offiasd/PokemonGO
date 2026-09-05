@@ -33,6 +33,14 @@ export type MaaliTyyppi =
 export type ToinenVariRooli = "pohjavari" | "lakka";
 // Silmämääräinen värisävy suodatusta varten - ei koske lakkoja (transparent),
 // koska ne ovat kirkkaita eikä niillä ole omaa sävyä.
+/**
+ * Normalisoitu kiiltotaso. Kiiltoaste on vapaata valmistajatekstiä ("90 GU",
+ * "High Gloss (85+ GU)", "Seidenglanz"), joten haku ja suodatus tarvitsevat
+ * rinnalle kolme kiinteää tasoa. Kanta päättelee arvon kiiltoasteesta, mutta
+ * admin voi ylikirjoittaa sen.
+ */
+export type Kiiltotaso = "kiiltava" | "satiini" | "matta";
+
 export type Varisavy =
   | "punainen"
   | "oranssi"
@@ -140,6 +148,10 @@ export interface Database {
           vaatii_pohjavarin: boolean;
           /** Tarvitseeko väri erillisen lakkauksen (esim. UV-suoja ulkokäyttöön). */
           vaatii_lakkauksen: boolean;
+          /** Normalisoitu kiiltotaso hakua ja suodatusta varten. */
+          kiiltotaso: Kiiltotaso | null;
+          /** Vapaat hakusanat ja synonyymit. Mukana haussa, ei näy listassa. */
+          hakusanat: string | null;
           pohjavari_kuvaus: string | null;
           alkuperainen_hinta: number | null;
           alkuperainen_valuutta: string | null;

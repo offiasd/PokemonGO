@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin, vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
-import type { Alkupera, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
+import type { Alkupera, Kiiltotaso, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
 import { MAALI_TYYPIT, varinLisavaatimus, varinVaatiiPohjavarin } from "@/lib/vakiot";
 
 export interface VariLomakeTila {
@@ -45,6 +45,11 @@ async function tallennaVarinKategoriat(
   return null;
 }
 
+function lueKiiltotaso(formData: FormData): Kiiltotaso | null {
+  const arvo = String(formData.get("kiiltotaso") ?? "");
+  return arvo && arvo !== "ei_asetettu" ? (arvo as Kiiltotaso) : null;
+}
+
 function lueVarisavy(formData: FormData): Varisavy | null {
   const arvo = String(formData.get("varisavy") ?? "");
   return arvo && arvo !== "ei_asetettu" ? (arvo as Varisavy) : null;
@@ -74,6 +79,10 @@ function lueVariKentat(formData: FormData) {
     ohjeet: tyhjaksiTekstiksi(formData.get("ohjeet")),
     ohje_tiedosto_url: tyhjaksiTekstiksi(formData.get("ohje_tiedosto_url")),
     kiiltoaste: tyhjaksiTekstiksi(formData.get("kiiltoaste")),
+    // Tyhjä kiiltotaso tarkoittaa "päättele kiiltoasteesta": kanta täyttää
+    // sen triggerillä. Valittu taso jää voimaan sellaisenaan.
+    kiiltotaso: lueKiiltotaso(formData),
+    hakusanat: tyhjaksiTekstiksi(formData.get("hakusanat")),
     tyyppi,
     varisavy: lueVarisavy(formData),
     // Pohjavärivaatimus johdetaan maalityypistä, ei syötetä käsin.

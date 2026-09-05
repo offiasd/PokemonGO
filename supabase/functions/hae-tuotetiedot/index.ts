@@ -1,57 +1,70 @@
 // Supabase Edge Function: "Hae tiedot" -painike värin muokkausnäkymässä.
-// Admin antaa linkin valmistajan tuotesivulle -> yritetään poimia sivun
-// julkisesta HTML-sisällöstä (Open Graph -tagit + sivulle upotettu JSON):
-//   - nimi (ilman valmistajan tuotekoodia, esim. "(PMS-11514)"), valmistaja,
-//     tuotekuva (täysikokoinen jos löytyy)
-//   - kiiltoaste ja maalin tyyppi (solid/transparent/candy/illusion/metallic/pohjavari)
-//   - värisävy suodatusta varten (punainen, sininen, ...) - ei lakoille
-//   - pohjavärivaatimus tyypin perusteella (candy/illusion/transparent)
-//   - lakkausvaatimus tuotetekstistä ("clear coat recommended for exterior use")
-//   - tuotekohtainen ohje-/datasheet-PDF (ei yleistä levitysopasta tai SDS:ää)
-//   - hinta: muunnetaan tarvittaessa lb->kg ja valuutta EUR:ksi (frankfurter.app,
-//     EKP:n kurssit, ei API-avainta), pyöristetään aina ylöspäin
-//   - alkuperä ("Made in ..." -maininnasta)
-// Kaikki poiminta on parhaan yrityksen heuristiikkaa - admin voi aina muokata
-// tuloksia lomakkeella. Ajetaan vain admin-käyttäjän pyynnöstä, ei automaattisesti.
+// Admin antaa linkin myyjän tuotesivulle -> yritetään esitäyttää lomake.
+// Kaikki poiminta on parhaan yrityksen heuristiikkaa: funktio ehdottaa, admin
+// hyväksyy. Ajetaan vain admin-käyttäjän pyynnöstä, ei automaattisesti.
+//
+// Kaksi haaraa lähteen mukaan:
+//
+//   Shopify-kaupat (Pulverkönig / pulverlackfachhandel.de)
+//     Tuotteen saa koneluettavana lisäämällä ".json" osoitteen perään.
+//     Rakenne on vakaa eikä hajoa kun kauppa vaihtaa teemaa, joten sitä
+//     kokeillaan ensin ja HTML jää varalle.
+//
+//   Muut (Prismatic Powders)
+//     Open Graph -metatiedot ja tekstinparsinta sivun HTML:stä.
+//
+// Poimintalogiikka on poiminta.ts:ssä, jotta sen saa ajettua oikeita
+// tuotesivuja vasten ilman Denoa. Täällä on verkko, tunnistautuminen ja
+// kannan apufunktioiden kutsut.
 //
 // HUOM: toimituskuluarviota EI haeta myyjän sivulta (vaatisi ostoskori/osoite-
 // automaation, hidasta ja haurasta) - ks. asetukset.toimituskulu_per_kg_*_oletus.
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-
-type Alkupera = "EU" | "USA" | "muu";
-type MaaliTyyppi =
-  | "solid"
-  | "transparent"
-  | "candy"
-  | "illusion"
-  | "metallic"
-  | "tekstuuri"
-  | "kuumankesto"
-  | "pohjavari"
-  | "muu";
-type Varisavy =
-  | "punainen"
-  | "oranssi"
-  | "keltainen"
-  | "vihrea"
-  | "sininen"
-  | "liila"
-  | "pinkki"
-  | "musta"
-  | "harmaa"
-  | "valkoinen"
-  | "hopea"
-  | "kultainen"
-  | "bronssi"
-  | "ruskea";
+import {
+  alkuperaVerkkotunnuksesta,
+  dekoodaaHtmlEntiteetit,
+  htmlRiveiksi,
+  kanoninenUrl,
+  muunnaPerKg,
+  nimiOtsikosta,
+  poimiAlkupera,
+  poimiHinta,
+  poimiKiiltoaste,
+  poimiKuva,
+  poimiLakkausvaatimus,
+  poimiLuokittelut,
+  poimiMeta,
+  poimiMetaNimella,
+  poimiNimi,
+  poimiOhjeet,
+  poimiOhjeTiedosto,
+  poimiPohjavariKuvaus,
+  poimiTyyppi,
+  poimiValmistaja,
+  poimiVarisavy,
+  pyoristaYlospain,
+  ralTyyppi,
+  shopifyJsonOsoite,
+  shopifyKilohinta,
+  shopifyOletusvariantti,
+  type Alkupera,
+  type MaaliTyyppi,
+  type ShopifyTuote,
+  type Varisavy,
+} from "./poiminta.ts";
 
 interface HaeTiedotVastaus {
   nimi: string | null;
   valmistaja: string | null;
   kuva_url: string | null;
   ohje_tiedosto_url: string | null;
+  ohjeet: string | null;
+  /** Alkuperäinen tuoteotsikko, jotta haku löytää värin myös myyjän sanoilla. */
+  hakusanat: string | null;
+  /** Tuotesivun osoite ilman seurantaparametreja. */
+  myyja_linkki: string | null;
   kiiltoaste: string | null;
   tyyppi: MaaliTyyppi | null;
   varisavy: Varisavy | null;
@@ -66,378 +79,28 @@ interface HaeTiedotVastaus {
   virhe: string | null;
 }
 
-const KG_PER_LB = 0.45359237;
-const KG_PER_OZ = 0.028349523125;
-
-function poimiMeta(html: string, property: string): string | null {
-  const re1 = new RegExp(
-    `<meta[^>]+property=["']${property}["'][^>]+content=["']([^"']+)["']`,
-    "i"
-  );
-  const re2 = new RegExp(
-    `<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${property}["']`,
-    "i"
-  );
-  return html.match(re1)?.[1] ?? html.match(re2)?.[1] ?? null;
-}
-
-function dekoodaaHtmlEntiteetit(teksti: string): string {
-  return teksti
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
-}
-
-function absoluuttinenUrl(url: string | null, baseUrl: string): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url, baseUrl).toString();
-  } catch {
-    return null;
-  }
-}
-
-// Valmistajan tuotekoodia suluissa (esim. "Illusion Cherry (PMS-11514)") ei
-// tallenneta - se ei kerro mitään maalista ja sotkee nimen listoissa.
-function poistaTuotekoodi(nimi: string): string {
-  return nimi.replace(/\s*\([A-Za-z0-9][A-Za-z0-9-]*\)/g, "").trim();
-}
-
-// og:title on usein muotoa "Nimi (KOODI) - Kuvaus | Sivuston nimi".
-// Poimitaan pelkkä nimi: katkaistaan koodiin, muuten ensimmäiseen "|"-osaan.
-function poimiNimi(html: string): string | null {
-  const ogTitle = poimiMeta(html, "og:title");
-  if (!ogTitle) return null;
-  const otsikko = dekoodaaHtmlEntiteetit(ogTitle).trim();
-  const koodiMatch = otsikko.match(/^(.*?)\s*\([A-Za-z0-9][A-Za-z0-9-]*\)/);
-  const nimi = poistaTuotekoodi(koodiMatch ? koodiMatch[1] : otsikko.split("|")[0]);
-  return nimi || null;
-}
-
-function poimiValmistaja(html: string): string | null {
-  const nimi = poimiMeta(html, "og:site_name");
-  return nimi ? dekoodaaHtmlEntiteetit(nimi).trim() : null;
-}
-
-// og:image on usein pieni "-thumbnail"-versio; yritetään täysikokoista
-// samasta polusta poistamalla "-thumbnail" tiedostopäätteen edestä.
-function poimiKuva(html: string, baseUrl: string): string | null {
-  const ogImage = poimiMeta(html, "og:image");
-  if (!ogImage) return null;
-  const isoVersio = ogImage.replace(/-thumbnail(?=\.[a-zA-Z]+($|\?))/, "");
-  return absoluuttinenUrl(isoVersio, baseUrl);
-}
-
-// Ohitetaan yleiset, ei-tuotekohtaiset PDF:t (käyttöturvallisuustiedote,
-// yleinen levitysopas) ja valitaan viimeinen jäljelle jäävä linkki - tuote-
-// kohtainen datasheet on tyypillisesti listattu näiden jälkeen.
-function poimiOhjeTiedosto(html: string, baseUrl: string): string | null {
-  const linkit = [...html.matchAll(/href=["']([^"']+\.pdf[^"']*)["']/gi)].map((m) => m[1]);
-  if (linkit.length === 0) return null;
-  const yleiset = /(sds|safety[-_]?data|application[-_]?guide|app[-_]?guide|installation[-_]?guide)/i;
-  const tuotekohtaiset = linkit.filter((l) => !yleiset.test(l));
-  const valinta = tuotekohtaiset.length > 0 ? tuotekohtaiset[tuotekohtaiset.length - 1] : linkit[linkit.length - 1];
-  return absoluuttinenUrl(valinta, baseUrl);
-}
-
-function poimiKiiltoaste(teksti: string): string | null {
-  const luokkaJaYksikot = teksti.match(
-    /\b(High Gloss|Semi[- ]?Gloss|Satin|Matte|Flat)\b[^.]{0,60}?(\d+\+?(?:\s*[-–]\s*\d+)?)\s*Gloss Units?/i
-  );
-  if (luokkaJaYksikot) {
-    return `${luokkaJaYksikot[1].trim()} (${luokkaJaYksikot[2].trim()} GU)`;
-  }
-  const pelkatYksikot = teksti.match(/(\d+\+?(?:\s*[-–]\s*\d+)?)\s*Gloss Units?/i);
-  if (pelkatYksikot) return `${pelkatYksikot[1].trim()} GU`;
-  const pelkkaLuokka = teksti.match(/\b(High Gloss|Semi[- ]?Gloss|Satin|Matte|Flat)\b/i);
-  return pelkkaLuokka ? pelkkaLuokka[1].trim() : null;
-}
-
-// meta name="..." (description, keywords) - täydentää og-tageja.
-function poimiMetaNimella(html: string, name: string): string | null {
-  const re1 = new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, "i");
-  const re2 = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, "i");
-  return html.match(re1)?.[1] ?? html.match(re2)?.[1] ?? null;
-}
-
-// Sivulle upotetusta JSON:ista löytyy usein tuotteen luokittelu (kokoelma,
-// sarja, kategoria, murupolku) - se kertoo maalin tyylin luotettavammin kuin
-// markkinointiteksti. Lainausmerkit voivat olla backslash-paettuina, ks. poimiHinta.
-const LUOKITTELUAVAIMET = [
-  "category",
-  "categories",
-  "collection",
-  "collections",
-  "series",
-  "productType",
-  "product_type",
-  "colorFamily",
-  "color_family",
-  "family",
-  "breadcrumb",
-  "tags",
-];
-
-function poimiLuokittelut(html: string): string {
-  const osumat: string[] = [];
-  for (const avain of LUOKITTELUAVAIMET) {
-    const re = new RegExp(`\\\\?"${avain}\\\\?"\\s*:\\s*\\\\?"([^"\\\\]{1,60})\\\\?"`, "gi");
-    for (const m of html.matchAll(re)) osumat.push(m[1]);
-  }
-  return dekoodaaHtmlEntiteetit(osumat.join(" "));
-}
-
-// Tunnistusjärjestys ratkaisee: illusion- ja candy-sivut mainitsevat lähes aina
-// myös lakan ("clear top coat") ja pohjavärin, joten erikoismaalit tarkistetaan
-// ensin ja yleisemmät tyypit vasta niiden jälkeen.
-const TYYPPI_AVAINSANAT: [MaaliTyyppi, RegExp][] = [
-  ["illusion", /\b(illusions?|illuusio)\b/i],
-  ["candy", /\b(cand(?:y|ies)|kandi)\b/i],
-  [
-    "transparent",
-    /\b(clears?|clear\s?coats?|clearcoats?|top\s?coats?|topcoats?|transparents?|translucent|lakka|lakat|kirkaslakka)\b/i,
-  ],
-  ["pohjavari", /\b(base\s?coats?|basecoats?|primers?|undercoats?|pohjav[äa]ri|pohjamaali)\b/i],
-  [
-    "kuumankesto",
-    /\b(high\s?temp(?:erature)?|heat\s?resistant|heat\s?proof|exhaust|header|manifold|kuumankest[oä]v[äa]?|kuumankesto|pakoputk)/i,
-  ],
-  [
-    "tekstuuri",
-    /\b(textur(?:e|ed|es)|wrinkles?|hammer\s?tone|hammertone|veins?|structur(?:e|ed)|rough\s?coat|kuvioit|tekstuuri)/i,
-  ],
-  [
-    "metallic",
-    /\b(metallics?|metallic-|metalli(?:nen|set)?|pearlescent|pearls?|micas?|sparkles?|anodized|chromes?|chromium|kromi)\b/i,
-  ],
-  ["solid", /\b(solids?|ral\s?\d{3,4}|flat\s?colou?rs?|yksiv[äa]rinen)\b/i],
-];
-
-function tunnistaTyyppi(teksti: string, ohitettavat: MaaliTyyppi[] = []): MaaliTyyppi | null {
-  const osuma = TYYPPI_AVAINSANAT.find(
-    ([tyyppi, avainsana]) => !ohitettavat.includes(tyyppi) && avainsana.test(teksti)
-  );
-  return osuma ? osuma[0] : null;
-}
-
-// Lakka ja pohjaväri ovat oheistuotteita, joita markkinointiteksti suosittelee
-// värin kanssa käytettäväksi: "a clear top coat is recommended for exterior
-// use", "apply over a base coat". Niistä päättely meni pieleen - metallic,
-// jolle suositellaan lakkausta, tunnistui lakaksi. Siksi kuvaustekstistä ei
-// enää hyväksytä näitä kahta; ne luetaan vain nimestä ja sivun omasta
-// luokittelusta, joissa sana tarkoittaa tuotetta itseään.
-//
-// Candy ja illusion sen sijaan pysyvät mukana: ne mainitaan kuvauksessa
-// yleensä juuri siksi että tuote ON candy tai illusion, ja kummankin sivun
-// nimi tai luokittelu ei aina kerro tyyppiä.
-const KUVAUKSESTA_JATETTAVAT: MaaliTyyppi[] = ["transparent", "pohjavari"];
-
-// Prismatic Powders kertoo tuoteluokan omalla vakiolauseellaan: "This color is
-// a polyester metallic powder coat", "...a polyester top coat powder coat".
-// Lause on luotettavampi kuin nimestä arvaaminen - esim. "Ultra Blue Sparkle"
-// ja "Baby Rockstar Sparkle" ovat nimensä perusteella metallicceja mutta
-// oikeasti läpikuultavia lakkoja, ja valmistaja sanoo sen suoraan.
-//
-// Lauseen pitää päättyä "powder coat":iin, jotta markkinointilause
-// ("a fine silver sparkling metallic clear coat") ei mene siitä läpi.
-const TUOTELUOKKA_LAUSE =
-  /\bis an? [a-z\s-]{0,30}?(metallics?|top\s?coats?|textured?|wrinkled?|clears?)\s+powder\s+coat/i;
-
-type Tuoteluokka = "metallic" | "lapikuultava" | "tekstuuri";
-
-// Kaikilla tuotteilla ei ole vakiolausetta. Silloin katsotaan tuotteen oma
-// esittely ("Fire Sparkle is a clear metallic polyester with red glitter"):
-// siinä "clear" tai "top coat" kertoo läpikuultavasta tuotteesta silloinkin
-// kun samassa lauseessa lukee metallic. Vain ensimmäinen esittelylause
-// kelpaa - myöhemmät lauseet ovat levitysohjeita ("A clear top coat is
-// recommended"), jotka puhuvat oheistuotteesta.
-const ESITTELYLAUSE = /\bis an?\s+([^.!?]{0,140})/i;
-
-function luokitteleSanat(teksti: string): Tuoteluokka | null {
-  if (/\b(clears?|top\s?coats?|topcoats?|translucent)\b/i.test(teksti)) return "lapikuultava";
-  if (/\b(textured?|wrinkled?)\b/i.test(teksti)) return "tekstuuri";
-  if (/\bmetallics?\b/i.test(teksti)) return "metallic";
-  return null;
-}
-
-function poimiTuoteluokka(teksti: string): Tuoteluokka | null {
-  const sana = teksti.match(TUOTELUOKKA_LAUSE)?.[1]?.toLowerCase();
-  if (sana) {
-    if (sana.startsWith("metallic")) return "metallic";
-    if (sana.startsWith("textur") || sana.startsWith("wrinkl")) return "tekstuuri";
-    return "lapikuultava";
-  }
-  const esittely = teksti.match(ESITTELYLAUSE)?.[1];
-  return esittely ? luokitteleSanat(esittely) : null;
-}
-
-// Tunnistus kolmessa portaassa luotettavuusjärjestyksessä: tuotteen nimi on
-// vahvin signaali ("Illusion Cherry", "Clear Vision"), sitten sivun oma
-// luokittelu ("Candies", "Clears") ja vasta viimeisenä markkinointiteksti.
-function poimiTyyppi(
-  nimi: string | null,
-  luokittelut: string,
-  kuvausTeksti: string
-): MaaliTyyppi | null {
-  const arvaus =
-    (nimi ? tunnistaTyyppi(nimi) : null) ??
-    tunnistaTyyppi(luokittelut) ??
-    tunnistaTyyppi(kuvausTeksti, KUVAUKSESTA_JATETTAVAT);
-
-  // Valmistajan oma tuoteluokka korjaa arvauksen kun ne ovat eri mieltä.
-  // Candy, illusion ja pohjaväri ovat lausetta tarkempia (nekin ovat
-  // valmistajan sanoin "top coat" -tuotteita), joten ne jäävät voimaan.
-  const tarkempiKuinLause = arvaus === "candy" || arvaus === "illusion" || arvaus === "pohjavari";
-  const luokka = tarkempiKuinLause ? null : poimiTuoteluokka(kuvausTeksti);
-  if (luokka === "metallic") return "metallic";
-  if (luokka === "tekstuuri") return "tekstuuri";
-  if (luokka === "lapikuultava") return "transparent";
-
-  return arvaus;
-}
-
-// Sama heuristiikka kuin sovelluksen paattelyVarisavy (src/lib/vakiot.ts) -
-// pidä listat synkassa. Järjestys ratkaisee kun nimi osuu useampaan sävyyn
-// (esim. "Golden Bronze"): metallit ensin, sitten akromaattiset, sitten muut.
-const VARISAVY_AVAINSANAT: [Varisavy, RegExp][] = [
-  ["hopea", /\b(silvers?|hopea)\b/i],
-  ["kultainen", /\b(golds?|golden|kulta|kultainen)\b/i],
-  ["bronssi", /\b(bronzes?|coppers?|pronssi|kupari|bronssi)\b/i],
-  ["musta", /\b(blacks?|musta|onyx|jet|ebony)\b/i],
-  ["valkoinen", /\b(whites?|valkoinen|pearl|ivory)\b/i],
-  ["harmaa", /\b(gr[ae]ys?|harmaa|graphite|gunmetal|charcoal|slate)\b/i],
-  ["ruskea", /\b(browns?|ruskea|chocolate|coffee|mocha|tan|chestnut|beige)\b/i],
-  ["punainen", /\b(reds?|punainen|ruby|cherry|crimson|scarlet|maroon)\b/i],
-  ["oranssi", /\b(oranges?|oranssi|tangerine|amber)\b/i],
-  ["keltainen", /\b(yellows?|keltainen|lemon|banana|sunflower)\b/i],
-  ["vihrea", /\b(greens?|vihre[äa]|lime|emerald|olive|mint|forest)\b/i],
-  ["sininen", /\b(blues?|sininen|navy|azure|cobalt|teal|sky)\b/i],
-  ["liila", /\b(purples?|violets?|liila|lilac|lavender|plum|grape)\b/i],
-  ["pinkki", /\b(pinks?|pinkki|magenta|fuchsia|rose|salmon)\b/i],
-  // Kromi on pinnan kiilto, ei sävy: "Bronze Chrome" on bronssi ja "Gold
-  // Chrome" kultainen. Siksi kromi on vasta viimeisenä, kun mikään varsinainen
-  // värisana ei osunut - silloin "Super Chrome" on hopea.
-  ["hopea", /\b(chromes?|chromium|kromi)\b/i],
-];
-
-function tunnistaVarisavy(teksti: string): Varisavy | null {
-  const osuma = VARISAVY_AVAINSANAT.find(([, avainsana]) => avainsana.test(teksti));
-  return osuma ? osuma[0] : null;
-}
-
-// Markkinointiteksti mainitsee helposti muitakin värejä ("looks great over
-// black"), joten siitä hyväksytään sävy vain jos koko teksti puhuu yhdestä
-// ainoasta sävystä. Muuten jätetään tyhjäksi - admin valitsee lomakkeelta.
-function ainoaSavyTekstissa(teksti: string): Varisavy | null {
-  const osumat = VARISAVY_AVAINSANAT.filter(([, avainsana]) => avainsana.test(teksti));
-  return osumat.length === 1 ? osumat[0][0] : null;
-}
-
-// Värisävy on vain suodatusta varten. Lakoille sitä ei aseteta (kirkas maali,
-// ei omaa sävyä). Nimi ratkaisee ensin, sitten sivun luokittelu ("Reds",
-// "Blues") ja viimeisenä yksiselitteinen kuvausteksti.
-function poimiVarisavy(
-  tyyppi: MaaliTyyppi | null,
-  nimi: string | null,
-  luokittelut: string,
-  kuvausTeksti: string
-): Varisavy | null {
-  if (tyyppi === "transparent") return null;
-  return (
-    (nimi ? tunnistaVarisavy(nimi) : null) ??
-    tunnistaVarisavy(luokittelut) ??
-    ainoaSavyTekstissa(kuvausTeksti)
-  );
-}
-
-// Valmistaja kertoo tuotekohtaisesti jos väri kaipaa erillisen lakan - esim.
-// Prismatic Powders kirjoittaa metallic- ja sparkle-tuotteista usein "a clear
-// top coat is recommended for exterior use". Pelkkä sanojen "clear coat"
-// esiintyminen ei riitä: lakkasivut ja yleiset levitysohjeet mainitsevat ne
-// muutenkin, joten vaaditaan suositus- tai vaatimusverbi samaan lauseeseen.
-const LAKKAUSSUOSITUS: RegExp[] = [
-  /\b(?:requires?|recommend(?:ed|s|ation)?|advise[ds]?|must\s+(?:be\s+)?(?:use|apply))\b[^.!?]{0,90}\b(?:clear\s?coat|clearcoat|clear\s?top\s?coat|top\s?coat|topcoat)\b/i,
-  /\b(?:clear\s?coat|clearcoat|clear\s?top\s?coat|top\s?coat|topcoat)\b[^.!?]{0,90}\b(?:is\s+)?(?:required|recommended|advised|necessary|a\s+must)\b/i,
-  /\b(?:kirkas)?lakk\w*\b[^.!?]{0,90}\b(?:suositel|vaadi|vaati|tarvit)/i,
-  /\b(?:suositel|vaadi|vaati|tarvit)\w*\b[^.!?]{0,90}\b(?:(?:kirkas)?lakk\w*|lakan|lakalla)\b/i,
-];
-
-/**
- * Illusion tarvitsee lakan aina aktivoituakseen, joten se on totta tyypin
- * perusteella. Muille tyypeille katsotaan tuoteteksti.
- */
-function poimiLakkausvaatimus(tyyppi: MaaliTyyppi | null, teksti: string): boolean {
-  if (tyyppi === "illusion") return true;
-  if (tyyppi === "transparent") return false;
-  return LAKKAUSSUOSITUS.some((kuvio) => kuvio.test(teksti));
-}
-
-function poimiPohjavariKuvaus(tyyppi: MaaliTyyppi | null, html: string): string | null {
-  if (tyyppi === "candy") {
-    const pohjaMatch = html.match(/\bover (?:a |an )?((?:[A-Z][a-zA-Z0-9]*\s?){1,4})/);
-    const pohja = pohjaMatch?.[1]?.trim();
-    return pohja
-      ? `Suositeltu pohjaväri: ${pohja} (tarkista valmistajan ohjeista).`
-      : "Candy-väri tarvitsee pohjavärin (yleisesti kromi). Tarkista valmistajan ohjeet.";
-  }
-  if (tyyppi === "illusion") {
-    return "Illusion-väri aktivoituu topcoatista (lakka/candy). Vaatii pohjavärin ennen topcoatia - tarkista valmistajan ohjeet.";
-  }
-  if (tyyppi === "transparent") {
-    return "Läpikuultava väri - vaatii vaalean tai metallisen pohjavärin. Tarkista valmistajan ohjeet.";
-  }
-  return null;
-}
-
-function poimiAlkupera(html: string): Alkupera | null {
-  if (/made in (the )?usa/i.test(html)) return "USA";
-  if (/made in (the )?(eu|europe|european union)/i.test(html)) return "EU";
-  return null;
-}
-
-interface RaakaHinta {
-  hinta: number;
-  valuutta: string;
-  yksikko: string;
-}
-
-// Suositaan sivulle upotettua hinnoittelutaulukkoa (pricePerBaseQuantity +
-// startingQuantity), otetaan pienimmän aloitusmäärän mukainen (perushinta).
-// Fallbackina schema.org-tyylinen "priceCurrency"/"price"-pari.
-//
-// HUOM: monet sivustot (mm. Prismatic Powders) upottavat tämän JSON:in
-// palvelinkomponenttien striimauspayloadiin uudelleen JSON-merkkijonona,
-// jolloin lainausmerkit tulevat backslash-paettuina (\"pricePerBaseQuantity\").
-// Siksi jokainen " on regexissä valinnainen \? ennen sitä - matchaa molemmat.
-function poimiHinta(html: string): RaakaHinta | null {
-  const tasoMatchit = [
-    ...html.matchAll(
-      /\\?"pricePerBaseQuantity\\?":\{\\?"currency\\?":\\?"([A-Z]{3})\\?",\\?"amount\\?":\\?"([\d.]+)\\?"[^}]*\},\\?"startingQuantity\\?":\{\\?"value\\?":([\d.]+),\\?"unit\\?":\\?"([a-zA-Z]+)\\?"/g
-    ),
-  ];
-  if (tasoMatchit.length > 0) {
-    tasoMatchit.sort((a, b) => Number(a[3]) - Number(b[3]));
-    const [, valuutta, hintaStr, , yksikko] = tasoMatchit[0];
-    return { hinta: Number(hintaStr), valuutta, yksikko };
-  }
-
-  const currencyMatch = html.match(/\\?"priceCurrency\\?"\s*:\s*\\?"([A-Z]{3})\\?"/);
-  const priceMatch = html.match(/\\?"price\\?"\s*:\s*\\?"([\d.]+)\\?"/);
-  if (currencyMatch && priceMatch) {
-    return { hinta: Number(priceMatch[1]), valuutta: currencyMatch[1], yksikko: "kpl" };
-  }
-  return null;
-}
-
-function muunnaPerKg(hinta: number, yksikko: string): number | null {
-  const y = yksikko.toLowerCase();
-  if (y === "kg" || y === "kilogram" || y === "kilograms") return hinta;
-  if (y === "lb" || y === "lbs" || y === "pound" || y === "pounds") return hinta / KG_PER_LB;
-  if (y === "g" || y === "gram" || y === "grams") return hinta * 1000;
-  if (y === "oz" || y === "ounce" || y === "ounces") return hinta / KG_PER_OZ;
-  return null;
+function tyhjaVastaus(virhe: string | null = null): HaeTiedotVastaus {
+  return {
+    nimi: null,
+    valmistaja: null,
+    kuva_url: null,
+    ohje_tiedosto_url: null,
+    ohjeet: null,
+    hakusanat: null,
+    myyja_linkki: null,
+    kiiltoaste: null,
+    tyyppi: null,
+    varisavy: null,
+    vaatii_pohjavarin: false,
+    vaatii_lakkauksen: false,
+    pohjavari_kuvaus: null,
+    alkupera: null,
+    ostohinta_per_kg: null,
+    alkuperainen_hinta: null,
+    alkuperainen_valuutta: null,
+    alkuperainen_yksikko: null,
+    virhe,
+  };
 }
 
 async function muunnaEuroiksi(maara: number, valuutta: string): Promise<number | null> {
@@ -456,8 +119,151 @@ async function muunnaEuroiksi(maara: number, valuutta: string): Promise<number |
   }
 }
 
-function pyoristaYlospain(arvo: number): number {
-  return Math.ceil(arvo * 100) / 100;
+async function haeTeksti(url: string, aikakatkaisuMs = 10_000): Promise<string> {
+  const vastaus = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; JauhemaalaamoBot/1.0)" },
+    signal: AbortSignal.timeout(aikakatkaisuMs),
+  });
+  if (!vastaus.ok) throw new Error(`HTTP ${vastaus.status}`);
+  return await vastaus.text();
+}
+
+/** Shopifyn tuote-JSON, tai null jos osoite ei ole Shopify-tuote tai ei vastaa. */
+async function haeShopifyTuote(url: string): Promise<ShopifyTuote | null> {
+  const jsonOsoite = shopifyJsonOsoite(url);
+  if (!jsonOsoite) return null;
+  try {
+    const teksti = await haeTeksti(jsonOsoite, 8_000);
+    const data = JSON.parse(teksti);
+    const tuote = data?.product;
+    return tuote && typeof tuote.title === "string" ? (tuote as ShopifyTuote) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Kannan RAL-apurit: yksi määritelmä, jota sekä kanta että tämä funktio käyttää. */
+async function ralKoodi(supabase: SupabaseClient, teksti: string): Promise<string | null> {
+  const { data } = await supabase.rpc("ral_koodi", { p_teksti: teksti });
+  return typeof data === "string" ? data : null;
+}
+
+async function ralVarisavy(supabase: SupabaseClient, koodi: string): Promise<Varisavy | null> {
+  const { data } = await supabase.rpc("ral_varisavy", { p_koodi: koodi });
+  return typeof data === "string" ? (data as Varisavy) : null;
+}
+
+/**
+ * Shopify-tuotteesta koottu vastaus. HTML haetaan vain kuvan varalle, jos
+ * JSONissa ei ole kuvia - muuten koko sivua ei tarvitse ladata.
+ */
+function shopifystaVastaus(
+  tuote: ShopifyTuote,
+  osoite: string,
+  ralkoodi: string | null
+): HaeTiedotVastaus {
+  const otsikko = dekoodaaHtmlEntiteetit(tuote.title ?? "");
+  const rivit = htmlRiveiksi(tuote.body_html ?? "");
+  const kuvausTeksti = `${otsikko} ${rivit.join(" ")}`;
+
+  const variantti = shopifyOletusvariantti(tuote);
+  const kilohinta = variantti ? shopifyKilohinta(variantti) : null;
+
+  const tyyppi = ralkoodi
+    ? ralTyyppi(kuvausTeksti)
+    : poimiTyyppi(otsikko, [tuote.product_type, tuote.tags].flat().join(" "), kuvausTeksti);
+
+  const vastaus = tyhjaVastaus();
+  vastaus.nimi = nimiOtsikosta(otsikko, ralkoodi);
+  vastaus.valmistaja = tuote.vendor?.trim() || null;
+  vastaus.kuva_url = tuote.images?.[0]?.src ?? null;
+  vastaus.ohjeet = poimiOhjeet(rivit);
+  // Koko alkuperäinen otsikko hakusanoihin: haku "Tiefschwarz" tai
+  // "hochglanz" löytää värin, vaikka nimeksi jäi pelkkä RAL-koodi.
+  vastaus.hakusanat = otsikko || null;
+  vastaus.myyja_linkki = osoite;
+  vastaus.kiiltoaste = poimiKiiltoaste(kuvausTeksti);
+  vastaus.tyyppi = tyyppi;
+  vastaus.vaatii_pohjavarin = tyyppi === "candy" || tyyppi === "illusion" || tyyppi === "transparent";
+  vastaus.vaatii_lakkauksen = poimiLakkausvaatimus(tyyppi, kuvausTeksti);
+  vastaus.pohjavari_kuvaus = poimiPohjavariKuvaus(tyyppi, kuvausTeksti);
+  vastaus.alkupera = alkuperaVerkkotunnuksesta(osoite) ?? poimiAlkupera(kuvausTeksti);
+  // Saksalainen hinta sisältää Saksan ALV:n ja on siksi sellaisenaan
+  // maalaamon todellinen kustannus: sitä ei muunneta suuntaan eikä toiseen.
+  vastaus.ostohinta_per_kg = kilohinta === null ? null : pyoristaYlospain(kilohinta);
+  vastaus.alkuperainen_hinta = variantti?.price ? Number(variantti.price) : null;
+  vastaus.alkuperainen_valuutta = variantti?.price_currency ?? "EUR";
+  vastaus.alkuperainen_yksikko = variantti?.option1 ?? variantti?.title ?? null;
+
+  if (vastaus.ostohinta_per_kg === null && variantti) {
+    vastaus.virhe =
+      "Pakkauskokoa ei osattu lukea, joten kilohinta jäi täyttämättä - täytä ostohinta käsin.";
+  }
+  return vastaus;
+}
+
+/** Open Graph -metatiedot ja tekstinparsinta (Prismatic Powders ja muut). */
+async function htmlstaVastaus(html: string, osoite: string): Promise<HaeTiedotVastaus> {
+  const kuvausTeksti = dekoodaaHtmlEntiteetit(
+    `${poimiMeta(html, "og:title") ?? ""} ${poimiMeta(html, "og:description") ?? ""} ${
+      poimiMetaNimella(html, "description") ?? ""
+    } ${poimiMetaNimella(html, "keywords") ?? ""}`
+  );
+
+  const nimi = poimiNimi(html);
+  const luokittelut = poimiLuokittelut(html);
+  const tyyppi = poimiTyyppi(nimi, luokittelut, kuvausTeksti);
+
+  const raakaHinta = poimiHinta(html);
+  let ostohintaPerKg: number | null = null;
+  const varoitukset: string[] = [];
+
+  if (raakaHinta) {
+    const perKgAlkuperaisessaValuutassa = muunnaPerKg(raakaHinta.hinta, raakaHinta.yksikko);
+    if (perKgAlkuperaisessaValuutassa === null) {
+      varoitukset.push(
+        `Hinta löytyi (${raakaHinta.hinta} ${raakaHinta.valuutta}/${raakaHinta.yksikko}), mutta yksikköä ei osattu muuntaa kiloiksi - täytä ostohinta käsin.`
+      );
+    } else {
+      const euroina = await muunnaEuroiksi(perKgAlkuperaisessaValuutassa, raakaHinta.valuutta);
+      if (euroina === null) {
+        varoitukset.push(
+          `Hinta löytyi (${raakaHinta.hinta} ${raakaHinta.valuutta}/${raakaHinta.yksikko}), mutta valuutanmuunnos epäonnistui - täytä ostohinta käsin.`
+        );
+      } else {
+        ostohintaPerKg = pyoristaYlospain(euroina);
+      }
+    }
+  }
+
+  const vastaus = tyhjaVastaus();
+  vastaus.nimi = nimi;
+  vastaus.valmistaja = poimiValmistaja(html);
+  vastaus.kuva_url = poimiKuva(html, osoite);
+  vastaus.ohje_tiedosto_url = poimiOhjeTiedosto(html, osoite);
+  vastaus.myyja_linkki = osoite;
+  vastaus.kiiltoaste = poimiKiiltoaste(kuvausTeksti);
+  vastaus.tyyppi = tyyppi;
+  vastaus.varisavy = poimiVarisavy(tyyppi, nimi, luokittelut, kuvausTeksti);
+  vastaus.vaatii_pohjavarin = tyyppi === "candy" || tyyppi === "illusion" || tyyppi === "transparent";
+  // Lakkaussuositus voi olla missä tahansa kohtaa sivun tekstiä, joten
+  // katsotaan sekä tiivistelmä että koko HTML.
+  vastaus.vaatii_lakkauksen = poimiLakkausvaatimus(tyyppi, `${kuvausTeksti} ${html}`);
+  vastaus.pohjavari_kuvaus = poimiPohjavariKuvaus(tyyppi, html);
+  vastaus.alkupera = poimiAlkupera(html) ?? alkuperaVerkkotunnuksesta(osoite);
+  vastaus.ostohinta_per_kg = ostohintaPerKg;
+  vastaus.alkuperainen_hinta = raakaHinta?.hinta ?? null;
+  vastaus.alkuperainen_valuutta = raakaHinta?.valuutta ?? null;
+  vastaus.alkuperainen_yksikko = raakaHinta?.yksikko ?? null;
+  vastaus.virhe = varoitukset.length > 0 ? varoitukset.join(" ") : null;
+  return vastaus;
+}
+
+function json(vastaus: HaeTiedotVastaus | { virhe: string }, status = 200): Response {
+  return new Response(JSON.stringify(vastaus), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
 Deno.serve(async (req) => {
@@ -467,12 +273,7 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ virhe: "Ei kirjautunut" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return json({ virhe: "Ei kirjautunut" }, 401);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -483,12 +284,7 @@ Deno.serve(async (req) => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ virhe: "Ei kirjautunut" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!user) return json({ virhe: "Ei kirjautunut" }, 401);
 
     const { data: profiili } = await supabase
       .from("profiles")
@@ -496,133 +292,54 @@ Deno.serve(async (req) => {
       .eq("id", user.id)
       .single();
 
-    if (profiili?.role !== "admin") {
-      return new Response(JSON.stringify({ virhe: "Vain admin voi hakea tiedot" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (profiili?.role !== "admin") return json({ virhe: "Vain admin voi hakea tiedot" }, 403);
 
     const { url } = await req.json();
-    if (!url || typeof url !== "string") {
-      return new Response(JSON.stringify({ virhe: "Linkki puuttuu" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!url || typeof url !== "string") return json({ virhe: "Linkki puuttuu" }, 400);
 
-    let html: string;
-    try {
-      const vastaus = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; JauhemaalaamoBot/1.0)" },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!vastaus.ok) {
-        throw new Error(`HTTP ${vastaus.status}`);
+    const osoite = kanoninenUrl(url);
+
+    // Shopify-JSON ensin: se on rakenteinen eikä hajoa teemamuutoksesta.
+    const shopify = await haeShopifyTuote(osoite);
+    let vastaus: HaeTiedotVastaus;
+
+    if (shopify) {
+      const koodi = await ralKoodi(supabase, shopify.title ?? "");
+      vastaus = shopifystaVastaus(shopify, osoite, koodi);
+      // Värisävy RAL-koodista on esitäyttö, ei totuus - admin voi korjata sen
+      // värin sivulla. Lakalle sävyä ei aseteta lainkaan.
+      if (koodi && vastaus.tyyppi !== "transparent") {
+        vastaus.varisavy = await ralVarisavy(supabase, koodi);
       }
-      html = await vastaus.text();
-    } catch (haku_virhe) {
-      const vastaus: HaeTiedotVastaus = {
-        nimi: null,
-        valmistaja: null,
-        kuva_url: null,
-        ohje_tiedosto_url: null,
-        kiiltoaste: null,
-        tyyppi: null,
-        varisavy: null,
-        vaatii_pohjavarin: false,
-        vaatii_lakkauksen: false,
-        pohjavari_kuvaus: null,
-        alkupera: null,
-        ostohinta_per_kg: null,
-        alkuperainen_hinta: null,
-        alkuperainen_valuutta: null,
-        alkuperainen_yksikko: null,
-        virhe: `Sivua ei voitu hakea: ${(haku_virhe as Error).message}`,
-      };
-      return new Response(JSON.stringify(vastaus), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    } else {
+      let html: string;
+      try {
+        html = await haeTeksti(osoite);
+      } catch (haku_virhe) {
+        return json(tyhjaVastaus(`Sivua ei voitu hakea: ${(haku_virhe as Error).message}`));
+      }
+      vastaus = await htmlstaVastaus(html, osoite);
 
-    const kuvausTeksti = dekoodaaHtmlEntiteetit(
-      `${poimiMeta(html, "og:title") ?? ""} ${poimiMeta(html, "og:description") ?? ""} ${
-        poimiMetaNimella(html, "description") ?? ""
-      } ${poimiMetaNimella(html, "keywords") ?? ""}`
-    );
-
-    const nimi = poimiNimi(html);
-    const luokittelut = poimiLuokittelut(html);
-
-    const tyyppi = poimiTyyppi(nimi, luokittelut, kuvausTeksti);
-    const varisavy = poimiVarisavy(tyyppi, nimi, luokittelut, kuvausTeksti);
-    const vaatiiPohjavarin = tyyppi === "candy" || tyyppi === "illusion" || tyyppi === "transparent";
-    // Lakkaussuositus voi olla missä tahansa kohtaa sivun tekstiä, joten
-    // katsotaan sekä tiivistelmä että koko HTML.
-    const vaatiiLakkauksen = poimiLakkausvaatimus(tyyppi, `${kuvausTeksti} ${html}`);
-
-    const raakaHinta = poimiHinta(html);
-    let ostohintaPerKg: number | null = null;
-    const varoitukset: string[] = [];
-
-    if (raakaHinta) {
-      const perKgAlkuperaisessaValuutassa = muunnaPerKg(raakaHinta.hinta, raakaHinta.yksikko);
-      if (perKgAlkuperaisessaValuutassa === null) {
-        varoitukset.push(
-          `Hinta löytyi (${raakaHinta.hinta} ${raakaHinta.valuutta}/${raakaHinta.yksikko}), mutta yksikköä ei osattu muuntaa kiloiksi - täytä ostohinta käsin.`
-        );
-      } else {
-        const euroina = await muunnaEuroiksi(perKgAlkuperaisessaValuutassa, raakaHinta.valuutta);
-        if (euroina === null) {
-          varoitukset.push(
-            `Hinta löytyi (${raakaHinta.hinta} ${raakaHinta.valuutta}/${raakaHinta.yksikko}), mutta valuutanmuunnos epäonnistui - täytä ostohinta käsin.`
-          );
-        } else {
-          ostohintaPerKg = pyoristaYlospain(euroina);
+      // Myös HTML-lähteen otsikossa voi olla RAL-koodi (esim. toinen
+      // eurooppalainen kauppa), jolloin nimi lyhenee samalla säännöllä.
+      const koodi = await ralKoodi(supabase, vastaus.nimi ?? "");
+      if (koodi) {
+        vastaus.hakusanat = vastaus.nimi;
+        vastaus.nimi = koodi;
+        if (!vastaus.varisavy && vastaus.tyyppi !== "transparent") {
+          vastaus.varisavy = await ralVarisavy(supabase, koodi);
         }
       }
     }
 
-    const vastaus: HaeTiedotVastaus = {
-      nimi,
-      valmistaja: poimiValmistaja(html),
-      kuva_url: poimiKuva(html, url),
-      ohje_tiedosto_url: poimiOhjeTiedosto(html, url),
-      kiiltoaste: poimiKiiltoaste(kuvausTeksti),
-      tyyppi,
-      varisavy,
-      vaatii_pohjavarin: vaatiiPohjavarin,
-      vaatii_lakkauksen: vaatiiLakkauksen,
-      pohjavari_kuvaus: poimiPohjavariKuvaus(tyyppi, html),
-      alkupera: poimiAlkupera(html),
-      ostohinta_per_kg: ostohintaPerKg,
-      alkuperainen_hinta: raakaHinta?.hinta ?? null,
-      alkuperainen_valuutta: raakaHinta?.valuutta ?? null,
-      alkuperainen_yksikko: raakaHinta?.yksikko ?? null,
-      virhe: varoitukset.length > 0 ? varoitukset.join(" ") : null,
-    };
-
     const mitaanEiLoytynyt =
-      !vastaus.nimi &&
-      !vastaus.kuva_url &&
-      !vastaus.ohje_tiedosto_url &&
-      !vastaus.ostohinta_per_kg;
+      !vastaus.nimi && !vastaus.kuva_url && !vastaus.ohje_tiedosto_url && !vastaus.ostohinta_per_kg;
     if (mitaanEiLoytynyt && !vastaus.virhe) {
       vastaus.virhe = "Tietoja ei löytynyt sivulta - täytä tiedot käsin.";
     }
 
-    return new Response(JSON.stringify(vastaus), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json(vastaus);
   } catch (error) {
-    return new Response(
-      JSON.stringify({ virhe: `Odottamaton virhe: ${(error as Error).message}` }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return json({ virhe: `Odottamaton virhe: ${(error as Error).message}` }, 500);
   }
 });

@@ -99,7 +99,10 @@ export default async function VaritSivu({
     kysely = kysely.eq("aktiivinen", true);
   }
   if (q) {
-    kysely = kysely.or(ilikeHakuehto(["nimi", "valmistaja"], q));
+    // Hakusanat mukaan, jotta valmistajan alkuperäisillä sanoilla
+    // ("Tiefschwarz", "hochglanz") löytää värin senkin jälkeen kun nimeksi on
+    // lyhennetty pelkkä RAL-koodi.
+    kysely = kysely.or(ilikeHakuehto(["nimi", "valmistaja", "hakusanat"], q));
   }
   if (tyyppiSuodattimet.length > 0) {
     kysely = kysely.in("tyyppi", tyyppiSuodattimet);

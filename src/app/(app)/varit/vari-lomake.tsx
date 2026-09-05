@@ -23,8 +23,15 @@ import Link from "next/link";
 import { TiedostoLataus } from "@/components/tiedosto-lataus";
 import { TallentamattomatVaroitus } from "@/components/tallentamattomat-varoitus";
 import { createClient } from "@/lib/supabase/client";
-import type { Alkupera, Database, MaaliTyyppi, Varisavy } from "@/lib/supabase/database.types";
+import type {
+  Alkupera,
+  Database,
+  Kiiltotaso,
+  MaaliTyyppi,
+  Varisavy,
+} from "@/lib/supabase/database.types";
 import {
+  KIILTOTASOT,
   MAALI_TYYPIT,
   muotoileEuro,
   paattelyVarisavy,
@@ -82,6 +89,9 @@ const TYHJAT_ARVOT = {
   kuvaUrl: null as string | null,
   ohjeTiedostoUrl: null as string | null,
   kiiltoaste: "",
+  kiiltotaso: "" as Kiiltotaso | "",
+  ohjeet: "",
+  hakusanat: "",
   tyyppi: "solid" as MaaliTyyppi,
   varisavy: "" as Varisavy | "",
   lisakategoriat: [] as MaaliTyyppi[],
@@ -134,6 +144,9 @@ export function VariLomake({
     vari?.ohje_tiedosto_url ?? null
   );
   const [kiiltoaste, setKiiltoaste] = useState(vari?.kiiltoaste ?? "");
+  const [kiiltotaso, setKiiltotaso] = useState<Kiiltotaso | "">(vari?.kiiltotaso ?? "");
+  const [ohjeet, setOhjeet] = useState(vari?.ohjeet ?? "");
+  const [hakusanat, setHakusanat] = useState(vari?.hakusanat ?? "");
   const [tyyppi, setTyyppi] = useState<MaaliTyyppi>(vari?.tyyppi ?? "solid");
   const [varisavy, setVarisavy] = useState<Varisavy | "">(vari?.varisavy ?? "");
   const [lisakategoriat, setLisakategoriat] = useState<MaaliTyyppi[]>(alkuLisakategoriat);
@@ -165,6 +178,9 @@ export function VariLomake({
     kuvaUrl,
     ohjeTiedostoUrl,
     kiiltoaste,
+    kiiltotaso,
+    ohjeet,
+    hakusanat,
     tyyppi,
     varisavy,
     lisakategoriat,
@@ -194,6 +210,9 @@ export function VariLomake({
       setKuvaUrl(TYHJAT_ARVOT.kuvaUrl);
       setOhjeTiedostoUrl(TYHJAT_ARVOT.ohjeTiedostoUrl);
       setKiiltoaste(TYHJAT_ARVOT.kiiltoaste);
+      setKiiltotaso(TYHJAT_ARVOT.kiiltotaso);
+      setOhjeet(TYHJAT_ARVOT.ohjeet);
+      setHakusanat(TYHJAT_ARVOT.hakusanat);
       setTyyppi(TYHJAT_ARVOT.tyyppi);
       setVarisavy(TYHJAT_ARVOT.varisavy);
       setLisakategoriat(TYHJAT_ARVOT.lisakategoriat);
@@ -305,7 +324,20 @@ export function VariLomake({
         toast.success("Ohjetiedosto (datasheet) löytyi ja täytettiin.");
       }
       if (data?.kiiltoaste) {
+        // Kiiltotasoon ei kosketa: kanta päättelee sen kiiltoasteesta, ja
+        // käsin valittu taso saa jäädä voimaan myös uudelleenhaun yli.
         setKiiltoaste(data.kiiltoaste);
+      }
+      if (data?.ohjeet) {
+        setOhjeet(data.ohjeet);
+      }
+      if (data?.hakusanat) {
+        setHakusanat(data.hakusanat);
+      }
+      // Myyjän linkistä karsitaan seurantaparametrit, jotta sama tuote
+      // tunnistuu duplikaatiksi vaikka linkki olisi kopioitu haun tuloksista.
+      if (data?.myyja_linkki && data.myyja_linkki !== myyjaLinkki) {
+        setMyyjaLinkki(data.myyja_linkki);
       }
       if (data?.tyyppi) {
         setTyyppi(data.tyyppi as MaaliTyyppi);
@@ -318,8 +350,10 @@ export function VariLomake({
       }
       if (typeof data?.ostohinta_per_kg === "number") {
         setOstohintaPerKg(String(data.ostohinta_per_kg));
+        // EU-hintaa ei muunneta lainkaan (Saksan ALV sisältyy ostohintaan ja on
+        // siksi todellinen kustannus), joten kuittaus kertoo vain lähteen.
         toast.success(
-          `Hinta muunnettu: ${data.ostohinta_per_kg} €/kg (lähde: ${data.alkuperainen_hinta} ${data.alkuperainen_valuutta}/${data.alkuperainen_yksikko}).`
+          `Ostohinta ${data.ostohinta_per_kg} €/kg (lähde: ${data.alkuperainen_hinta} ${data.alkuperainen_valuutta} / ${data.alkuperainen_yksikko}).`
         );
       }
       if (typeof data?.vaatii_lakkauksen === "boolean") {
@@ -414,6 +448,32 @@ export function VariLomake({
             value={kiiltoaste}
             onChange={(e) => setKiiltoaste(e.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+            Valmistajan oma teksti sellaisenaan.
+          </p>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="kiiltotaso">Kiiltotaso (suodatusta varten)</Label>
+          <Select
+            name="kiiltotaso"
+            value={kiiltotaso || "ei_asetettu"}
+            onValueChange={(v) => setKiiltotaso(v === "ei_asetettu" ? "" : (v as Kiiltotaso))}
+          >
+            <SelectTrigger id="kiiltotaso" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ei_asetettu">Päättele kiiltoasteesta</SelectItem>
+              {KIILTOTASOT.map(({ arvo, nimi }) => (
+                <SelectItem key={arvo} value={arvo}>
+                  {nimi}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Tyhjä päättelee kiiltoasteesta. Valittu taso jää voimaan.
+          </p>
         </div>
         <div className="grid gap-2">
           <Label htmlFor="tyyppi">Maalin tyyppi</Label>
@@ -677,7 +737,28 @@ export function VariLomake({
 
       <div className="grid gap-2">
         <Label htmlFor="ohjeet">Valmistajan maalausohjeet (teksti)</Label>
-        <Textarea id="ohjeet" name="ohjeet" rows={4} defaultValue={vari?.ohjeet ?? ""} />
+        <Textarea
+          id="ohjeet"
+          name="ohjeet"
+          rows={4}
+          value={ohjeet}
+          onChange={(e) => setOhjeet(e.target.value)}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="hakusanat">Hakusanat</Label>
+        <Input
+          id="hakusanat"
+          name="hakusanat"
+          placeholder="esim. Tiefschwarz, hochglanz, 9005"
+          value={hakusanat}
+          onChange={(e) => setHakusanat(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Mukana värihaussa, ei näy värilistassa. Tietojen haku täyttää tähän valmistajan
+          alkuperäisen tuoteotsikon.
+        </p>
       </div>
 
       {tila.virhe && (
