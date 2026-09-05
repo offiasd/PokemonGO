@@ -722,7 +722,7 @@ export function VariLomake({
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="ohjeet">Valmistajan maalausohjeet (teksti)</Label>
+        <Label htmlFor="ohjeet">Lisätiedot</Label>
         <Textarea
           id="ohjeet"
           name="ohjeet"
@@ -730,6 +730,10 @@ export function VariLomake({
           value={ohjeet}
           onChange={(e) => setOhjeet(e.target.value)}
         />
+        <p className="text-xs text-muted-foreground">
+          Tietojen haku täyttää tähän valmistajan tuotesivun kuvauksen suomeksi.
+          Käännös on konetyötä, joten korjaile vapaasti.
+        </p>
       </div>
 
       <div className="grid gap-2">

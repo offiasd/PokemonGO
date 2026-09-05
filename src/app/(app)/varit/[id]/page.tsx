@@ -239,7 +239,7 @@ export default async function VariSivu({
         lakkausvaatimus) && (
         <Card>
           <CardHeader>
-            <CardTitle>Maalausohjeet</CardTitle>
+            <CardTitle>Lisätiedot</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm">
             {lisavaatimus && (

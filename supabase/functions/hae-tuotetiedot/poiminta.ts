@@ -1007,102 +1007,14 @@ export function suomennaHakusanat(otsikko: string): string | null {
   return hakusanat.length > 0 ? hakusanat.join(", ") : null;
 }
 
-// ===========================================================================
-// Englanninkielisen tuotetekstin ohjeet suomeksi (Prismatic Powders)
-// ===========================================================================
-//
-// Prismaticin tuotekuvaus on markkinointitekstiä, jonka seassa on maalarille
-// oikeasti tarpeellista tietoa: lakkavaatimus, pohjaväri, polttoaika ja
-// varoitukset. Sen sijaan että koko teksti käännettäisiin, poimitaan vain ne
-// lauseet joilla on tekemistä maalaamisen kanssa - näin ohjeisiin ei päädy
-// "The possibilities and combinations are unlimited".
-//
-// Poiminta on siis valkoinen lista: tunnistamaton lause jätetään pois, jolloin
-// ohjeisiin ei jää käännöstä vaille jäänyttä englantia.
-
-/** Fahrenheit celsiuksiksi. Prismatic ilmoittaa polttolämmöt vain fahrenheitina. */
-function fahrenheitCelsiuksiksi(f: number): number {
-  return Math.round(((f - 32) * 5) / 9);
-}
-
-const ENGLANNIN_OHJEET: [RegExp, (m: RegExpMatchArray) => string][] = [
-  // Polttoaika. Celsius mukaan, koska uunista luetaan celsiusta.
-  [
-    /(\d+)\s*minutes? at\s*(\d+)\s*°?\s*F(?:\s*PMT)?/i,
-    (m) => `Polttoaika: ${m[1]} min lämpötilassa ${m[2]} °F (${fahrenheitCelsiuksiksi(Number(m[2]))} °C) kappaleen lämpötilana.`,
-  ],
-
-  // Lakkavaatimus ja pohjaväri
-  [
-    /To achieve the color,? displayed,?\s*([A-Za-z0-9 ]{2,30}?)\s*top coat must be applied/i,
-    (m) => `Kuvan mukainen sävy syntyy vasta lakalla ${m[1].trim()}.`,
-  ],
-  [
-    /To achieve this color as shown,\s*([A-Za-z0-9\- ]{2,40}?)\s*must be applied as a base coat/i,
-    (m) => `Kuvan mukainen sävy edellyttää pohjaväriä ${m[1].trim()}.`,
-  ],
-  [
-    /Illusion colors only activate when a clear top coat is applied/i,
-    () => "TÄRKEÄÄ: Illusion-värit aktivoituvat vasta kun päälle levitetään kirkas lakka.",
-  ],
-  [
-    /requires? a clear ?top ?coat/i,
-    () => "Vaatii kirkkaan lakan.",
-  ],
-  [
-    /(?:A|\*+A) clear top coat,?\s*(?:such as\s*([A-Za-z0-9\- ]{2,30}?)\s*,?\s*)?is recommended for exterior use/i,
-    (m) => `Ulkokäyttöön suositellaan kirkasta lakkaa${m[1] ? ` (esimerkiksi ${m[1].trim()})` : ""}.`,
-  ],
-  [
-    /For exterior use, use a clear top coat, such as\s*([A-Za-z0-9\- ]{2,30}?)\s*\./i,
-    (m) => `Ulkokäyttöön suositellaan kirkasta lakkaa (esimerkiksi ${m[1].trim()}).`,
-  ],
-  [
-    /not recommended for exterior exposure without applying a UV-resistant top coat/i,
-    () => "Ei sovellu ulkokäyttöön ilman UV-suojaavaa lakkaa.",
-  ],
-  [
-    /excellent base coat to use under transparent powders/i,
-    () => "Sopii pohjaväriksi läpikuultavien jauheiden alle.",
-  ],
-
-  // Varoitukset ja lopputulokseen vaikuttavat tekijät
-  [
-    /clear top coat may improve UV resistance and the overall durability of the finish, it can occasionally change the appearance of the color/i,
-    () => "Lakka parantaa UV- ja kulutuskestävyyttä, mutta voi muuttaa alla olevan värin ulkonäköä.",
-  ],
-  [
-    /This product has limited flexibility and impact resistance/i,
-    () => "Tuotteen joustavuus ja iskunkestävyys ovat rajalliset.",
-  ],
-  [
-    /This color may have limited UV stability/i,
-    () => "Värin UV-kestävyys voi olla rajallinen.",
-  ],
-  [
-    /Transparent powder coatings allow the underlying substrate to influence the final color, depth, brightness,? and reflectivity/i,
-    () => "Läpikuultavassa jauhemaalissa alusta vaikuttaa lopulliseen sävyyn, syvyyteen, kirkkauteen ja heijastavuuteen.",
-  ],
-  [
-    /Less-reflective substrates may produce a softer or more muted appearance/i,
-    () => "Vähemmän heijastava alusta antaa pehmeämmän ja vaimeamman lopputuloksen.",
-  ],
-  [
-    /(?:We|we) (?:always )?recommend (?:spraying|shooting) a test panel/i,
-    () => "Tee koelevy ennen varsinaista kappaletta.",
-  ],
-  [
-    /Super Durables are made with a durable polyester resin that offers a superior UV resistant package/i,
-    () => "Super Durable -sarja on kestävää polyesterihartsia, joka antaa tavallista paremman UV- ja säänkeston.",
-  ],
-];
-
-// Tuotteen laji ja pinta omalla lauseellaan: "This color is a polyester
-// metallic powder coat and has a high gloss finish."
+// Tuotteen laji ja pinta ovat englanninkielisessä kuvauksessa omana
+// lauseenaan: "This color is a polyester metallic powder coat and has a high
+// gloss finish."
 const TUOTELAJIT: [RegExp, string][] = [
   [/polyester\s*\/\s*epoxy hybrid/i, "polyesteri-epoksihybridijauhe"],
   [/polyurethane/i, "polyuretaanijauhemaali"],
   [/transparent polyester/i, "läpikuultava polyesterijauhemaali"],
+  [/epoxy metallic/i, "epoksipohjainen metallic-jauhemaali"],
   [/polyester metallic/i, "polyesteripohjainen metallic-jauhemaali"],
   [/polyester top ?coat/i, "polyesteripohjainen lakka"],
   [/polyester solid tone/i, "polyesteripohjainen yksivärinen jauhemaali"],
@@ -1123,37 +1035,330 @@ function ensimmainenOsuma(taulu: [RegExp, string][], teksti: string): string | n
   return taulu.find(([malli]) => malli.test(teksti))?.[1] ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Prismaticin tuotekuvaus lisätiedoiksi
+// ---------------------------------------------------------------------------
+// Prismaticilla varsinaiset maalausohjeet ovat PDF:n takana, joten niitä ei
+// saa tekstinä. Tuotesivulla nimen alla on sen sijaan lyhyt kuvaus värista, ja
+// juuri se kelpaa lisätiedoiksi. Kuvaus luetaan og:description-tagista, jonka
+// perässä on vielä sivun vakiotekstit - ne katkaistaan pois.
+//
+// Kuvaus on markkinointitekstiä, ei tekniikkaa, joten käännös on tarkoitettu
+// pohjaksi jota käyttäjä korjaa. Tuntematon sana jätetään mieluummin
+// englanniksi kuin käännetään arvaamalla: silloin se erottuu lomakkeella.
+
+/** Kohta, josta tuotekuvaus vaihtuu jokaisella sivulla toistuvaksi
+ *  vakiotekstiksi. Kaikki tästä eteenpäin jätetään pois. */
+const KUVAUKSEN_LOPPU = new RegExp(
+  [
+    // Kiiltoasteen erittely: "High Gloss: 85+ Gloss Units"
+    "\\b(?:High Gloss|Low Gloss|Semi-?Gloss|Satin|Matte|Flat|Gloss|Textured)\\s*:",
+    "Two Coat Information\\s*:",
+    "Top Coat Information\\s*:",
+    "Key Features\\s*:",
+    "To achieve the colou?r,? displayed",
+    "To achieve this colou?r as shown",
+    "To achieve results similar",
+    "The Prismatic Illusion Series",
+    "Transparent powder coatings allow",
+    "The S-Panel image",
+    "Listed below are two cure schedules",
+    "Its true chrome-?like appearance",
+    "Application method may change",
+    "See all our clears",
+    // Irrallinen tuotekategorian nimi kuvauksen perässä.
+    "\\bClear Metallic\\s*$",
+  ].join("|"),
+  "i",
+);
+
+/** Sanaliitot ja rakenteet. Ajetaan ennen sanastoa, koska useimmat sisältävät
+ *  sanoja joilla on sanastossa oma, tässä yhteydessä väärä käännöksensä. */
+const KUVAUKSEN_RAKENTEET: [RegExp, string][] = [
+  [/\bpolyester\s*\/\s*epoxy hybrid powder\b/gi, "polyesteri-epoksihybridijauhe"],
+  [/\bpolyurethane powder coating\b/gi, "polyuretaanijauhemaali"],
+  [/\bpolyester transparent clear metallic\b/gi, "läpikuultava metallipolyesteri"],
+  [/\bclear metallic polyester\b/gi, "kirkas metallipolyesteri"],
+  [/\bsatin clear finish\b/gi, "satiinipintainen lakka"],
+  [/\brainbow colou?r[- ]shifting effect\b/gi, "sateenkaarimainen sävynvaihto"],
+  [/\b(\w+) to (\w+) colou?r[- ]shifting metallic\b/gi, "$1-$2 sävynvaihtava metallihohde"],
+  [/\bgold tones\b/gi, "kultaisia sävyjä"],
+  [/\bmetallic golds?\b/gi, "kultainen metallihohde"],
+  [/\bmetallic silvers?\b/gi, "hopeinen metallihohde"],
+  [/\bmetallic bronzes?\b/gi, "pronssinen metallihohde"],
+  [/\bmetallic coppers?\b/gi, "kuparinen metallihohde"],
+  [/\bmetallic clear ?coat\b/gi, "metallilakka"],
+  [/\bmetallic polyester\b/gi, "metallipolyesteri"],
+  // "with a hint of dark blue" -> "jossa on tumma sininen vivahde": sävy
+  // siirtyy adjektiiviksi, jolloin siitä ei tarvitse taivuttaa partitiivia.
+  [/\b(?:that has|with)\s+an?\s+hint of\s+([a-z\- ]+)/gi, ", jossa on $1vivahde"],
+  [/\bwith a lot of depth\b/gi, ", jossa on paljon syvyyttä"],
+  [/\bthat glows when exposed to black light\b/gi, ", joka hohtaa mustan valon alla"],
+  [/\(This is not a glow-in-the-dark product\.\)/gi, "(Ei ole pimeässä hohtava tuote.)"],
+  [/\bmixture of\b/gi, "sekoitus, jossa on"],
+  [/\bdusted with\b/gi, ", jonka päällä on"],
+  [/\bwith\b/gi, ", jossa on"],
+];
+
+/** Sanasto. Pisimmät ensin: "metallic flake" on eri asia kuin "metallic" ja
+ *  "chrome-like" eri kuin "chrome". */
+const KUVAUKSEN_SANAT: [RegExp, string][] = [
+  // Sävyt, jotka koostuvat useammasta sanasta.
+  [/\broyal blue\b/gi, "kuninkaansininen"],
+  [/\bnavy blue\b/gi, "laivastonsininen"],
+  [/\bsky-?blue\b/gi, "taivaansininen"],
+  [/\bsapphire blue\b/gi, "safiirinsininen"],
+  [/\bemerald green\b/gi, "smaragdinvihreä"],
+  [/\blime green\b/gi, "limenvihreä"],
+  [/\bsea foam green\b/gi, "merenvihreä"],
+  [/\blemon yellow\b/gi, "sitruunankeltainen"],
+  [/\bcherry red\b/gi, "kirsikanpunainen"],
+  [/\bgrape purple\b/gi, "rypäleenvioletti"],
+  [/\bgrape\b/gi, "rypäleenvioletti"],
+  [/\byellow gold\b/gi, "keltakultainen"],
+  [/\bcharcoal gre[ay]\b/gi, "hiilenharmaa"],
+  [/\bcharcoal\b/gi, "hiilenharmaa"],
+  [/\btarnished brass\b/gi, "patinoitunut messinki"],
+  [/\borange-copper\b/gi, "oranssinkuparinen"],
+  [/\baqua blue\b/gi, "akvamariininsininen"],
+  [/\bbronze base\b/gi, "pronssipohja"],
+  [/\bchrome-?like\b/gi, "kromimainen"],
+
+  // Yksittäiset sävyt. Metallien nimet adjektiiveina, koska kuvauksissa ne
+  // ovat lähes aina määreitä: "a sparkling gold top coat".
+  [/\bblacks?\b/gi, "musta"],
+  [/\bwhites?\b/gi, "valkoinen"],
+  [/\breds?\b/gi, "punainen"],
+  [/\bblues?\b/gi, "sininen"],
+  [/\bgreens?\b/gi, "vihreä"],
+  [/\byellows?\b/gi, "keltainen"],
+  [/\boranges?\b/gi, "oranssi"],
+  [/\b(?:purple|violet)s?\b/gi, "violetti"],
+  [/\bpinks?\b/gi, "pinkki"],
+  [/\bgre[ay]s?\b/gi, "harmaa"],
+  [/\bbrowns?\b/gi, "ruskea"],
+  // Metallin nimi on määreenä adjektiivi ("kultainen metallihohde") mutta
+  // yksinään substantiivi ("aito kulta"), joten seuraava sana ratkaisee.
+  [/\bgolds?(?=\s+(?:metallic|tones|flakes?|top ?coat|base|metallipolyesteri|metallihohde|metallilakka))/gi, "kultainen"],
+  [/\bsilvers?(?=\s+(?:metallic|flakes?|sparkling|top ?coat|base|metallipolyesteri|metallihohde|metallilakka))/gi, "hopeinen"],
+  [/\bbronzes?(?=\s+(?:metallic|flakes?|and|top ?coat|metallipolyesteri|metallihohde|metallilakka))/gi, "pronssinen"],
+  [/\bcoppers?(?=\s+(?:metallic|flakes?|top ?coat|metallipolyesteri|metallihohde|metallilakka))/gi, "kuparinen"],
+  [/\bgolds?\b/gi, "kulta"],
+  [/\bsilvers?\b/gi, "hopea"],
+  [/\bbronzes?\b/gi, "pronssi"],
+  [/\bcoppers?\b/gi, "kupari"],
+  [/\bbrass\b/gi, "messinki"],
+  [/\bchrome\b/gi, "kromi"],
+  [/\bteals?\b/gi, "sinivihreä"],
+  [/\bturquoise\b/gi, "turkoosi"],
+  [/\baquas?\b/gi, "akvamariini"],
+  [/\bcrimson\b/gi, "karmiininpunainen"],
+  [/\bburgundy\b/gi, "burgundinpunainen"],
+  [/\bmaroon\b/gi, "viininpunainen"],
+  [/\bfuchsias?\b/gi, "fuksianpunainen"],
+  [/\braspberry\b/gi, "vadelmanpunainen"],
+  [/\bneon\b/gi, "neonvärinen"],
+  [/\brainbow-?like\b/gi, "sateenkaarimainen"],
+
+  // Määreet.
+  [/\bbrightest\b/gi, "kirkkain"],
+  [/\bbright\b/gi, "kirkas"],
+  [/\bdeep\b/gi, "syvä"],
+  [/\bdarker\b/gi, "tummahko"],
+  [/\bdark\b/gi, "tumma"],
+  [/\blight\b/gi, "vaalea"],
+  [/\brich\b/gi, "syvä"],
+  [/\bvibrant\b/gi, "eloisa"],
+  [/\bvivid\b/gi, "eloisa"],
+  [/\bintense\b/gi, "voimakas"],
+  [/\btrue\b/gi, "aito"],
+  [/\bfaint\b/gi, "hillitty"],
+  [/\bsubtle\b/gi, "hillitty"],
+  [/\bsoft\b/gi, "pehmeä"],
+  [/\bfine\b/gi, "hieno"],
+  [/\bheavy\b/gi, "runsas"],
+  [/\bstriking\b/gi, "näyttävä"],
+  [/\bsparkling\b/gi, "kimalteleva"],
+  [/\bshimmering\b/gi, "hohtava"],
+  [/\bglittery\b/gi, "kimalteleva"],
+  [/\bsmooth\b/gi, "sileä"],
+  [/\bsolid tone\b/gi, "yksivärinen"],
+  [/\bsolid\b/gi, "yksivärinen"],
+  [/\btransparent\b/gi, "läpikuultava"],
+  [/\boversized\b/gi, "suurikuvioinen"],
+  [/\bholographic\b/gi, "holografinen"],
+  [/\bcolou?r[- ]shifting\b/gi, "sävyä vaihtava"],
+  [/\bshifting\b/gi, "vaihtuva"],
+  [/\bdusty\b/gi, "utuinen"],
+  [/\bwarm\b/gi, "lämmin"],
+  [/\bunique\b/gi, "omaleimainen"],
+  [/\bflo?u?rescent\b/gi, "fluoresoiva"],
+  [/\breflective\b/gi, "heijastava"],
+  [/\bmost popular\b/gi, "suosituin"],
+  [/\blow gloss\b/gi, "vähäkiiltoinen"],
+  [/\bhigh gloss\b/gi, "korkeakiiltoinen"],
+  [/\bmatte\b/gi, "matta"],
+  [/\bsatin\b/gi, "satiini"],
+
+  // Substantiivit.
+  [/\bmetallic flakes?\b/gi, "metallihiutale"],
+  [/\bmetallics?\b/gi, "metallihohde"],
+  [/\bglitter\b/gi, "kimalle"],
+  [/\bwrinkled? textures?\b/gi, "ryppykuvio"],
+  [/\btextures?\b/gi, "kuviopinta"],
+  [/\btop ?coat\b/gi, "lakka"],
+  [/\bclear ?coat\b/gi, "kirkas lakka"],
+  [/\bbase ?coat\b/gi, "pohjaväri"],
+  [/\bpowder coatings?\b/gi, "jauhemaali"],
+  [/\bpowders?\b/gi, "jauhe"],
+  [/\bclears?\b/gi, "lakka"],
+  [/\btones\b/gi, "sävyt"],
+  [/\bdepth\b/gi, "syvyys"],
+  [/\blook\b/gi, "ilme"],
+  [/\beffects?\b/gi, "efekti"],
+  [/\bbase\b/gi, "pohja"],
+  [/\bfinish\b/gi, "pinta"],
+  [/\bpolyester\b/gi, "polyesteri"],
+  [/\bpolyurethane\b/gi, "polyuretaani"],
+  [/\bepoxy\b/gi, "epoksi"],
+
+  // Kielioppisanat viimeisenä, jotta ne eivät syö sanaliittoja.
+  [/\bcolou?rs?\b/gi, ""],
+  [/\ban?\b/gi, ""],
+  [/\bthe\b/gi, ""],
+  [/\bof\b/gi, ""],
+  [/\band\b/gi, "ja"],
+  [/\bis\b/gi, "on"],
+  [/\bour\b/gi, "valmistajan"],
+];
+
+/** Yksi lause suomeksi. */
+function suomennaKuvausteksti(teksti: string): string {
+  let tulos = ` ${teksti} `;
+  for (const [malli, suomi] of KUVAUKSEN_RAKENTEET) tulos = tulos.replace(malli, suomi);
+  for (const [malli, suomi] of KUVAUKSEN_SANAT) tulos = tulos.replace(malli, suomi);
+  return tulos
+    .replace(/(\d)%/g, "$1 %")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.])/g, "$1")
+    .replace(/,\s*,/g, ",")
+    .trim();
+}
+
+/** Kokonaiset virkkeet, joita ei kannata kääntää sana kerrallaan. Ensimmäinen
+ *  osuma voittaa. */
+const KUVAUKSEN_VIRKKEET: [RegExp, (m: RegExpMatchArray) => string][] = [
+  // "This color is a polyester metallic powder coat and has a high gloss
+  // finish, and requires a clear topcoat."
+  [
+    /^This colou?r is an? (.+?) powder coat,?\s*(?:and has|with)\s*an?\s*(.+?)\s*finish(.*)$/i,
+    (m) => {
+      const laji = ensimmainenOsuma(TUOTELAJIT, m[1]) ?? `${suomennaKuvausteksti(m[1])}jauhemaali`;
+      const pinta = ensimmainenOsuma(PINNAT, m[2]);
+      const lakka = /requires? a clear ?top ?coat/i.test(m[3]) ? " Vaatii kirkkaan lakan." : "";
+      return `Väri on ${[laji, pinta].filter(Boolean).join(", ")}.${lakka}`;
+    },
+  ],
+  // Sama ilman "powder coat" -sanaa: "Illusion Sweet Berry Wine is a deep
+  // crimson metallic polyester and has a gloss finish and requires a clear
+  // topcoat."
+  [
+    /^(.+?) is an? (.+?)\s*(?:and has|with)\s*an?\s*(.+?)\s*finish(.*)$/i,
+    (m) => {
+      const pinta = ensimmainenOsuma(PINNAT, m[3]);
+      const lakka = /requires? a clear ?top ?coat/i.test(m[4]) ? " Vaatii kirkkaan lakan." : "";
+      return `${m[1]} on ${suomennaKuvausteksti(m[2])}${pinta ? `, pinta ${pinta}` : ""}.${lakka}`;
+    },
+  ],
+  [
+    /^\(This is not a glow-in-the-dark product\.?\)$/i,
+    () => "(Ei ole pimeässä hohtava tuote.)",
+  ],
+  [
+    /^This is an excellent base coat to use under transparent powders/i,
+    () => "Sopii pohjaväriksi läpikuultavien jauheiden alle, jolloin lopputulos on eloisa candy-pinta.",
+  ],
+  [
+    /^It is our brightest and most reflective powder/i,
+    () => "Valmistajan kirkkain ja heijastavin jauhe.",
+  ],
+  [
+    /^This product has limited flexibility and impact resistance/i,
+    () => "Tuotteen joustavuus ja iskunkestävyys ovat rajalliset.",
+  ],
+  [
+    /^This colou?r may have limited UV stability/i,
+    () => "Värin UV-kestävyys voi olla rajallinen.",
+  ],
+  [
+    /^\**This colou?r has excellent UV stability/i,
+    () => "Värin UV-kestävyys on erinomainen.",
+  ],
+  [
+    /^Our Super Durables are made with a durable polyester resin/i,
+    () => "Super Durable -sarja on kestävää polyesterihartsia, joka antaa tavallista paremman UV- ja säänkeston.",
+  ],
+  // Nimivirke: "Blue Morpho is a transparent sapphire blue dusted with ...".
+  // Osalla tuotteista "is" puuttuu kuvauksesta kokonaan.
+  [
+    /^(.+?)\s+(?:is\s+)?an?\s+(.+)$/i,
+    (m) => `${m[1]} on ${suomennaKuvausteksti(m[2])}.`,
+  ],
+];
+
 /**
- * Valmistajan ohjeet englanninkielisestä tuotekuvauksesta.
+ * Prismaticin tuotekuvaus suomeksi lisätiedoiksi.
  *
- * Lauseet poimitaan valkoisella listalla ja käännetään suomeksi. Sama ohje
- * toistuu kuvauksessa usein kahdesti (og-tagi ja meta-kuvaus), joten tulos
- * karsitaan kertaalleen.
+ * Tuotteen nimi suojataan käännökseltä: nimissä on värisanoja ("Pearl Black",
+ * "Sail Purple"), jotka sanasto muuten kääntäisi kesken nimen.
  */
-export function poimiEnglanninOhjeet(kuvaus: string): string | null {
-  const rivit: string[] = [];
-  const nahdyt = new Set<string>();
-  const lisaa = (rivi: string) => {
-    if (!nahdyt.has(rivi)) {
-      nahdyt.add(rivi);
-      rivit.push(rivi);
-    }
-  };
+/** Virke jäi kääntämättä, jos siinä on yhä englannin rakennesanoja. Sanasto
+ *  kääntää tai poistaa ne kaikki, joten jäljelle jäänyt tarkoittaa ettei
+ *  virke osunut mihinkään malliin. Puolikas käännös on lomakkeella pahempi
+ *  kuin puuttuva tieto, joten sellainen virke jätetään pois. */
+const ENGLANNIKSI_JAANYT =
+  /\b(?:for|this|that|these|those|any|are|was|were|from|by|to|in|it|its|which|when|while|has|have|had|will|would|can|could|be|been|as|at|on the|you|your|we|us)\b/i;
 
-  const laji = ensimmainenOsuma(TUOTELAJIT, kuvaus.match(/is an? ([^.]{0,80}?)powder coat/i)?.[1] ?? "");
-  const pinta = ensimmainenOsuma(PINNAT, kuvaus.match(/has an? ([^.]{0,40}?)finish/i)?.[1] ?? "");
-  if (laji) lisaa(`Tuote: ${[laji, pinta].filter(Boolean).join(", ")}.`);
-  else if (pinta) lisaa(`Pinta: ${pinta}.`);
+/**
+ * Prismaticin tuotekuvaus suomeksi lisätiedoiksi.
+ *
+ * Tuotteen nimi suojataan käännökseltä: nimissä on värisanoja ("Pearl Black",
+ * "Sail Purple"), jotka sanasto muuten kääntäisi kesken nimen.
+ */
+export function poimiLisatiedot(kuvaus: string, nimi?: string | null): string | null {
+  const loppu = kuvaus.search(KUVAUKSEN_LOPPU);
+  const teksti = (loppu >= 0 ? kuvaus.slice(0, loppu) : kuvaus)
+    // Tuotekategorian nimi jää toisinaan roikkumaan kuvauksen perään.
+    .replace(/\.\s*Clear Metallic\s*$/i, ".")
+    .trim();
+  if (!teksti) return null;
 
-  // Tarkempi lakkaohje syrjäyttää yleisen: "Kuvan mukainen sävy syntyy vasta
-  // lakalla X" kertoo saman kuin "Vaatii kirkkaan lakan", mutta enemmän.
-  const tarkkaLakkaohje = /To achieve the color,? displayed,?\s*[A-Za-z0-9 ]{2,30}?\s*top coat must be applied/i.test(kuvaus);
+  // Virkkeen loppu on piste, huuto- tai kysymysmerkki, jota voi seurata
+  // sulkeva merkki: "(This is not a glow-in-the-dark product.) This color ..."
+  const virkkeiksi = (t: string) =>
+    t.split(/(?<=[.!?][)"'\u201d]?)\s+/).map((v) => v.trim()).filter(Boolean);
 
-  for (const [malli, suomeksi] of ENGLANNIN_OHJEET) {
-    if (tarkkaLakkaohje && malli.source.startsWith("requires? a clear")) continue;
-    const osuma = kuvaus.match(malli);
-    if (osuma) lisaa(suomeksi(osuma));
+  // Kuvauksessa tuotteen nimi voi olla eri kirjoitusasussa kuin meillä
+  // ("Polished Aluminum" / "Polished Aluminium"). Käytetään omaa nimeämme.
+  const sivunNimi = virkkeiksi(teksti)[0]?.match(/^(.+?)\s+(?:is\s+)?an?\s/i)?.[1]?.trim();
+  const omaNimi = nimi?.trim() || sivunNimi;
+  const yhtenaistetty = sivunNimi && omaNimi ? teksti.split(sivunNimi).join(omaNimi) : teksti;
+
+  const SUOJA = "\u0001";
+  const suojattu = omaNimi ? yhtenaistetty.split(omaNimi).join(SUOJA) : yhtenaistetty;
+
+  const suomeksi: string[] = [];
+  for (const virke of virkkeiksi(suojattu)) {
+    const ilmanPistetta = virke.replace(/\.$/, "");
+    const malli = KUVAUKSEN_VIRKKEET.find(([m]) => m.test(ilmanPistetta));
+    const kaannos = (
+      malli
+        ? malli[1](ilmanPistetta.match(malli[0]) as RegExpMatchArray)
+        : `${suomennaKuvausteksti(ilmanPistetta)}.`
+    ).trim();
+    if (kaannos && !ENGLANNIKSI_JAANYT.test(kaannos)) suomeksi.push(kaannos);
   }
 
-  return rivit.length > 0 ? rivit.join("\n") : null;
+  const tulos = suomeksi.join(" ").split(SUOJA).join(omaNimi ?? "").trim();
+  return tulos ? tulos : null;
 }

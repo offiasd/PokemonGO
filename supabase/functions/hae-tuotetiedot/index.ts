@@ -30,7 +30,7 @@ import {
   muunnaPerKg,
   nimiOtsikosta,
   poimiAlkupera,
-  poimiEnglanninOhjeet,
+  poimiLisatiedot,
   poimiHinta,
   poimiKiiltoaste,
   poimiKuva,
@@ -251,7 +251,7 @@ async function htmlstaVastaus(html: string, osoite: string): Promise<HaeTiedotVa
   vastaus.valmistaja = poimiValmistaja(html);
   vastaus.kuva_url = poimiKuva(html, osoite);
   vastaus.ohje_tiedosto_url = poimiOhjeTiedosto(html, osoite);
-  vastaus.ohjeet = poimiEnglanninOhjeet(tuotekuvaus);
+  vastaus.ohjeet = poimiLisatiedot(tuotekuvaus, nimi);
   vastaus.hakusanat = suomennaHakusanat(nimi ?? "");
   vastaus.myyja_linkki = osoite;
   vastaus.kiiltoaste = poimiKiiltoaste(kuvausTeksti);
