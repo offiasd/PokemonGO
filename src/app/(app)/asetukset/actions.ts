@@ -54,6 +54,14 @@ export async function paivitaAsetukset(
       muutokset[kentta] = String(formData.get(kentta) ?? "").trim() || null;
     }
   }
+  // Väriviitteet: tyhjä valinta tarkoittaa "ei esitäyttöä", joten se
+  // tallennetaan nullina eikä tyhjänä merkkijonona - uuid-sarake ei ottaisi
+  // tyhjää vastaan.
+  for (const kentta of ["oletus_pohjavari_id", "oletus_lakka_id"] as const) {
+    if (formData.has(kentta)) {
+      muutokset[kentta] = String(formData.get(kentta) ?? "").trim() || null;
+    }
+  }
   if (formData.has("nayta_hinnat_maalaajalle_lomakkeella")) {
     muutokset.nayta_hinnat_maalaajalle = formData.get("nayta_hinnat_maalaajalle") === "on";
   }

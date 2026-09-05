@@ -97,6 +97,8 @@ export default async function UusiTyoSivu() {
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
+            oletusPohjavariId={asetukset.oletus_pohjavari_id}
+            oletusLakkaId={asetukset.oletus_lakka_id}
           />
         </CardContent>
       </Card>

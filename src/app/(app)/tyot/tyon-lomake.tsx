@@ -129,12 +129,18 @@ export function TyonLomake({
   varit,
   kategoriahinnat,
   variKategoriat,
+  oletusPohjavariId,
+  oletusLakkaId,
   muokattavaTyo,
 }: {
   osat: Osa[];
   varit: Vari[];
   kategoriahinnat: Kategoriahinta[];
   variKategoriat: VariKategoria[];
+  /** Asetuksissa valittu esitäyttö candyn pohjavärille. */
+  oletusPohjavariId: string | null;
+  /** Asetuksissa valittu esitäyttö illusionin ja metallicin lakalle. */
+  oletusLakkaId: string | null;
   /** Annettuna lomake muokkaa olemassa olevaa keskeneräistä työtä. */
   muokattavaTyo?: {
     id: string;
@@ -171,7 +177,9 @@ export function TyonLomake({
   const [kategoria, setKategoria] = useState<MyytavaMaaliTyyppi | "">("");
   const [variId, setVariId] = useState("");
   const [lakkausValittu, setLakkausValittu] = useState(false);
-  const [toinenVariId, setToinenVariId] = useState("");
+  // null = valintaa ei ole koskettu, jolloin kentässä näkyy asetusten esitäyttö
+  // ja se seuraa kategorian vaihtoa. Merkkijono on käyttäjän oma valinta.
+  const [toinenVariSyote, setToinenVariSyote] = useState<string | null>(null);
 
   // Custom-työssä osa maalataan useammalla värillä kuin rivin omat kaksi, ja
   // maalaaja päättää itse miten kulutus jakautuu ja mitä työstä veloitetaan.
@@ -187,10 +195,6 @@ export function TyonLomake({
 
   const valittuOsa = useMemo(() => osat.find((o) => o.id === osaId), [osat, osaId]);
   const valittuVari = useMemo(() => varit.find((v) => v.id === variId), [varit, variId]);
-  const valittuToinenVari = useMemo(
-    () => varit.find((v) => v.id === toinenVariId),
-    [varit, toinenVariId]
-  );
 
   const osanKategoriat = useMemo(
     () => kategoriahinnat.filter((k) => k.osa_id === osaId),
@@ -232,6 +236,27 @@ export function TyonLomake({
           (!toisenVarinKategoria || variKategoriaKartta.get(v.id)?.has(toisenVarinKategoria))
       ),
     [varit, variId, toisenVarinKategoria, variKategoriaKartta]
+  );
+
+  // Candyn pohjaväri ja illusionin/metallicin lakka ovat käytännössä joka
+  // kerta sama väri, joten asetuksissa valittu oletus esitäytetään. Esitäyttö
+  // kelpaa vain jos väri on yhä valittavissa: poistettu tai väärään
+  // kategoriaan siirretty oletus jättää kentän tyhjäksi eikä valitse mitään
+  // sattumanvaraista tilalle.
+  const oletusToinenVariId =
+    toinenVariRooli === "pohjavari"
+      ? oletusPohjavariId
+      : toinenVariRooli === "lakka"
+        ? oletusLakkaId
+        : null;
+  const esitaytettyToinenVari =
+    oletusToinenVariId && toisenVarinVaihtoehdot.some((v) => v.id === oletusToinenVariId)
+      ? oletusToinenVariId
+      : "";
+  const toinenVariId = toinenVariSyote ?? esitaytettyToinenVari;
+  const valittuToinenVari = useMemo(
+    () => varit.find((v) => v.id === toinenVariId),
+    [varit, toinenVariId]
   );
 
   // Kategorian kulutus on esitäyttö. Custom-työssä sen voi jakaa väreille
@@ -331,7 +356,7 @@ export function TyonLomake({
     setKategoria("");
     setVariId("");
     setLakkausValittu(false);
-    setToinenVariId("");
+    setToinenVariSyote(null);
     tyhjennaCustom();
   }
 
@@ -339,7 +364,7 @@ export function TyonLomake({
     setKategoria(v as MyytavaMaaliTyyppi);
     setVariId("");
     setLakkausValittu(false);
-    setToinenVariId("");
+    setToinenVariSyote(null);
   }
 
   /** Custom-valinnat nollautuvat aina rivin mukana, ei työn mukana. */
@@ -357,7 +382,7 @@ export function TyonLomake({
     setKategoria("");
     setVariId("");
     setLakkausValittu(false);
-    setToinenVariId("");
+    setToinenVariSyote(null);
     tyhjennaCustom();
   }
 
@@ -606,7 +631,7 @@ export function TyonLomake({
                 {TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]}
                 {pakollinenRooli ? " *" : ""}
               </Label>
-              <Select value={toinenVariId} onValueChange={setToinenVariId}>
+              <Select value={toinenVariId} onValueChange={setToinenVariSyote}>
                 <SelectTrigger id="toinen_vari_id" className="w-full">
                   <SelectValue
                     placeholder={`Valitse ${TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli].toLowerCase()}`}

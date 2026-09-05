@@ -159,6 +159,8 @@ export default async function MuokkaaTyotaSivu({
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
+            oletusPohjavariId={asetukset.oletus_pohjavari_id}
+            oletusLakkaId={asetukset.oletus_lakka_id}
             muokattavaTyo={{
               id: tyo.id,
               asiakas: tyo.asiakas,

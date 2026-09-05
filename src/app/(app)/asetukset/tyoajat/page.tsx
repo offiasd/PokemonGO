@@ -1,20 +1,37 @@
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { createClient } from "@/lib/supabase/server";
+import type { MaaliTyyppi } from "@/lib/supabase/database.types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { Asetuslomake } from "../asetuslomake";
+import { OletusvaritLomake } from "../oletusvarit-lomake";
 import { TuntiveloituksetLomake } from "../tuntiveloitukset-lomake";
 
 export default async function TyoajatSivu() {
   await vaaditaanAdmin();
   const supabase = await createClient();
-  const [asetukset, tuntiveloituksetVastaus] = await Promise.all([
+  const [asetukset, tuntiveloituksetVastaus, varitVastaus, kategoriaVastaus] = await Promise.all([
     haeAsetukset(),
     supabase.from("tuntiveloitukset").select("*"),
+    supabase.from("varit").select("id, nimi").eq("aktiivinen", true).order("nimi"),
+    // Esitäytettävä väri valitaan samasta kategoriasta jota työlomakekin
+    // tarjoaa, joten rajaus tehdään lisäkategorian eikä värin oman tyypin
+    // mukaan: esimerkiksi Super Chrome Plus on tyypiltään metallic mutta
+    // kelpaa pohjaväriksi.
+    supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
   ]);
+
+  const kategorianVarit = (maaliTyyppi: MaaliTyyppi) => {
+    const sallitut = new Set(
+      (kategoriaVastaus.data ?? [])
+        .filter((k) => k.maali_tyyppi === maaliTyyppi)
+        .map((k) => k.vari_id)
+    );
+    return (varitVastaus.data ?? []).filter((v) => sallitut.has(v.id));
+  };
 
   return (
     <>
@@ -82,6 +99,27 @@ export default async function TyoajatSivu() {
                 </p>
               </div>
             </div>
+          </Asetuslomake>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Monikerrostöiden oletusvärit</CardTitle>
+          <CardDescription>
+            Candy vaatii aina pohjavärin ja illusion aina lakan, ja lakattava metallic saman lakan.
+            Kun valinta on käytännössä joka kerta sama, sen voi esitäyttää tähän - Uusi työ
+            -lomakkeella värin voi silti aina vaihtaa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Asetuslomake>
+            <OletusvaritLomake
+              pohjavarit={kategorianVarit("pohjavari")}
+              lakat={kategorianVarit("transparent")}
+              oletusPohjavariId={asetukset.oletus_pohjavari_id}
+              oletusLakkaId={asetukset.oletus_lakka_id}
+            />
           </Asetuslomake>
         </CardContent>
       </Card>

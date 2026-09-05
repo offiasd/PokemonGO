@@ -111,6 +111,10 @@ export interface Database {
           halytys_ilmoitus_sahkoposti: string | null;
           /** Lähettäjä muodossa "Nimi <osoite>". */
           halytys_ilmoitus_lahettaja: string | null;
+          /** Esitäytetty pohjaväri candy-töille. Null = ei esitäyttöä. */
+          oletus_pohjavari_id: string | null;
+          /** Esitäytetty lakka illusionille ja lakattavalle metallicille. */
+          oletus_lakka_id: string | null;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["asetukset"]["Row"]>;
