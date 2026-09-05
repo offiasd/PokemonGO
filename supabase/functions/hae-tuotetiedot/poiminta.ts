@@ -528,21 +528,25 @@ export function htmlRiveiksi(html: string): string[] {
 // jotka ovat maalarille tarpeen, ja säilytetään valmistajan oma teksti
 // sellaisenaan - vain otsikko käännetään.
 const OHJEOTSIKOT: { saksa: RegExp; suomi: string; mukaan: boolean }[] = [
-  { saksa: /^anwendung$/i, suomi: "Levitys", mukaan: true },
-  { saksa: /^vorbehandlung$/i, suomi: "Esikäsittely", mukaan: true },
-  { saksa: /^empfohlene einbrennzeit$/i, suomi: "Polttoaika", mukaan: true },
-  { saksa: /^theoretische ergiebigkeit$/i, suomi: "Riittoisuus", mukaan: true },
-  { saksa: /^optimale schichtst[äa]rke$/i, suomi: "Kalvonpaksuus", mukaan: true },
+  { saksa: /^anwendung:?$/i, suomi: "Levitys", mukaan: true },
+  { saksa: /^vorbehandlung:?$/i, suomi: "Esikäsittely", mukaan: true },
+  { saksa: /^empfohlene einbrennzeit:?$/i, suomi: "Polttoaika", mukaan: true },
+  { saksa: /^theoretische ergiebigkeit:?$/i, suomi: "Riittoisuus", mukaan: true },
+  { saksa: /^optimale schichtst[äa]rke:?$/i, suomi: "Kalvonpaksuus", mukaan: true },
   // Nämä tunnistetaan vain jotta tiedetään mihin edellinen osio päättyy.
-  { saksa: /^technische datenbl[äa]tter$/i, suomi: "", mukaan: false },
-  { saksa: /^empfehlung f[üu]r den au[ßs]enbereich$/i, suomi: "", mukaan: false },
-  { saksa: /^sie haben fragen\??$/i, suomi: "", mukaan: false },
+  { saksa: /^technische datenbl[äa]tter:?$/i, suomi: "", mukaan: false },
+  { saksa: /^empfehlung f[üu]r den au[ßs]enbereich:?$/i, suomi: "", mukaan: false },
+  { saksa: /^sie haben fragen[:?]*$/i, suomi: "", mukaan: false },
 ];
 
+/** Yksittäisen osion pituusraja. Laiteosto-sivuilla "Anwendung" on tuhansien
+ *  sanojen myyntiteksti, joka ei kuulu värin maalausohjeisiin. */
+const OSION_ENIMMAISPITUUS = 400;
+
 /**
- * Tekninen osio tuotekuvauksesta: polttoaika, kalvonpaksuus, riittoisuus ja
- * esikäsittely. Riittoisuus (m²/kg) on tarkistusluku ohjeissa - siitä ei
- * johdeta osan kulutusarviota, koska osan pinta-ala ei ole tiedossa.
+ * Tekninen osio tuotekuvauksesta suomennettuna: polttoaika, kalvonpaksuus,
+ * riittoisuus ja esikäsittely. Riittoisuus (m²/kg) on tarkistusluku ohjeissa -
+ * siitä ei johdeta osan kulutusarviota, koska osan pinta-ala ei ole tiedossa.
  */
 export function poimiOhjeet(rivit: string[]): string | null {
   const osiot: string[] = [];
@@ -550,7 +554,12 @@ export function poimiOhjeet(rivit: string[]): string | null {
 
   const talteen = () => {
     if (nykyinen && nykyinen.teksti.length > 0) {
-      osiot.push(`${nykyinen.suomi}: ${nykyinen.teksti.join(" ")}`);
+      // Osan otsikko on toisinaan omalla rivillään ja toisinaan kaksoispisteen
+      // kanssa, jolloin sisältö alkaa irrallisella kaksoispisteellä.
+      const teksti = nykyinen.teksti.join(" ").replace(/^:\s*/, "").trim();
+      if (teksti && teksti.length <= OSION_ENIMMAISPITUUS) {
+        osiot.push(`${nykyinen.suomi}: ${kaannaSaksasta(teksti)}`);
+      }
     }
     nykyinen = null;
   };
@@ -606,11 +615,35 @@ export function shopifyKilohinta(variantti: ShopifyVariantti): number | null {
 }
 
 /**
- * Kaupan oletusvariantti eli listan ensimmäinen: sen hinnan tuotesivu näyttää,
- * ja Pulverkönigillä se on suurin pakkaus - juuri se jota maalaamo ostaa.
+ * Hinnoitteluun käytettävä variantti: kilon pakkaus.
+ *
+ * Kauppa antaa paljousalennuksen, joten viiden kilon säkin kilohinta on
+ * halvempi kuin kilon purkin. Ostohintaan otetaan alentamaton kilohinta, jottei
+ * varaston arvo ja työn kate nojaa alennukseen jota ei välttämättä saa.
+ *
+ * Ilman kilon pakkausta valitaan kallein kilohinta samalla perusteella.
+ * Pakkauskoko luetaan variantin nimestä ("1 kg", "S (1 kg)"), koska kaupan oma
+ * järjestys vaihtelee tuotteittain eikä ensimmäinen ole aina sama koko.
  */
-export function shopifyOletusvariantti(tuote: ShopifyTuote): ShopifyVariantti | null {
-  return tuote.variants?.[0] ?? null;
+export function shopifyHintavariantti(tuote: ShopifyTuote): ShopifyVariantti | null {
+  const variantit = tuote.variants ?? [];
+  if (variantit.length === 0) return null;
+
+  const kilonPakkaus = variantit.find(
+    (v) => pakkauksenKilot(v.option1 ?? v.title) === 1
+  );
+  if (kilonPakkaus) return kilonPakkaus;
+
+  let kallein: ShopifyVariantti | null = null;
+  let kalleinHinta = -1;
+  for (const variantti of variantit) {
+    const hinta = shopifyKilohinta(variantti);
+    if (hinta !== null && hinta > kalleinHinta) {
+      kalleinHinta = hinta;
+      kallein = variantti;
+    }
+  }
+  return kallein ?? variantit[0];
 }
 
 // ===========================================================================
@@ -639,4 +672,235 @@ export function nimiOtsikosta(otsikko: string | null, ralKoodi: string | null): 
  */
 export function ralTyyppi(teksti: string): MaaliTyyppi {
   return /\b(metallic|metallisch|eisenglimmer|db\s?\d{3})\b/i.test(teksti) ? "metallic" : "solid";
+}
+
+// ===========================================================================
+// Saksankielisen tuotetekstin suomennos
+// ===========================================================================
+//
+// Pulverkönigin tekniset osiot ovat vakiotekstiä: koko 250 tuotteen luettelossa
+// on vain 45 erilaista osioriviä, ja niistäkin valtaosa on samaa lausetta eri
+// numeroilla. Siksi käännös tehdään lausemalleilla eikä käännöspalvelulla:
+// tulos on tarkka, ei maksa mitään eikä lisää verkkokutsua hakuun.
+//
+// Numerot poimitaan malleista talteen, joten sama lause kääntyy oikein
+// lämpötilasta ja kalvonpaksuudesta riippumatta. Käännös on ehdotus kuten muutkin
+// haetut kentät - admin voi korjata tekstiä lomakkeella.
+
+const LAUSEMALLIT: [RegExp, string][] = [
+  // Levitysmenetelmä
+  [
+    /Bei der Verarbeitung von Metallic-Pulverlacken wird das elektrostatische-?\s*\(Korona-?\)\s*Verfahren empfohlen,\s*Metallic-Pulverlacke müssen auf Ihre Eignung zur Tribo-Applikation geprüft werden\./gi,
+    "Metallic-jauhemaaleille suositellaan sähköstaattista (korona) menetelmää, ja niiden soveltuvuus tribomenetelmään on tarkistettava erikseen.",
+  ],
+  // RAL ja Leucht erikseen: yhteinen malli jättäisi tuotesarjan nimen
+  // talteenottoon, ja termikäännös tekisi siitä "Kaikki hohtava-jauhemaalit".
+  [
+    /Alle RAL-Pulverlacke sind für das (?:elektrostatische-?\s*)?\(?Korona-?\)?[\s-]*und[\s-]*Tribo-?\s*Verfahren geeignet\./gi,
+    "Kaikki RAL-jauhemaalit soveltuvat sähköstaattiseen (korona) ja tribomenetelmään.",
+  ],
+  [
+    /Alle Leucht-Pulverlacke sind für das (?:elektrostatische-?\s*)?\(?Korona-?\)?[\s-]*und[\s-]*Tribo-?\s*Verfahren geeignet\./gi,
+    "Kaikki hohtavat jauhemaalit soveltuvat sähköstaattiseen (korona) ja tribomenetelmään.",
+  ],
+  [
+    /Bei der Verarbeitung wird das elektrostatische-?\s*\(Korona-?\)\s*und Tribo-Verfahren empfohlen\./gi,
+    "Levitykseen suositellaan sähköstaattista (korona) ja tribomenetelmää.",
+  ],
+  [
+    /Für das (?:elektrostatische-?\s*)?\(?Korona-?\)?[\s-]*und[\s-]*Tribo-?\s*Verfahren geeignet\./gi,
+    "Soveltuu sähköstaattiseen (korona) ja tribomenetelmään.",
+  ],
+
+  // Esikäsittely
+  [
+    /Fette, Öle, Zunder und Oxidationsprodukte müssen vor der Beschichtung von der Oberfläche entfernt werden\./gi,
+    "Rasvat, öljyt, valssihilse ja hapettumat on poistettava pinnalta ennen maalausta.",
+  ],
+  [
+    /Bei besonderen Anforderungen werden weitere Vorbehandlungsarten benötigt\./gi,
+    "Erityisvaatimuksissa tarvitaan lisäksi muita esikäsittelyjä.",
+  ],
+  [
+    /Bei besonderen Korrosionsschutzanforderungen unbedingt das technische Datenblatt beachten bezüglich der Vorbehandlung auf verschiedenen Substraten!?/gi,
+    "Erityisissä korroosionsuojavaatimuksissa tarkista teknisestä datalehdestä eri alustojen esikäsittely.",
+  ],
+  [
+    /Bitte die technischen Datenblätter beachten\./gi,
+    "Huomioi valmistajan tekniset datalehdet.",
+  ],
+
+  // Polttoaika
+  [
+    /Die Farben müssen jeweils bei\s*(\d+)\s*°?\s*C Objekttemperatur\s*(?:ca\.\s*)?([\d\s\-–]+?)\s*min eingebrannt werden\./gi,
+    "Värit poltetaan kappaleen lämpötilassa $1 °C noin $2 min.",
+  ],
+  [
+    /Bei\s*(\d+)\s*°?\s*C Objekttemperatur\s*(?:ca\.\s*)?([\d\s\-–]+?)\s*min\.?/gi,
+    "Kappaleen lämpötilassa $1 °C, $2 min.",
+  ],
+
+  // Riittoisuus ja kalvonpaksuus
+  [
+    /Bei\s*(\d+)\s*[μµ]m Schichtdicke\s*([\d,.\s\-–]+?)\s*m²\/kg/gi,
+    "$1 μm kalvonpaksuudella $2 m²/kg",
+  ],
+  [
+    /-?\s*bei einer 1-Fach Beschichtung\s*(?:ca\.\s*)?([\d\s\-–]+?)\s*[µμ]m/gi,
+    "- yhdellä maalikerroksella $1 µm",
+  ],
+  [
+    /-?\s*bei einer 2-Fach Beschichtung\s*(?:ca\.\s*)?([\d\s\-–]+?)\s*[µμ]m/gi,
+    "- kahdella maalikerroksella $1 µm",
+  ],
+
+  // Lasurit
+  [
+    /Bitte beachten Sie die Verarbeitungshinweise der Lasuren, die passenden technischen Datenblätter können unter den FAQ als PDF-Datei heruntergeladen werden\.\s*Ebenfalls gibt es unter den FAQs einen Leitfaden für die Verarbeitung von Lasuren\./gi,
+    "Huomioi lasuurien käsittelyohjeet; tekniset datalehdet ja lasuurien käsittelyopas löytyvät valmistajan FAQ-sivulta PDF-tiedostoina.",
+  ],
+  [
+    /Die transparenten Lasuren erzielen auf verschiedenen Untergründen unterschiedliche Farbergebnisse\./gi,
+    "Läpikuultavat lasuurit antavat eri alustoilla eri lopputuloksen.",
+  ],
+  [
+    /Ebenfalls ist die Intensität des Farbtons stark von der Schichtstärke abhängig!?/gi,
+    "Sävyn voimakkuus riippuu voimakkaasti kalvonpaksuudesta.",
+  ],
+  [
+    /Ein Schichtdickenunterschied von\s*(\d+)\s*[µμ]m bewirkt bereits einen optischen Farbunterschied\./gi,
+    "Jo $1 µm ero kalvonpaksuudessa näkyy sävyerona.",
+  ],
+  [
+    /Bevor Sie Farbe auf Ihrem Werkstück auftragen, sollten Sie ein Musterblech mit den gewünschten Pulverlack Kombinationen anfertigen\./gi,
+    "Tee koelevy halutuilla jauhemaaliyhdistelmillä ennen kuin maalaat varsinaisen kappaleen.",
+  ],
+  [/Bitte beachten Sie!?/gi, "Huomioi:"],
+];
+
+// Yksittäiset termit lausemallien jälkeen: nappaavat sen mitä malleista jäi yli
+// ja kääntävät hakusanat. Pidemmät ensin, jottei "lack" syö sanaa "Pulverlack".
+const TERMIT: [RegExp, string][] = [
+  [/\bPulverbeschichtung\b/gi, "jauhemaalaus"],
+  [/\bPulverlacke?n?\b/gi, "jauhemaali"],
+  [/\bKlarlack\b/gi, "kirkaslakka"],
+  [/\bLackstift\b/gi, "korjauskynä"],
+  [/\bLasuren?\b/gi, "lasuuri"],
+  [/\bHochglanz\b/gi, "korkeakiilto"],
+  [/\bSeidenglanz\b/gi, "puolikiilto"],
+  [/\bSeidenmatt\b/gi, "puolimatta"],
+  [/\bStumpfmatt\b/gi, "täysmatta"],
+  [/\bFeinstruktur\b/gi, "hienorakenne"],
+  [/\bStruktur\b/gi, "rakenne"],
+  [/\bGl[äa]nzend\b/gi, "kiiltävä"],
+  [/\bGlanz\b/gi, "kiiltävä"],
+  [/\bMatt\b/gi, "matta"],
+  [/\bGlatt\b/gi, "sileä"],
+  [/\bFarblos\b/gi, "väritön"],
+  [/\bHitzebeständiges?\b/gi, "kuumankestävä"],
+  [/\bKlebeband\b/gi, "teippi"],
+  [/\bGrundierung\b/gi, "pohjamaali"],
+  [/\bSchichtdicke\b/gi, "kalvonpaksuus"],
+  [/\bSchichtstärke\b/gi, "kalvonpaksuus"],
+  [/\bObjekttemperatur\b/gi, "kappaleen lämpötila"],
+  [/\bEinbrennzeit\b/gi, "polttoaika"],
+  [/\bVorbehandlung\b/gi, "esikäsittely"],
+  [/\bDatenbl[äa]tter?\b/gi, "datalehti"],
+  [/\bOberfläche\b/gi, "pinta"],
+  [/\bBeschichtung\b/gi, "pinnoitus"],
+  [/\bVerfahren\b/gi, "menetelmä"],
+  [/\bFarbton\b/gi, "sävy"],
+  [/\bLeucht\b/gi, "hohtava"],
+  [/\bAntik\b/gi, "antiikki"],
+  [/\bEdelstahl\b/gi, "ruostumaton teräs"],
+  [/\bSet\b/gi, "sarja"],
+];
+
+// RAL-sävyjen nimet ovat yhdyssanoja, joiden viimeinen osa kertoo värin
+// ("Himbeerrot", "Kobaltblau"). Perusväri riittää hakusanaksi: sillä löytää
+// värin suomeksi vaikka koko saksankielistä nimeä ei kääntäisi.
+const VARIPAATTEET: [RegExp, string][] = [
+  [/schwarz$/i, "musta"],
+  [/wei[ßs]$/i, "valkoinen"],
+  [/grau$/i, "harmaa"],
+  [/rot$/i, "punainen"],
+  [/blau$/i, "sininen"],
+  [/gr[üu]n$/i, "vihreä"],
+  [/gelb$/i, "keltainen"],
+  [/braun$/i, "ruskea"],
+  [/orange$/i, "oranssi"],
+  [/violett$/i, "violetti"],
+  [/lila$/i, "liila"],
+  [/beige$/i, "beige"],
+  [/silber$/i, "hopea"],
+  [/gold$/i, "kulta"],
+  [/kupfer$/i, "kupari"],
+  [/bronze$/i, "pronssi"],
+];
+
+// Sävyn tarkenne yhdyssanan alussa. Suomennos on valmiiksi yhdyssanamuodossa
+// ("syvän" + "musta"), koska suomessa määre taipuu genetiiviin. Vain
+// yleisimmät: tarkoitus on tuottaa hakukelpoisia sanoja, ei täydellistä
+// käännöstä.
+const VARIMAAREET: [RegExp, string][] = [
+  [/^hell/i, "vaalean"],
+  [/^dunkel/i, "tumman"],
+  [/^tief/i, "syvän"],
+  [/^licht/i, "vaalean"],
+  [/^pastell/i, "pastelli"],
+  [/^perl/i, "helmi"],
+  [/^rein/i, "puhtaan"],
+  [/^signal/i, "signaali"],
+  [/^verkehrs/i, "liikenne"],
+  [/^leucht/i, "hohto"],
+];
+
+/** Kääntää saksankielisen tuotetekstin: lausemallit ensin, sitten yksittäiset termit. */
+export function kaannaSaksasta(teksti: string): string {
+  let tulos = teksti;
+  for (const [malli, suomeksi] of LAUSEMALLIT) tulos = tulos.replace(malli, suomeksi);
+  for (const [malli, suomeksi] of TERMIT) tulos = tulos.replace(malli, suomeksi);
+  return tulos.replace(/\s+/g, " ").trim();
+}
+
+/** Yhden sanan suomennos hakusanoiksi, tai null jos sanaa ei tunnisteta. */
+function sananSuomennokset(sana: string): string[] {
+  const suomennokset: string[] = [];
+  for (const [malli, suomeksi] of TERMIT) {
+    if (new RegExp(`^${malli.source.replace(/\\b/g, "")}$`, "i").test(sana)) {
+      suomennokset.push(suomeksi);
+      return suomennokset;
+    }
+  }
+  const vari = VARIPAATTEET.find(([malli]) => malli.test(sana));
+  if (!vari) return suomennokset;
+
+  const maare = VARIMAAREET.find(([malli]) => malli.test(sana));
+  suomennokset.push(vari[1]);
+  if (maare) suomennokset.push(`${maare[1]}${vari[1]}`);
+  return suomennokset;
+}
+
+/**
+ * Hakusanat valmistajan tuoteotsikosta.
+ *
+ * Alkuperäinen saksankielinen otsikko säilyy, koska sillä värin löytää samoilla
+ * sanoilla kuin myyjän sivulta, ja perään lisätään suomennokset - muuten
+ * "syvänmusta" tai "kiiltävä" ei löytäisi väriä jonka nimeksi jäi "RAL 9005".
+ */
+export function suomennaHakusanat(otsikko: string): string | null {
+  const siistitty = otsikko.trim();
+  if (!siistitty) return null;
+
+  const nakyvat = new Set(siistitty.toLowerCase().split(/[^a-zäöüß0-9]+/i).filter(Boolean));
+  const lisattavat: string[] = [];
+  for (const sana of siistitty.split(/[^A-Za-zÄÖÜäöüß]+/).filter(Boolean)) {
+    for (const suomennos of sananSuomennokset(sana)) {
+      if (!nakyvat.has(suomennos.toLowerCase())) {
+        nakyvat.add(suomennos.toLowerCase());
+        lisattavat.push(suomennos);
+      }
+    }
+  }
+  return lisattavat.length > 0 ? `${siistitty} - ${lisattavat.join(", ")}` : siistitty;
 }

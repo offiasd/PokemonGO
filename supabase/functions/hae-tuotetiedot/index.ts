@@ -47,8 +47,9 @@ import {
   pyoristaYlospain,
   ralTyyppi,
   shopifyJsonOsoite,
+  shopifyHintavariantti,
   shopifyKilohinta,
-  shopifyOletusvariantti,
+  suomennaHakusanat,
   type Alkupera,
   type MaaliTyyppi,
   type ShopifyTuote,
@@ -166,7 +167,7 @@ function shopifystaVastaus(
   const rivit = htmlRiveiksi(tuote.body_html ?? "");
   const kuvausTeksti = `${otsikko} ${rivit.join(" ")}`;
 
-  const variantti = shopifyOletusvariantti(tuote);
+  const variantti = shopifyHintavariantti(tuote);
   const kilohinta = variantti ? shopifyKilohinta(variantti) : null;
 
   const tyyppi = ralkoodi
@@ -178,9 +179,10 @@ function shopifystaVastaus(
   vastaus.valmistaja = tuote.vendor?.trim() || null;
   vastaus.kuva_url = tuote.images?.[0]?.src ?? null;
   vastaus.ohjeet = poimiOhjeet(rivit);
-  // Koko alkuperäinen otsikko hakusanoihin: haku "Tiefschwarz" tai
-  // "hochglanz" löytää värin, vaikka nimeksi jäi pelkkä RAL-koodi.
-  vastaus.hakusanat = otsikko || null;
+  // Hakusanoihin sekä valmistajan alkuperäinen otsikko että sen suomennos:
+  // haku "Tiefschwarz", "hochglanz", "syvänmusta" tai "korkeakiilto" löytää
+  // värin, vaikka nimeksi jäi pelkkä RAL-koodi.
+  vastaus.hakusanat = suomennaHakusanat(otsikko);
   vastaus.myyja_linkki = osoite;
   vastaus.kiiltoaste = poimiKiiltoaste(kuvausTeksti);
   vastaus.tyyppi = tyyppi;
@@ -324,7 +326,7 @@ Deno.serve(async (req) => {
       // eurooppalainen kauppa), jolloin nimi lyhenee samalla säännöllä.
       const koodi = await ralKoodi(supabase, vastaus.nimi ?? "");
       if (koodi) {
-        vastaus.hakusanat = vastaus.nimi;
+        vastaus.hakusanat = suomennaHakusanat(vastaus.nimi ?? "");
         vastaus.nimi = koodi;
         if (!vastaus.varisavy && vastaus.tyyppi !== "transparent") {
           vastaus.varisavy = await ralVarisavy(supabase, koodi);
