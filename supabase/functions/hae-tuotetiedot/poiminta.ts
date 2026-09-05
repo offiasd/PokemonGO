@@ -540,6 +540,18 @@ const OHJEOTSIKOT: { saksa: RegExp; suomi: string; mukaan: boolean }[] = [
   // Anti-graffiti-tuotteilla polttoajan perässä on puhdistustaulukko omilla
   // riveillään. Ilman rajaa se valui polttoajan sekaan saksankielisenä.
   { saksa: /^anti-?graffiti\b/i, suomi: "", mukaan: false },
+
+  // Sama kauppa palvelee tuotteet myös englanniksi (/en/products/...), ja
+  // silloin väliotsikot ovat käännettyjä. Otsikot ovat samat ja samassa
+  // järjestyksessä, joten ne kelpaavat rinnalle sellaisenaan.
+  { saksa: /^instructions? for use:?$/i, suomi: "Levitys", mukaan: true },
+  { saksa: /^pre-?treatment:?$/i, suomi: "Esikäsittely", mukaan: true },
+  { saksa: /^recommended curing time:?$/i, suomi: "Polttoaika", mukaan: true },
+  { saksa: /^theoretical yield:?$/i, suomi: "Riittoisuus", mukaan: true },
+  { saksa: /^optimal layer thickness:?$/i, suomi: "Kalvonpaksuus", mukaan: true },
+  { saksa: /^technical data( sheets?)?:?$/i, suomi: "", mukaan: false },
+  { saksa: /^recommendation for outdoor use:?$/i, suomi: "", mukaan: false },
+  { saksa: /^do you have any questions\??$/i, suomi: "", mukaan: false },
 ];
 
 /** Yksittäisen osion pituusraja. Laiteosto-sivuilla "Anwendung" on tuhansien
@@ -779,6 +791,40 @@ const LAUSEMALLIT: [RegExp, string][] = [
     "Tee koelevy halutuilla jauhemaaliyhdistelmillä ennen kuin maalaat varsinaisen kappaleen.",
   ],
   [/Bitte beachten Sie!?/gi, "Huomioi:"],
+
+  // Saman kaupan englanninkielinen versio samoista lauseista.
+  [
+    /RAL powder coatings are suitable for all common application systems\./gi,
+    "RAL-jauhemaalit soveltuvat kaikkiin yleisiin levitysmenetelmiin.",
+  ],
+  [
+    /During pretreatment, grease, oil, scale,? and oxidation products must be removed from the surface\./gi,
+    "Esikäsittelyssä rasvat, öljyt, valssihilse ja hapettumat on poistettava pinnalta.",
+  ],
+  [
+    /Grease, oils?, scale,? and oxidation products must be removed from the surface (?:before|prior to) coating\./gi,
+    "Rasvat, öljyt, valssihilse ja hapettumat on poistettava pinnalta ennen maalausta.",
+  ],
+  [
+    /For special requirements, additional pretreatment types are required\./gi,
+    "Erityisvaatimuksissa tarvitaan lisäksi muita esikäsittelyjä.",
+  ],
+  [
+    /At\s*(\d+)\s*°?\s*C object temperature\s*(?:approx\.\s*)?([\d\s\-–]+?)\s*min/gi,
+    "Kappaleen lämpötilassa $1 °C, $2 min.",
+  ],
+  [
+    /At\s*(\d+)\s*[μµ]m layer thickness\s*([\d,.\s\-–]+?)\s*m²\/kg/gi,
+    "$1 μm kalvonpaksuudella $2 m²/kg",
+  ],
+  [
+    /-?\s*with a single coating\s*(?:approx\.\s*)?([\d\s\-–]+?)\s*[µμ]m/gi,
+    "- yhdellä maalikerroksella $1 µm",
+  ],
+  [
+    /-?\s*with a double coating\s*(?:approx\.\s*)?([\d\s\-–]+?)\s*[µμ]m/gi,
+    "- kahdella maalikerroksella $1 µm",
+  ],
 ];
 
 // Yksittäiset termit lausemallien jälkeen: nappaavat sen mitä malleista jäi yli
@@ -927,6 +973,7 @@ const ENGLANNIN_HAKUSANAT: [RegExp, string][] = [
   [/^glossy?$/i, "kiiltävä"],
   [/^solid$/i, "yksivärinen"],
   [/^transparent$/i, "läpikuultava"],
+  [/^smooth$/i, "sileä"],
   [/^alumin(?:i)?um$/i, "alumiini"],
   [/^polished$/i, "kiillotettu"],
   [/^brushed$/i, "harjattu"],
