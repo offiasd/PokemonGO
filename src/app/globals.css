@@ -43,6 +43,14 @@
   --tila-vihrea-teksti: #235f3c;
   /* RAL 5017, otsikon alaviiva. */
   --korostus: #063971;
+  /* Talouskortti. Vihreä on tuloa ja punainen menoa; työmäärä on tumma harmaa,
+     koska se ei ole hyvä eikä huono luku. */
+  --talous-tulo: #17845a;
+  --talous-tulo-pinta: #e6f1eb;
+  --talous-meno: #b0322c;
+  --talous-meno-pinta: #f7e7e6;
+  --talous-neutraali: #edeeee;
+  --talous-tyot: #2e3338;
 }
 
 .dark {
@@ -83,6 +91,12 @@
   --tila-vihrea-pinta: oklch(0.28 0.05 155);
   --tila-vihrea-teksti: oklch(0.84 0.1 155);
   --korostus: oklch(0.72 0.11 250);
+  --talous-tulo: oklch(0.72 0.14 160);
+  --talous-tulo-pinta: oklch(0.28 0.05 160);
+  --talous-meno: oklch(0.72 0.15 25);
+  --talous-meno-pinta: oklch(0.28 0.06 25);
+  --talous-neutraali: oklch(0.28 0 0);
+  --talous-tyot: oklch(0.78 0 0);
 }
 
 @theme inline {
@@ -123,6 +137,12 @@
   --color-tila-vihrea-pinta: var(--tila-vihrea-pinta);
   --color-tila-vihrea-teksti: var(--tila-vihrea-teksti);
   --color-korostus: var(--korostus);
+  --color-talous-tulo: var(--talous-tulo);
+  --color-talous-tulo-pinta: var(--talous-tulo-pinta);
+  --color-talous-meno: var(--talous-meno);
+  --color-talous-meno-pinta: var(--talous-meno-pinta);
+  --color-talous-neutraali: var(--talous-neutraali);
+  --color-talous-tyot: var(--talous-tyot);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   AlertTriangle,
   Award,
-  BarChart3,
   CheckCircle2,
   Clock,
   Hourglass,
@@ -18,25 +17,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { SaldoPalkki } from "@/components/saldo-palkki";
 import { KiireellisyysTapla } from "@/components/kiireellisyys-tapla";
-import {
-  KUUKAUDEN_NIMI,
-  Vuosigraafi,
-  type GraafinKuukausi,
-  type GraafinMittari,
-} from "@/components/vuosigraafi";
 import { JAKSOT, OLETUSJAKSO, jaksonAlku, jaksonNimi } from "@/lib/jaksot";
 import { cn } from "@/lib/utils";
-import {
-  kiireellisyys,
-  muotoileEuro,
-  muotoileKilot,
-  muotoileProsentti,
-  odotusPaivat,
-} from "@/lib/vakiot";
+import { kiireellisyys, muotoileKilot, odotusPaivat } from "@/lib/vakiot";
+import { tyhjatKuukaudet, type TalousKuukausi } from "@/lib/talous";
 
 import { MaalaajanEtusivu } from "./maalaajan-etusivu";
 import { JaksoValinta } from "./jakso-valinta";
-import { GraafinValinnat } from "./graafin-valinnat";
+import { TalousKortti } from "./talous-kortti";
 
 /** Yhteenvedon yksittäinen luku. Sama ladelma kuin maalaajan etusivulla. */
 function Luku({
@@ -71,17 +59,6 @@ function Luku({
   );
 }
 
-/** Talousyhteenvedon rivi: otsikko pienellä, luku sen alla. */
-function Summa({ otsikko, arvo, lisatieto }: { otsikko: string; arvo: string; lisatieto?: string }) {
-  return (
-    <div className="grid min-w-0 content-start gap-0.5">
-      <p className="text-xs text-muted-foreground">{otsikko}</p>
-      <p className="truncate text-lg font-semibold tabular-nums">{arvo}</p>
-      {lisatieto && <p className="text-xs text-muted-foreground">{lisatieto}</p>}
-    </div>
-  );
-}
-
 export default async function EtusivuSivu({
   searchParams,
 }: {
@@ -100,7 +77,6 @@ export default async function EtusivuSivu({
     ? parametrit.jakso!
     : OLETUSJAKSO;
   const alku = jaksonAlku(valittuJakso);
-  const mittari: GraafinMittari = parametrit.graafi === "euroa" ? "euroa" : "tyot";
 
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
@@ -131,7 +107,7 @@ export default async function EtusivuSivu({
     alku ? jaksonKysely.gte("ajankohta", alku.toISOString()) : jaksonKysely,
     supabase
       .from("tyojen_talous")
-      .select("kuukausi, loppusumma_eur")
+      .select("kuukausi, loppusumma_eur, maalikustannus_eur, kate_eur, kulutus_kg")
       .gte("ajankohta", `${vuosi}-01-01T00:00:00Z`)
       .lt("ajankohta", `${vuosi + 1}-01-01T00:00:00Z`),
     supabase.from("tyojen_talous").select("ajankohta").order("ajankohta").limit(1),
@@ -167,28 +143,17 @@ export default async function EtusivuSivu({
   const myohassa = kesken.filter(onMyohassa);
   const vanhinOdottava = odottaa[0] ?? null;
 
-  const summa = (haku: (t: (typeof jaksonTyot)[number]) => number) =>
-    jaksonTyot.reduce((s, t) => s + haku(t), 0);
-  const laskutus = summa((t) => t.loppusumma_eur);
-  const alennukset = summa((t) => t.alennus_eur);
-  const maalikustannus = summa((t) => t.maalikustannus_eur);
-  const kate = laskutus - maalikustannus;
-  const kulutusG = summa((t) => t.kulutus_g);
-  const kateProsentti = laskutus > 0 ? (kate / laskutus) * 100 : 0;
-
-  // Graafi näyttää aina kaikki 12 kuukautta, myös tyhjät - muuten vuoden
+  // Kortti näyttää aina kaikki 12 kuukautta, myös tyhjät - muuten vuoden
   // hiljaiset kuukaudet eivät erotu siitä, ettei niitä ole piirretty.
-  const kuukaudet: GraafinKuukausi[] = Array.from({ length: 12 }, (_, i) => ({
-    kuukausi: i,
-    tyot: 0,
-    euroa: 0,
-  }));
+  const kuukaudet: TalousKuukausi[] = tyhjatKuukaudet();
   for (const rivi of vuodenTalousVastaus.data ?? []) {
-    const kuukausi = new Date(rivi.kuukausi).getUTCMonth();
-    kuukaudet[kuukausi].tyot += 1;
-    kuukaudet[kuukausi].euroa += rivi.loppusumma_eur;
+    const kuukausi = kuukaudet[new Date(rivi.kuukausi).getUTCMonth()];
+    kuukausi.laskutettuEur += rivi.loppusumma_eur;
+    kuukausi.maalikustannusEur += rivi.maalikustannus_eur;
+    kuukausi.kateEur += rivi.kate_eur;
+    kuukausi.kulutusKg += rivi.kulutus_kg;
+    kuukausi.tyot += 1;
   }
-  const kiireisin = [...kuukaudet].sort((a, b) => b.tyot - a.tyot)[0];
 
   const vanhinAjankohta = vanhinVastaus.data?.[0]?.ajankohta;
   const pieninVuosi = vanhinAjankohta
@@ -246,63 +211,13 @@ export default async function EtusivuSivu({
         </div>
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Laskutus ja kulutus</CardTitle>
-          <CardDescription>
-            Valmistuneet työt - {jaksonNimi(valittuJakso).toLowerCase()}. Arkistoidut työt ovat
-            mukana.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
-          <Summa
-            otsikko="Asiakkailta laskutettu"
-            arvo={muotoileEuro(laskutus)}
-            lisatieto={alennukset > 0 ? `Alennuksia ${muotoileEuro(alennukset)}` : undefined}
-          />
-          <Summa otsikko="Maalikustannus" arvo={muotoileEuro(maalikustannus)} />
-          <Summa
-            otsikko="Kate maalin jälkeen"
-            arvo={muotoileEuro(kate)}
-            lisatieto={laskutus > 0 ? muotoileProsentti(kateProsentti) : undefined}
-          />
-          <Summa otsikko="Maalia kulunut" arvo={muotoileKilot(kulutusG)} />
-          <Summa
-            otsikko="Keskihinta / työ"
-            arvo={jaksonTyot.length > 0 ? muotoileEuro(laskutus / jaksonTyot.length) : "-"}
-            lisatieto={`${jaksonTyot.length} työtä`}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BarChart3 className="size-4 text-muted-foreground" />
-              Vuosi kuukausittain
-            </CardTitle>
-            <CardDescription>
-              {kiireisin.tyot > 0
-                ? `Kiireisin kuukausi oli ${KUUKAUDEN_NIMI[kiireisin.kuukausi].toLowerCase()} - ${kiireisin.tyot} valmistunutta työtä.`
-                : "Milloin on ollut kiireisintä - tammikuusta joulukuuhun."}
-            </CardDescription>
-          </div>
-          <GraafinValinnat
-            vuosi={vuosi}
-            mittari={mittari}
-            suurinVuosi={nykyinenVuosi}
-            pieninVuosi={pieninVuosi}
-          />
-        </CardHeader>
-        <CardContent>
-          <Vuosigraafi
-            kuukaudet={kuukaudet}
-            mittari={mittari}
-            korostaKuukausi={vuosi === nykyinenVuosi ? new Date().getUTCMonth() : undefined}
-          />
-        </CardContent>
-      </Card>
+      <TalousKortti
+        vuosi={vuosi}
+        kuukaudet={kuukaudet}
+        nykyinenVuosi={nykyinenVuosi}
+        nykyinenKuukausi={new Date().getUTCMonth()}
+        pieninVuosi={pieninVuosi}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

@@ -384,3 +384,34 @@ export function laskeTyoaikaMin(
     return summa + v.arvioitu_kesto_min * kerroin;
   }, 0);
 }
+
+/** Kuukausien nimet ja lyhenteet. 0 = tammikuu, kuten Date.getUTCMonth(). */
+export const KUUKAUDEN_NIMI = [
+  "Tammikuu",
+  "Helmikuu",
+  "Maaliskuu",
+  "Huhtikuu",
+  "Toukokuu",
+  "Kesäkuu",
+  "Heinäkuu",
+  "Elokuu",
+  "Syyskuu",
+  "Lokakuu",
+  "Marraskuu",
+  "Joulukuu",
+];
+
+export const KUUKAUDEN_LYHENNE = [
+  "Tam",
+  "Hel",
+  "Maa",
+  "Huh",
+  "Tou",
+  "Kes",
+  "Hei",
+  "Elo",
+  "Syy",
+  "Lok",
+  "Mar",
+  "Jou",
+];
