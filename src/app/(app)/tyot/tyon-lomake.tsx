@@ -601,6 +601,51 @@ export function TyonLomake({
     });
   }
 
+  // "Muu"-rivillä kohde kirjoitetaan itse, ja se kuuluu luettavaksi ennen
+  // kategoriaa: ensin mikä kappale, sitten millä maalilla. Kenttä on siksi
+  // omana muuttujanaan - osarivillä se on osavalikon vieressä, Muu-rivillä
+  // kuvaus vie sen paikan ja kategoria putoaa omalle rivilleen.
+  const kategoriaKentta = (
+    <div className="grid min-w-0 gap-2">
+      <Label htmlFor="kategoria">Kategoria</Label>
+      <Select value={kategoria} onValueChange={vaihdaKategoria} disabled={!osaId}>
+        <SelectTrigger
+          id="kategoria"
+          className="w-full min-w-0 [&>span]:min-w-0 [&>span]:truncate"
+        >
+          <SelectValue placeholder="Valitse kategoria" />
+        </SelectTrigger>
+        <SelectContent>
+          {valittavatKategoriat.length === 0 && (
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">
+              Osalle ei ole asetettu hintoja
+            </p>
+          )}
+          {valittavatKategoriat.map((tyyppi) => (
+            <SelectItem key={tyyppi} value={tyyppi}>
+              {myytavaMaaliTyypinNimi(tyyppi)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  const kuvausKentta = (
+    <div className="grid min-w-0 gap-2">
+      <Label htmlFor="oma_kuvaus">Mitä maalataan? *</Label>
+      <Input
+        id="oma_kuvaus"
+        value={omaKuvaus}
+        onChange={(e) => setOmaKuvaus(e.target.value)}
+        placeholder="Esim. oma venekoppa"
+      />
+      <p className="text-xs text-muted-foreground">
+        Jää vain tähän työhön - osaluetteloon ei tallenneta mitään.
+      </p>
+    </div>
+  );
+
   return (
     <div className="grid gap-6">
       <div className="grid gap-2 sm:max-w-sm">
@@ -641,42 +686,10 @@ export function TyonLomake({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid min-w-0 gap-2">
-              <Label htmlFor="kategoria">Kategoria</Label>
-              <Select value={kategoria} onValueChange={vaihdaKategoria} disabled={!osaId}>
-                <SelectTrigger id="kategoria" className="w-full min-w-0 [&>span]:min-w-0 [&>span]:truncate">
-                  <SelectValue placeholder="Valitse kategoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  {valittavatKategoriat.length === 0 && (
-                    <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                      Osalle ei ole asetettu hintoja
-                    </p>
-                  )}
-                  {valittavatKategoriat.map((tyyppi) => (
-                    <SelectItem key={tyyppi} value={tyyppi}>
-                      {myytavaMaaliTyypinNimi(tyyppi)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {onMuu ? kuvausKentta : kategoriaKentta}
           </div>
 
-          {onMuu && (
-            <div className="grid gap-2">
-              <Label htmlFor="oma_kuvaus">Mitä maalataan? *</Label>
-              <Input
-                id="oma_kuvaus"
-                value={omaKuvaus}
-                onChange={(e) => setOmaKuvaus(e.target.value)}
-                placeholder="Esim. oma venekoppa"
-              />
-              <p className="text-xs text-muted-foreground">
-                Jää vain tähän työhön - osaluetteloon ei tallenneta mitään.
-              </p>
-            </div>
-          )}
+          {onMuu && <div className="grid gap-4 sm:grid-cols-2">{kategoriaKentta}</div>}
 
           {kategoria && (
             <div className="grid gap-2">
