@@ -24,10 +24,11 @@ const SUURIN_NIMI = "1.125rem";
 // Värisävyn pallukka (size-3) + sen jälkeinen väli (gap-2) vievät nimeltä tilaa.
 const SAVYN_TILA = "1.25rem";
 
-function nimenFonttikoko(nimi: string, onSavy: boolean): string {
+// Sävypallukan tila varataan myös väreiltä joilla sävyä ei ole, jotta nimet
+// alkavat kaikissa korteissa samasta kohdasta.
+function nimenFonttikoko(nimi: string): string {
   const merkit = Math.max(nimi.length, 1);
-  const kaytettavissa = onSavy ? `(100cqi - ${SAVYN_TILA})` : "100cqi";
-  return `clamp(${PIENIN_NIMI}, calc(${kaytettavissa} * ${MERKKIKERROIN} / ${merkit}), ${SUURIN_NIMI})`;
+  return `clamp(${PIENIN_NIMI}, calc((100cqi - ${SAVYN_TILA}) * ${MERKKIKERROIN} / ${merkit}), ${SUURIN_NIMI})`;
 }
 
 // Myyjän linkki on käsin syötetty kenttä, joten protokolla tarkistetaan ennen
@@ -108,22 +109,27 @@ export function VariKortti({
           </div>
         </div>
 
-        {/* Nimi, hinta ja varastosaldo vasemmassa alareunassa, heti kuvan alla.
-            auto-rows-fr venyttää rivin korkeimman kortin mittaan; ylimääräinen
-            tila jää tämän lohkon alapuolelle napin yläpuolelle, koska aukko
-            kuvan ja nimen välissä hajottaisi ne erillisiksi palasiksi. */}
-        <CardContent className="@container/kortti grid min-w-0 gap-2 px-4 sm:px-6">
+        {/* Nimi ja hinta heti kuvan alla, saldolohko kortin pohjaan.
+            auto-rows-fr venyttää rivin korkeimman kortin mittaan, ja
+            ylimääräinen tila jää nyt hinnan ja saldon väliin. Näin saldo,
+            tilamerkintä ja palkki ovat samalla korkeudella rivin kaikissa
+            korteissa, vaikka nimi rivittyisi eri tavalla tai hintarivi
+            puuttuisi. Aiemmin slack oli lohkon alapuolella, jolloin saldo
+            seurasi nimen korkeutta ja palkit olivat eri tasoilla. */}
+        <CardContent className="@container/kortti flex min-w-0 flex-1 flex-col gap-2 px-4 sm:px-6">
           <CardTitle className="flex min-w-0 items-center gap-2 leading-tight">
-            {vari.varisavy && (
+            {vari.varisavy ? (
               <span
                 className="inline-block size-3 shrink-0 rounded-full border"
                 style={{ backgroundColor: VARISAVYN_VARIKOODI[vari.varisavy] }}
                 title={varisavynNimi(vari.varisavy)}
               />
+            ) : (
+              <span className="inline-block size-3 shrink-0" aria-hidden />
             )}
             <span
               className="min-w-0 break-words"
-              style={{ fontSize: nimenFonttikoko(vari.nimi, Boolean(vari.varisavy)) }}
+              style={{ fontSize: nimenFonttikoko(vari.nimi) }}
             >
               {vari.nimi}
             </span>
@@ -136,25 +142,28 @@ export function VariKortti({
             </p>
           )}
 
-          <div className="grid min-w-0 gap-1">
-            {/* Merkintä mahtuu saldorivin oikeaan reunaan. Kapeimmalla
-                kortilla (2 saraketta 320 px:n näytöllä) se ei mahdu, jolloin se
-                kiertyy omalle rivilleen - saldoluvun katkaisu olisi pahempi,
-                koska juuri se luku kortista luetaan. */}
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1 gap-y-0.5">
-              <p className="min-w-0 text-sm">
-                <span className="text-muted-foreground">Saldo</span>{" "}
-                <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
-              </p>
+          {/* Saldolohko on aina tasan kolme riviä: luku, merkintä ja palkki.
+              Merkintä oli ennen saldoluvun rinnalla ja kiertyi omalle
+              rivilleen kortin leveydestä riippuen, jolloin palkki oli
+              naapurikortissa eri korkeudella. Varaustieto on merkinnän
+              vieressä eikä palkin alla samasta syystä. */}
+          <div className="mt-auto grid min-w-0 gap-1">
+            <p className="min-w-0 text-sm">
+              <span className="text-muted-foreground">Saldo</span>{" "}
+              <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
+            </p>
+            <div className="flex min-w-0 items-center justify-between gap-2">
               <SaldoMerkinta tila={tila} teksti={teksti} />
+              {vari.varattu_g > 0 && (
+                <span
+                  className="min-w-0 truncate text-xs text-muted-foreground"
+                  title={`Varattu töihin ${muotoileGrammat(vari.varattu_g)} - vapaana ${muotoileGrammat(vari.saldo_g - vari.varattu_g)}`}
+                >
+                  varattu {muotoileGrammat(vari.varattu_g)}
+                </span>
+              )}
             </div>
             <SaldoPalkki {...rajat} />
-            {vari.varattu_g > 0 && (
-              <p className="min-w-0 text-xs text-muted-foreground">
-                Varattu töihin {muotoileGrammat(vari.varattu_g)} (vapaana{" "}
-                {muotoileGrammat(vari.saldo_g - vari.varattu_g)})
-              </p>
-            )}
           </div>
         </CardContent>
       </Link>
