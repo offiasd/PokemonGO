@@ -69,6 +69,14 @@ export async function paivitaAsetukset(
   if (formData.has("halytys_ilmoitukset_lomakkeella")) {
     muutokset.halytys_ilmoitukset_kaytossa = formData.get("halytys_ilmoitukset_kaytossa") === "on";
   }
+  if (formData.has("yritysmuoto")) {
+    const arvo = String(formData.get("yritysmuoto") ?? "");
+    if (arvo === "toiminimi" || arvo === "oy") muutokset.yritysmuoto = arvo;
+  }
+  if (formData.has("yritysmuoto_lomakkeella")) {
+    muutokset.tyontekijoita = formData.get("tyontekijoita") === "on";
+    muutokset.alv_rekisterissa = formData.get("alv_rekisterissa") === "on";
+  }
 
   if (Object.keys(muutokset).length === 0) {
     return { virhe: "Ei tallennettavia muutoksia.", viesti: null };
@@ -76,6 +84,20 @@ export async function paivitaAsetukset(
 
   const supabase = await createClient();
   const { error } = await supabase.from("asetukset").update(muutokset).eq("id", true);
+
+  // Henkilökunnan tarjoilu on mahdollinen vain työntekijöiden kanssa tai
+  // osakeyhtiössä. Kun asetus otetaan pois, siihen merkityt rivit palautuvat
+  // yksityisotoiksi: luokka ei saa jäädä roikkumaan tilaan jota ei ole
+  // olemassa, koska se päätyisi kirjanpitäjälle olemattomana kuluna.
+  if (!error && muutokset.tyontekijoita === false && muutokset.yritysmuoto !== "oy") {
+    const { data: nykyinen } = await supabase.from("asetukset").select("yritysmuoto").single();
+    if (nykyinen?.yritysmuoto !== "oy") {
+      await supabase
+        .from("kuitin_rivit")
+        .update({ kayttotarkoitus: "yksityisotto" })
+        .eq("kayttotarkoitus", "henkilokunnan_tarjoilu");
+    }
+  }
 
   if (error) {
     return { virhe: error.message, viesti: null };

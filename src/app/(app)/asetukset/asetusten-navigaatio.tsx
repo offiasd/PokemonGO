@@ -9,6 +9,7 @@ import {
   Clock,
   Euro,
   Package,
+  Receipt,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -27,6 +28,7 @@ const OSIOT = [
   { href: "/asetukset/varasto", nimi: "Varasto", ikoni: Package, adminVain: true },
   { href: "/asetukset/ilmoitukset", nimi: "Ilmoitukset", ikoni: Bell, adminVain: true },
   { href: "/asetukset/osaryhmat", nimi: "Osaryhmät", ikoni: Boxes, adminVain: true },
+  { href: "/asetukset/kululuokat", nimi: "Kululuokat", ikoni: Receipt, adminVain: true },
   { href: "/asetukset/yritys", nimi: "Yritys", ikoni: Building2, adminVain: true },
 ];
 

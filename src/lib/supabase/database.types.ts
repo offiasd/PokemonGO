@@ -41,6 +41,16 @@ export type ToinenVariRooli = "pohjavari" | "lakka";
  */
 export type Kiiltotaso = "kiiltava" | "satiini" | "matta";
 
+/**
+ * Kuittirivin käyttötarkoitus: mihin ostos meni, ei mikä on sen verokohtelu.
+ * Kirjanpitäjä ratkaisee kohtelun.
+ */
+export type Kayttotarkoitus =
+  | "yrityksen_tarvike"
+  | "edustus"
+  | "yksityisotto"
+  | "henkilokunnan_tarjoilu";
+
 export type Varisavy =
   | "punainen"
   | "oranssi"
@@ -72,6 +82,80 @@ type EiSuhteita = [];
 export interface Database {
   public: {
     Tables: {
+      kululuokat: {
+        Row: {
+          id: string;
+          nimi: string;
+          jarjestys: number;
+          aktiivinen: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["kululuokat"]["Row"]> & { nimi: string };
+        Update: Partial<Database["public"]["Tables"]["kululuokat"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      kuitit: {
+        Row: {
+          id: string;
+          toimittaja: string | null;
+          paivays: string;
+          /** Vain jos eri kuin laskupäivä. */
+          maksupaiva: string | null;
+          loppusumma_eur: number;
+          lahde: "kamera" | "tiedosto" | "sahkoposti";
+          /** Storage-polku, ei julkinen osoite: kuitit luetaan allekirjoitetulla linkillä. */
+          tiedosto_polku: string | null;
+          tiedosto_tyyppi: string | null;
+          tila: "luonnos" | "tarkistettava" | "valmis";
+          muistiinpano: string | null;
+          /** Poiminnan lukema ALV-erittely kannoittain. */
+          alv_erittely: unknown | null;
+          /** Kirjanpitolain mukainen säilytysajan päättymispäivä. Kanta laskee. */
+          sailytettava_asti: string;
+          luoja_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["kuitit"]["Row"]> & { paivays: string };
+        Update: Partial<Database["public"]["Tables"]["kuitit"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      kuitin_rivit: {
+        Row: {
+          id: string;
+          kuitti_id: string;
+          /** Rivin teksti sellaisenaan, lyhenteineen. */
+          teksti: string;
+          maara: number | null;
+          brutto_eur: number;
+          /** Luetaan kuitista, ei päätellä tuoteryhmästä. */
+          verokanta: number | null;
+          kayttotarkoitus: Kayttotarkoitus | null;
+          kululuokka_id: string | null;
+          muistiinpano: string | null;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["kuitin_rivit"]["Row"]> & {
+          kuitti_id: string;
+          teksti: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["kuitin_rivit"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      kuittirivin_oppi: {
+        Row: {
+          teksti: string;
+          kayttotarkoitus: Kayttotarkoitus;
+          kululuokka_id: string | null;
+          paivitetty: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["kuittirivin_oppi"]["Row"]> & {
+          teksti: string;
+          kayttotarkoitus: Kayttotarkoitus;
+        };
+        Update: Partial<Database["public"]["Tables"]["kuittirivin_oppi"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
       profiles: {
         Row: {
           id: string;
@@ -112,6 +196,12 @@ export interface Database {
           nayta_hinnat_maalaajalle: boolean;
           yleinen_tuntihinta: number;
           yrityksen_osoite: string | null;
+          /** Toiminimi vai osakeyhtiö. Ohjaa kuittirivin käyttötarkoituksia. */
+          yritysmuoto: "toiminimi" | "oy";
+          /** Vasta työntekijöiden kanssa henkilökunnan tarjoilu on mahdollinen. */
+          tyontekijoita: boolean;
+          /** Vaikuttaa vain ALV-tietojen näyttämiseen - tiedot tallennetaan aina. */
+          alv_rekisterissa: boolean;
           toimituskulu_per_kg_eu_oletus: number;
           toimituskulu_per_kg_usa_oletus: number;
           toimituskulu_per_kg_muu_oletus: number;
@@ -607,6 +697,18 @@ export interface Database {
       };
     };
     Views: {
+      kulut_kuukausittain: {
+        Row: {
+          kuukausi: string;
+          /** Yrityksen kuluna: yksityisotot ja luokittelemattomat pois. */
+          kuluina_eur: number | null;
+          /** Kuittien koko summa, täsmäytystä varten. */
+          yhteensa_eur: number;
+          kuitteja: number;
+          luokittelemattomia: number;
+        };
+        Relationships: EiSuhteita;
+      };
       varien_suosio: {
         Row: {
           vari_id: string;

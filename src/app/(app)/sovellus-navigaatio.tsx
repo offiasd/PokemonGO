@@ -8,6 +8,7 @@ import {
   BarChart3,
   ClipboardCheck,
   LayoutDashboard,
+  Receipt,
   LogOut,
   Paintbrush,
   Settings,
@@ -27,6 +28,10 @@ const LINKIT = [
   { href: "/varit", label: "Värit", icon: Paintbrush, adminVain: false },
   { href: "/osat", label: "Osat", icon: Wrench, adminVain: false },
   { href: "/tyot", label: "Työt", icon: ClipboardCheck, adminVain: false },
+  // Kuitti kuvataan kassalla tai autossa heti ostoksen jälkeen, joten Kulut on
+  // omana välilehtenään eikä etusivun kortin takana - kolmen painalluksen
+  // päässä kuitit jäisivät kuvaamatta.
+  { href: "/kulut", label: "Kulut", icon: Receipt, adminVain: true },
   { href: "/raportit", label: "Raportit", icon: BarChart3, adminVain: false },
   { href: "/halytykset", label: "Hälytykset", icon: AlertTriangle, adminVain: false },
   { href: "/kayttajat", label: "Käyttäjät", icon: Users, adminVain: true },

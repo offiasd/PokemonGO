@@ -3,7 +3,15 @@ export interface TalousKuukausi {
   /** 0 = tammikuu. */
   kuukausi: number;
   laskutettuEur: number;
-  maalikustannusEur: number;
+  /**
+   * Kaikki yrityksen kulut kuiteilta, ei pelkkä työhön kulunut maali.
+   *
+   * Luku on totuudenmukaisempi mutta pienempi kate kuin pelkällä
+   * maalikustannuksella: mukana ovat myös puhallusaine, pakkaus ja työkalut.
+   * Samalla miinusmerkistä tulee oikeasti tarpeellinen - hiljainen kuukausi,
+   * jolloin ostetaan maalia mutta töitä ei valmistu, menee aidosti pakkaselle.
+   */
+  kulutEur: number;
   kateEur: number;
   kulutusKg: number;
   tyot: number;
@@ -16,7 +24,7 @@ export function tyhjatKuukaudet(): TalousKuukausi[] {
   return Array.from({ length: 12 }, (_, kuukausi) => ({
     kuukausi,
     laskutettuEur: 0,
-    maalikustannusEur: 0,
+    kulutEur: 0,
     kateEur: 0,
     kulutusKg: 0,
     tyot: 0,
@@ -30,7 +38,7 @@ export function tyhjatKuukaudet(): TalousKuukausi[] {
  * plus tai miinus nollan edessä olisi harhaanjohtava.
  */
 export function onTyhja(kuukausi: TalousKuukausi): boolean {
-  return kuukausi.laskutettuEur === 0 && kuukausi.maalikustannusEur === 0;
+  return kuukausi.laskutettuEur === 0 && kuukausi.kulutEur === 0;
 }
 
 export function katteenSuunta(kuukausi: TalousKuukausi): KatteenSuunta {
@@ -91,8 +99,5 @@ export function oletusKuukausi(
  */
 export function suurinArvo(kuukaudet: TalousKuukausi[], nakyma: "euroa" | "tyot"): number {
   if (nakyma === "tyot") return Math.max(0, ...kuukaudet.map((k) => k.tyot));
-  return Math.max(
-    0,
-    ...kuukaudet.map((k) => Math.max(k.laskutettuEur, k.maalikustannusEur))
-  );
+  return Math.max(0, ...kuukaudet.map((k) => Math.max(k.laskutettuEur, k.kulutEur)));
 }

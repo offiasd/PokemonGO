@@ -97,6 +97,7 @@ export default async function EtusivuSivu({
     jaksonTalousVastaus,
     vuodenTalousVastaus,
     vanhinVastaus,
+    vuodenKulutVastaus,
     halytyksetVastaus,
     kaytetyinVastaus,
     variMaaraVastaus,
@@ -107,10 +108,15 @@ export default async function EtusivuSivu({
     alku ? jaksonKysely.gte("ajankohta", alku.toISOString()) : jaksonKysely,
     supabase
       .from("tyojen_talous")
-      .select("kuukausi, loppusumma_eur, maalikustannus_eur, kate_eur, kulutus_kg")
+      .select("kuukausi, loppusumma_eur, kulutus_kg")
       .gte("ajankohta", `${vuosi}-01-01T00:00:00Z`)
       .lt("ajankohta", `${vuosi + 1}-01-01T00:00:00Z`),
     supabase.from("tyojen_talous").select("ajankohta").order("ajankohta").limit(1),
+    supabase
+      .from("kulut_kuukausittain")
+      .select("kuukausi, kuluina_eur")
+      .gte("kuukausi", `${vuosi}-01-01`)
+      .lt("kuukausi", `${vuosi + 1}-01-01`),
     supabase
       .from("varit_halytykset")
       .select(
@@ -149,10 +155,19 @@ export default async function EtusivuSivu({
   for (const rivi of vuodenTalousVastaus.data ?? []) {
     const kuukausi = kuukaudet[new Date(rivi.kuukausi).getUTCMonth()];
     kuukausi.laskutettuEur += rivi.loppusumma_eur;
-    kuukausi.maalikustannusEur += rivi.maalikustannus_eur;
-    kuukausi.kateEur += rivi.kate_eur;
     kuukausi.kulutusKg += rivi.kulutus_kg;
     kuukausi.tyot += 1;
+  }
+  // Kulut tulevat kuiteilta, tulot töistä: ne ovat eri lähteitä. Kortti näyttää
+  // ostetut kulut, ei työhön kulunutta maalia - maalikuittien yhdistäminen
+  // varastotäydennyksiin on oma asiansa, ja ilman sitä sama euro laskettaisiin
+  // kahdesti.
+  for (const rivi of vuodenKulutVastaus.data ?? []) {
+    const kuukausi = kuukaudet[new Date(rivi.kuukausi).getUTCMonth()];
+    kuukausi.kulutEur += rivi.kuluina_eur ?? 0;
+  }
+  for (const kuukausi of kuukaudet) {
+    kuukausi.kateEur = Math.round((kuukausi.laskutettuEur - kuukausi.kulutEur) * 100) / 100;
   }
 
   const vanhinAjankohta = vanhinVastaus.data?.[0]?.ajankohta;

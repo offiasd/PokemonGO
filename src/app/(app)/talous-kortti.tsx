@@ -114,7 +114,7 @@ export function TalousKortti({
   const suunta = katteenSuunta(kuukausi);
   const { ikoni: Ikoni, pinta, teksti } = SUUNNAN_TYYLI[suunta];
   const suurin = suurinArvo(kuukaudet, nakyma);
-  const kuukaudenSuurin = Math.max(kuukausi.laskutettuEur, kuukausi.maalikustannusEur);
+  const kuukaudenSuurin = Math.max(kuukausi.laskutettuEur, kuukausi.kulutEur);
 
   const vuodenOsoite = (uusiVuosi: number) => {
     const parametrit = new URLSearchParams(searchParams);
@@ -161,8 +161,8 @@ export function TalousKortti({
             vari="var(--talous-tulo)"
           />
           <Summapalkki
-            otsikko="Maali"
-            arvo={kuukausi.maalikustannusEur}
+            otsikko="Kulut"
+            arvo={kuukausi.kulutEur}
             suurin={kuukaudenSuurin}
             vari="var(--talous-meno)"
           />
@@ -257,7 +257,7 @@ export function TalousKortti({
                       <span
                         className="w-1/2 rounded-t transition-[height] duration-200 motion-reduce:transition-none"
                         style={{
-                          height: korkeus(k.maalikustannusEur),
+                          height: korkeus(k.kulutEur),
                           background: tyhja ? "var(--talous-neutraali)" : "var(--talous-meno)",
                         }}
                       />
