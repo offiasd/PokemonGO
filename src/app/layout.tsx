@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -16,6 +16,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Jauhemaalaamo",
   description: "Jauhemaalaamon värivaraston, osalistan ja kustannusten hallinta",
+};
+
+/**
+ * Selaimen tilapalkin väri mobiilissa.
+ *
+ * Sama valkoinen kuin yläpalkilla, jolloin palkki jatkuu tilapalkkiin eikä
+ * niiden väliin jää rajaa. Sisältöalue on harmaa, mutta se alkaa vasta
+ * yläpalkin alta.
+ */
+export const viewport: Viewport = {
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

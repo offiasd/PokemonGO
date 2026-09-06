@@ -14,7 +14,11 @@ export default async function SovellusLayout({
       <SovellusNavigaatio kayttaja={kayttaja} />
       {/* Alanavigaatio on kiinni ruudun alareunassa, joten sisältö tarvitsee
           sen verran tyhjää alle ettei viimeinen nappi jää palkin taakse. */}
-      <main className="flex-1 overflow-x-hidden p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:p-8">
+      {/* Tausta on kääreessä eikä bodyssä: yläpalkki ja alanavigaatio pysyvät
+          valkoisina ilman ylikirjoituksia, ja iOS:n ylivenytysalue ottaa
+          bodyn valkoisen, jolloin venytys ei tee väriloikkaa kummassakaan
+          reunassa. */}
+      <main className="flex-1 overflow-x-hidden bg-pinta-0 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:p-8">
         <div className="mx-auto w-full max-w-6xl">{children}</div>
       </main>
     </div>

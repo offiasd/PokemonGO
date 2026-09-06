@@ -51,6 +51,11 @@
   --talous-meno-pinta: #f7e7e6;
   --talous-neutraali: #edeeee;
   --talous-tyot: #2e3338;
+  /* Sisältöalueen pohja. Kortit, yläpalkki ja navigaatio jäävät valkoisiksi
+     (--card), jolloin ne kehystävät sisällön ja rakenne erottuu. Kontrasti
+     pohjan ja kortin välillä on tarkoituksella pieni, joten korttien
+     reunaviivat ovat yhä tarpeen. */
+  --pinta-0: #eff0f1;
 }
 
 .dark {
@@ -97,6 +102,8 @@
   --talous-meno-pinta: oklch(0.28 0.06 25);
   --talous-neutraali: oklch(0.28 0 0);
   --talous-tyot: oklch(0.78 0 0);
+  /* Tummassa teemassa pohja on korttia tummempi, eli sama suhde toisin päin. */
+  --pinta-0: oklch(0.12 0 0);
 }
 
 @theme inline {
@@ -143,6 +150,7 @@
   --color-talous-meno-pinta: var(--talous-meno-pinta);
   --color-talous-neutraali: var(--talous-neutraali);
   --color-talous-tyot: var(--talous-tyot);
+  --color-pinta-0: var(--pinta-0);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
