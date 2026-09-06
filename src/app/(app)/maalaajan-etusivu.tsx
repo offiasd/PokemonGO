@@ -84,12 +84,17 @@ export async function MaalaajanEtusivu({
     : { data: [] };
   const rivit = rivitData ?? [];
 
-  const osaNimi = (id: string) => osat.find((o) => o.id === id)?.nimi ?? "Tuntematon osa";
+  // Rivillä on joko osa tai oma kuvaus: kertakohteen nimi on rivillä itsellään.
+  const rivinNimi = (rivi: { osa_id: string | null; oma_kuvaus: string | null }) =>
+    rivi.osa_id
+      ? (osat.find((o) => o.id === rivi.osa_id)?.nimi ?? "Tuntematon osa")
+      : (rivi.oma_kuvaus ?? "Tuntematon kohde");
   const variNimi = (id: string) => varit.find((v) => v.id === id)?.nimi ?? "Tuntematon väri";
   const rivitTyolle = (tyoId: string) => rivit.filter((r) => r.tyo_id === tyoId);
 
-  const osanVaiheet = (osaId: string) =>
-    tyovaiheet.filter((v) => v.osa_id === osaId) as {
+  // Kertakohteella (osa_id null) ei ole työvaiheita, joten työaika on nolla.
+  const osanVaiheet = (osaId: string | null) =>
+    tyovaiheet.filter((v) => osaId !== null && v.osa_id === osaId) as {
       vaihe: TyoVaihe;
       arvioitu_kesto_min: number;
     }[];
@@ -198,7 +203,7 @@ export async function MaalaajanEtusivu({
                     <p className="font-medium break-words">{tyo.asiakas ?? "Ei asiakastietoa"}</p>
                     <p className="text-sm text-muted-foreground">
                       {rivitTyolle(tyo.id)
-                        .map((r) => `${osaNimi(r.osa_id)} (${variNimi(r.vari_id)})`)
+                        .map((r) => `${rivinNimi(r)} (${variNimi(r.vari_id)})`)
                         .join(", ")}
                     </p>
                   </div>
@@ -233,7 +238,7 @@ export async function MaalaajanEtusivu({
                 <p className="font-medium break-words">{tyo.asiakas ?? "Ei asiakastietoa"}</p>
                 <p className="text-sm text-muted-foreground">
                   {rivitTyolle(tyo.id)
-                    .map((r) => `${osaNimi(r.osa_id)} (${variNimi(r.vari_id)})`)
+                    .map((r) => `${rivinNimi(r)} (${variNimi(r.vari_id)})`)
                     .join(", ")}
                 </p>
                 <p className="text-sm text-muted-foreground">

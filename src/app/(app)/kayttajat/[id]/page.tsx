@@ -79,8 +79,11 @@ export default async function KayttajanTyotSivu({
       : { data: [] };
   const lisavarit = lisavaritData ?? [];
 
-  const osaNimi = (osaId: string) =>
-    osatVastaus.data?.find((o) => o.id === osaId)?.nimi ?? "Tuntematon osa";
+  // Rivillä on joko osa tai oma kuvaus: kertakohteen nimi on rivillä itsellään.
+  const rivinNimi = (rivi: { osa_id: string | null; oma_kuvaus: string | null }) =>
+    rivi.osa_id
+      ? (osatVastaus.data?.find((o) => o.id === rivi.osa_id)?.nimi ?? "Tuntematon osa")
+      : (rivi.oma_kuvaus ?? "Tuntematon kohde");
   const variNimi = (variId: string | null) =>
     variId ? (varitVastaus.data?.find((v) => v.id === variId)?.nimi ?? "Tuntematon väri") : "-";
 
@@ -155,7 +158,7 @@ export default async function KayttajanTyotSivu({
                   {tyonRivit(tyo.id).map((rivi) => (
                     <li key={rivi.id} className="flex justify-between gap-4">
                       <span className="min-w-0 break-words">
-                        {osaNimi(rivi.osa_id)} - {variNimi(rivi.vari_id)}
+                        {rivinNimi(rivi)} - {variNimi(rivi.vari_id)}
                         {rivi.toinen_vari_id && rivi.toinen_vari_rooli && (
                           <>
                             {" "}

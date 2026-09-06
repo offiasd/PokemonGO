@@ -79,8 +79,10 @@ export default async function TyotSivu() {
   // Arvioitu työaika kootaan osan työvaiheista: maalaus ja teippaus tehdään
   // jokaiselle värikerrokselle erikseen, joten kaksivärinen rivi maksaa
   // enemmän aikaa kuin yksivärinen.
-  const osanVaiheet = (osaId: string) =>
-    tyovaiheet.filter((v) => v.osa_id === osaId) as {
+  // Kertakohteella (osa_id null) ei ole työvaiheita, joten sen arvioitu
+  // työaika on nolla - vaiheet ovat nimenomaan osalle määriteltyä tietoa.
+  const osanVaiheet = (osaId: string | null) =>
+    tyovaiheet.filter((v) => osaId !== null && v.osa_id === osaId) as {
       vaihe: TyoVaihe;
       arvioitu_kesto_min: number;
     }[];
@@ -89,9 +91,14 @@ export default async function TyotSivu() {
 
   const profiiliNimi = (id: string | null) =>
     profiilit.find((p) => p.id === id)?.full_name ?? "-";
-  const osaNimi = (id: string) => osat.find((o) => o.id === id)?.nimi ?? "Tuntematon osa";
-  const osanAjoneuvotyyppi = (id: string) => {
-    const tyyppi = osat.find((o) => o.id === id)?.ajoneuvotyyppi;
+  // Rivillä on joko osa tai oma kuvaus: kertaluontoisen kohteen nimi on
+  // rivillä itsellään, koska osaluetteloon ei tallenneta mitään.
+  const rivinNimi = (rivi: { osa_id: string | null; oma_kuvaus: string | null }) =>
+    rivi.osa_id
+      ? (osat.find((o) => o.id === rivi.osa_id)?.nimi ?? "Tuntematon osa")
+      : (rivi.oma_kuvaus ?? "Tuntematon kohde");
+  const osanAjoneuvotyyppi = (id: string | null) => {
+    const tyyppi = id ? osat.find((o) => o.id === id)?.ajoneuvotyyppi : null;
     return tyyppi ? ajoneuvotyypinNimi(tyyppi, ajoneuvotyypit) : null;
   };
   const variNimi = (id: string) => varit.find((v) => v.id === id)?.nimi ?? "Tuntematon väri";
@@ -164,7 +171,7 @@ export default async function TyotSivu() {
     onAdmin || (tyo.tila === "vaiheessa" && tyo.aloitti_id === kayttaja.id);
 
   function riviteksti(rivi: TyonRiviRow) {
-    let teksti = `${osaNimi(rivi.osa_id)} - ${variNimi(rivi.vari_id)}`;
+    let teksti = `${rivinNimi(rivi)} - ${variNimi(rivi.vari_id)}`;
     if (rivi.toinen_vari_id && rivi.toinen_vari_rooli) {
       teksti += ` + ${ROOLIN_NIMI[rivi.toinen_vari_rooli]}: ${variNimi(rivi.toinen_vari_id)}`;
     }
@@ -359,7 +366,7 @@ export default async function TyotSivu() {
                         tyoId={tyo.id}
                         rivit={tyonRivit.map((r) => ({
                           id: r.id,
-                          osaNimi: osaNimi(r.osa_id),
+                          osaNimi: rivinNimi(r),
                           variNimi: variNimi(r.vari_id),
                           arvioituKulutusG: r.arvioitu_kulutus_g,
                           toinenVariNimi: r.toinen_vari_id ? variNimi(r.toinen_vari_id) : null,
@@ -427,7 +434,7 @@ export default async function TyotSivu() {
                       className="flex min-w-0 flex-col gap-3 rounded-md border p-3"
                     >
                       <p className="text-center text-base font-semibold break-words">
-                        {osaNimi(rivi.osa_id)}
+                        {rivinNimi(rivi)}
                       </p>
                       <div className="grid gap-0.5 text-center text-sm">
                         <span className="break-words">{variNimi(rivi.vari_id)}</span>

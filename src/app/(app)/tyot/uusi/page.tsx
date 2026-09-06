@@ -97,6 +97,10 @@ export default async function UusiTyoSivu() {
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
+            oletusKateprosentit={{
+              eu: asetukset.kate_prosentti_oletus,
+              eiEu: asetukset.kate_prosentti_ei_eu_oletus,
+            }}
             oletusPohjavariId={asetukset.oletus_pohjavari_id}
             oletusLakkaId={asetukset.oletus_lakka_id}
           />

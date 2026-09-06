@@ -399,7 +399,10 @@ export interface Database {
         Row: {
           id: string;
           tyo_id: string;
-          osa_id: string;
+          /** Null kun rivi on osaluettelon ulkopuolinen kohde (ks. oma_kuvaus). */
+          osa_id: string | null;
+          /** Osaluettelon ulkopuolisen kohteen kuvaus. Null kun osa_id on asetettu. */
+          oma_kuvaus: string | null;
           vari_id: string;
           kappalemaara: number;
           arvioitu_kulutus_g: number;
@@ -540,7 +543,10 @@ export interface Database {
         Row: {
           id: string;
           tyo_id: string;
-          osa_id: string;
+          /** Null kun rivi on osaluettelon ulkopuolinen kohde (ks. oma_kuvaus). */
+          osa_id: string | null;
+          /** Osaluettelon ulkopuolisen kohteen kuvaus, esim. "oma venekoppa". */
+          oma_kuvaus: string | null;
           vari_id: string;
           toinen_vari_id: string | null;
           toinen_vari_rooli: ToinenVariRooli | null;
@@ -559,7 +565,6 @@ export interface Database {
         };
         Insert: Partial<Database["public"]["Tables"]["tyon_rivit"]["Row"]> & {
           tyo_id: string;
-          osa_id: string;
           vari_id: string;
           arvioitu_kulutus_g: number;
           yksikkohinta_eur: number;

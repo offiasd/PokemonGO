@@ -103,8 +103,11 @@ export default async function MuokkaaTyotaSivu({
     supabase.from("osat").select("id, nimi"),
     supabase.from("varit").select("id, nimi"),
   ]);
-  const osanNimi = (osaId: string) =>
-    kaikkiOsat.data?.find((o) => o.id === osaId)?.nimi ?? "Tuntematon osa";
+  // Rivillä on joko osa tai oma kuvaus: kertakohteen nimi on rivillä itsellään.
+  const rivinNimi = (osaId: string | null, omaKuvaus: string | null) =>
+    osaId
+      ? (kaikkiOsat.data?.find((o) => o.id === osaId)?.nimi ?? "Tuntematon osa")
+      : (omaKuvaus ?? "Tuntematon kohde");
   const varinNimi = (variId: string | null) =>
     variId ? (kaikkiVarit.data?.find((v) => v.id === variId)?.nimi ?? "Tuntematon väri") : null;
 
@@ -119,7 +122,8 @@ export default async function MuokkaaTyotaSivu({
   const alkuRivit: KoriRivi[] = (rivitVastaus.data ?? []).map((rivi, i) => ({
     avain: String(i),
     osaId: rivi.osa_id,
-    osaNimi: osanNimi(rivi.osa_id),
+    omaKuvaus: rivi.oma_kuvaus,
+    osaNimi: rivinNimi(rivi.osa_id, rivi.oma_kuvaus),
     variId: rivi.vari_id,
     variNimi: varinNimi(rivi.vari_id) ?? "Tuntematon väri",
     arvioituKulutusG: rivi.arvioitu_kulutus_g,
@@ -159,6 +163,10 @@ export default async function MuokkaaTyotaSivu({
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
+            oletusKateprosentit={{
+              eu: asetukset.kate_prosentti_oletus,
+              eiEu: asetukset.kate_prosentti_ei_eu_oletus,
+            }}
             oletusPohjavariId={asetukset.oletus_pohjavari_id}
             oletusLakkaId={asetukset.oletus_lakka_id}
             muokattavaTyo={{

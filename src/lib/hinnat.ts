@@ -150,3 +150,30 @@ export function kategorianKiinteaHinta(
   if (lakattu) return kategoriahinta.hinta_lakattu ?? kategoriahinta.hinta;
   return kategoriahinta.hinta;
 }
+
+/** Yksi maalikerros hinnanlaskennassa: väri ja sen arvioitu kulutus. */
+export interface Maalikerros {
+  alkupera: Alkupera;
+  kokonaishinta: number;
+  grammat: number;
+}
+
+/**
+ * Osaluettelon ulkopuolisen kohteen ("Muu") asiakashinta.
+ *
+ * Kertakohteella ei ole osaa eikä kategoriahintaa, joten hinta lasketaan
+ * suoraan maalin kulutuksesta ja asetusten katteesta. Työkustannus jää pois:
+ * se johdetaan osan työvaiheista, joita kertakohteesta ei ole - arvattu työaika
+ * olisi huonompi kuin se, että hinta kirjoitetaan käsin.
+ *
+ * Kate valitaan kaikkien kerrosten alkuperästä samoin kuin osalla: yksikin
+ * EU:n ulkopuolinen väri nostaa katteen ei-EU-prosenttiin.
+ */
+export function muunKohteenHinta(kerrokset: Maalikerros[], kate: Kateprosentit): number {
+  const maalikustannus = kerrokset.reduce(
+    (summa, k) => summa + (k.grammat / 1000) * k.kokonaishinta,
+    0
+  );
+  const prosentti = valitseKate(kate, ...kerrokset.map((k) => k.alkupera));
+  return Math.round(maalikustannus * (1 + prosentti / 100) * 100) / 100;
+}

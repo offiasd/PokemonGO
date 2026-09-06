@@ -18,7 +18,10 @@ function tarkistaAlennus(prosentti: number): number {
 }
 
 export interface TyonRiviSyote {
-  osaId: string;
+  /** Null kun kohde ei ole osaluettelossa, jolloin omaKuvaus kertoo mikä se on. */
+  osaId: string | null;
+  /** Osaluettelon ulkopuolisen kohteen kuvaus, esim. "oma venekoppa". */
+  omaKuvaus?: string | null;
   variId: string;
   kappalemaara: number;
   arvioituKulutusG: number;
@@ -44,6 +47,7 @@ export interface TyonRiviSyote {
 function riviPayload(rivit: TyonRiviSyote[]) {
   return rivit.map((r) => ({
     osa_id: r.osaId,
+    oma_kuvaus: r.omaKuvaus?.trim() || null,
     vari_id: r.variId,
     kappalemaara: r.kappalemaara,
     arvioitu_kulutus_g: r.arvioituKulutusG,
@@ -58,6 +62,25 @@ function riviPayload(rivit: TyonRiviSyote[]) {
       arvioitu_kulutus_g: l.arvioituKulutusG,
     })),
   }));
+}
+
+/**
+ * Rivillä on joko osa tai vapaa kuvaus, ei kumpaakaan eikä molempia.
+ *
+ * Sama sääntö on kannassa check-ehtona; tämä antaa siitä suomenkielisen
+ * virheen sen sijaan että maalaaja näkisi rajoitteen nimen.
+ */
+function tarkistaKohteet(rivit: TyonRiviSyote[]): string | null {
+  for (const rivi of rivit) {
+    const kuvaus = rivi.omaKuvaus?.trim();
+    if (rivi.osaId && kuvaus) {
+      return "Rivillä voi olla joko osa tai oma kuvaus, ei molempia.";
+    }
+    if (!rivi.osaId && !kuvaus) {
+      return "Kirjoita Muu-riville mitä maalataan.";
+    }
+  }
+  return null;
 }
 
 /**
@@ -119,6 +142,8 @@ export async function aloitaTyo(
     if (rivit.length === 0) {
       return { ok: false, virhe: "Lisää vähintään yksi osa työhön ennen aloitusta." };
     }
+    const kohdevirhe = tarkistaKohteet(rivit);
+    if (kohdevirhe) return { ok: false, virhe: kohdevirhe };
     const supabase = await createClient();
 
     const vastaanotettu = tila === "vastaanotettu";
@@ -179,6 +204,8 @@ export async function paivitaTyo(
     if (rivit.length === 0) {
       return { ok: false, virhe: "Työssä pitää olla vähintään yksi osa." };
     }
+    const kohdevirhe = tarkistaKohteet(rivit);
+    if (kohdevirhe) return { ok: false, virhe: kohdevirhe };
     const supabase = await createClient();
 
     const { data: tyo } = await supabase.from("tyot").select("tila").eq("id", tyoId).single();
