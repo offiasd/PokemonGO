@@ -72,7 +72,14 @@ export default async function VariSivu({
             </span>
             <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
           </div>
-          <SaldoPalkki saldoG={vari.saldo_g} halytysrajaG={halytysraja} />
+          <SaldoPalkki
+            saldoG={vari.saldo_g}
+            varattuG={vari.varattu_g}
+            halytysrajaG={vari.halytysraja_g}
+            taysirajaG={vari.taysiraja_g}
+            oletusHalytysG={asetukset.oletus_halytysraja_g}
+            oletusTaysiG={asetukset.oletus_taysiraja_g}
+          />
         </div>
 
         <div className="grid gap-3">
@@ -187,6 +194,7 @@ export default async function VariSivu({
               lisakategoriat={lisakategoriat}
               formAction={paivitaVari.bind(null, vari.id)}
               asetuksetOletusHalytysraja={asetukset.oletus_halytysraja_g}
+              asetuksetOletusTaysiraja={asetukset.oletus_taysiraja_g}
               toimituskuluOletusEu={asetukset.toimituskulu_per_kg_eu_oletus}
               toimituskuluOletusUsa={asetukset.toimituskulu_per_kg_usa_oletus}
               toimituskuluOletusMuu={asetukset.toimituskulu_per_kg_muu_oletus}

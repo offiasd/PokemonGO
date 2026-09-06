@@ -33,6 +33,16 @@
   --success-foreground: oklch(0.985 0 0);
   --warning: oklch(0.75 0.15 75);
   --warning-foreground: oklch(0.145 0 0);
+  /* Saldon tilamerkintä. Teksti on aina saman sävyperheen tumma pää, ei
+     mustaa eikä harmaata - värillisellä pinnalla ne lukevat likaisina. */
+  --tila-punainen-pinta: #f7e7e6;
+  --tila-punainen-teksti: #8a2621;
+  --tila-keltainen-pinta: #faf0d6;
+  --tila-keltainen-teksti: #7a6408;
+  --tila-vihrea-pinta: #e5f0e9;
+  --tila-vihrea-teksti: #235f3c;
+  /* RAL 5017, otsikon alaviiva. */
+  --korostus: #063971;
 }
 
 .dark {
@@ -64,6 +74,15 @@
   --success-foreground: oklch(0.145 0 0);
   --warning: oklch(0.769 0.188 70.08);
   --warning-foreground: oklch(0.145 0 0);
+  /* Tummalla taustalla sama pari kääntyy toisin päin: pinta tummenee ja
+     teksti vaalenee, jotta kontrasti säilyy. */
+  --tila-punainen-pinta: oklch(0.28 0.06 25);
+  --tila-punainen-teksti: oklch(0.83 0.09 25);
+  --tila-keltainen-pinta: oklch(0.3 0.05 90);
+  --tila-keltainen-teksti: oklch(0.87 0.11 90);
+  --tila-vihrea-pinta: oklch(0.28 0.05 155);
+  --tila-vihrea-teksti: oklch(0.84 0.1 155);
+  --korostus: oklch(0.72 0.11 250);
 }
 
 @theme inline {
@@ -97,6 +116,13 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-tila-punainen-pinta: var(--tila-punainen-pinta);
+  --color-tila-punainen-teksti: var(--tila-punainen-teksti);
+  --color-tila-keltainen-pinta: var(--tila-keltainen-pinta);
+  --color-tila-keltainen-teksti: var(--tila-keltainen-teksti);
+  --color-tila-vihrea-pinta: var(--tila-vihrea-pinta);
+  --color-tila-vihrea-teksti: var(--tila-vihrea-teksti);
+  --color-korostus: var(--korostus);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

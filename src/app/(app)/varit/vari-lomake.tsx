@@ -51,6 +51,7 @@ interface VariLomakeProps {
   lisakategoriat?: MaaliTyyppi[];
   formAction: (tila: VariLomakeTila, formData: FormData) => Promise<VariLomakeTila>;
   asetuksetOletusHalytysraja: number;
+  asetuksetOletusTaysiraja: number;
   toimituskuluOletusEu: number;
   toimituskuluOletusUsa: number;
   toimituskuluOletusMuu: number;
@@ -124,6 +125,7 @@ export function VariLomake({
   lisakategoriat: alkuLisakategoriat = [],
   formAction,
   asetuksetOletusHalytysraja,
+  asetuksetOletusTaysiraja,
   toimituskuluOletusEu,
   toimituskuluOletusUsa,
   toimituskuluOletusMuu,
@@ -663,6 +665,23 @@ export function VariLomake({
             min="0"
             defaultValue={vari?.halytysraja_g ?? ""}
           />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="taysiraja_g">
+            Täysiraja (g) - tyhjä = oletus ({asetuksetOletusTaysiraja} g)
+          </Label>
+          <Input
+            id="taysiraja_g"
+            name="taysiraja_g"
+            type="number"
+            step="1"
+            min="1"
+            defaultValue={vari?.taysiraja_g ?? ""}
+          />
+          <p className="text-xs text-muted-foreground">
+            Taso jolla väri on täynnä. Vaikuttaa vain saldopalkin asteikkoon. Tyhjä = käytetään
+            oletusta.
+          </p>
         </div>
         {!vari && (
           <div className="grid gap-2">

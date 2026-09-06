@@ -94,6 +94,7 @@ function lueVariKentat(formData: FormData) {
     alkuperainen_valuutta: tyhjaksiTekstiksi(formData.get("alkuperainen_valuutta")),
     alkuperainen_yksikko: tyhjaksiTekstiksi(formData.get("alkuperainen_yksikko")),
     halytysraja_g: tyhjaksiNumeroksi(formData.get("halytysraja_g")),
+    taysiraja_g: tyhjaksiNumeroksi(formData.get("taysiraja_g")),
   };
 }
 

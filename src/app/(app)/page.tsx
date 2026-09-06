@@ -137,7 +137,9 @@ export default async function EtusivuSivu({
     supabase.from("tyojen_talous").select("ajankohta").order("ajankohta").limit(1),
     supabase
       .from("varit_halytykset")
-      .select("id, nimi, saldo_g, efektiivinen_halytysraja_g")
+      .select(
+        "id, nimi, saldo_g, varattu_g, halytysraja_g, taysiraja_g, efektiivinen_halytysraja_g"
+      )
       .order("saldo_g", { ascending: true }),
     supabase.rpc("kuukauden_kaytetyin_vari"),
     supabase.from("varit").select("id", { count: "exact", head: true }).eq("aktiivinen", true),
@@ -390,7 +392,14 @@ export default async function EtusivuSivu({
                     {vari.efektiivinen_halytysraja_g.toLocaleString("fi-FI")} g
                   </span>
                 </div>
-                <SaldoPalkki saldoG={vari.saldo_g} halytysrajaG={vari.efektiivinen_halytysraja_g} />
+                <SaldoPalkki
+                  saldoG={vari.saldo_g}
+                  varattuG={vari.varattu_g}
+                  halytysrajaG={vari.halytysraja_g}
+                  taysirajaG={vari.taysiraja_g}
+                  oletusHalytysG={asetukset.oletus_halytysraja_g}
+                  oletusTaysiG={asetukset.oletus_taysiraja_g}
+                />
               </Link>
             ))}
           </CardContent>

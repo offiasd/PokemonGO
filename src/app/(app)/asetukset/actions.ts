@@ -32,6 +32,7 @@ export async function paivitaAsetukset(
 
   const numerokentat = [
     "oletus_halytysraja_g",
+    "oletus_taysiraja_g",
     "tullimaksu_prosentti_oletus",
     "alv_prosentti_oletus",
     "kate_prosentti_oletus",

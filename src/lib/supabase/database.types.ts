@@ -97,6 +97,8 @@ export interface Database {
         Row: {
           id: boolean;
           oletus_halytysraja_g: number;
+          /** Taso jolla väri katsotaan täydeksi: saldopalkin asteikon yläpää. */
+          oletus_taysiraja_g: number;
           tullimaksu_prosentti_oletus: number;
           alv_prosentti_oletus: number;
           /** Kate-% EU-väreille (ja oletus kun alkuperää ei tiedetä). */
@@ -159,6 +161,8 @@ export interface Database {
           varattu_g: number;
           saldo_g: number;
           halytysraja_g: number | null;
+          /** Värin oma täysiraja saldopalkkiin. Null = asetusten oletus. */
+          taysiraja_g: number | null;
           varisavy: Varisavy | null;
           aktiivinen: boolean;
           created_at: string;

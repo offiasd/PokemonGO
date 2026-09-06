@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SaldoPalkki } from "@/components/saldo-palkki";
@@ -10,6 +11,7 @@ import { muotoileGrammat } from "@/lib/vakiot";
 export default async function HalytyksetSivu() {
   await vaaditaanKayttaja();
   const supabase = await createClient();
+  const asetukset = await haeAsetukset();
 
   const { data: halytykset } = await supabase
     .from("varit_halytykset")
@@ -54,7 +56,14 @@ export default async function HalytyksetSivu() {
                   <span className="text-muted-foreground">Hälytysraja</span>
                   <span>{muotoileGrammat(vari.efektiivinen_halytysraja_g)}</span>
                 </div>
-                <SaldoPalkki saldoG={vari.saldo_g} halytysrajaG={vari.efektiivinen_halytysraja_g} />
+                <SaldoPalkki
+                  saldoG={vari.saldo_g}
+                  varattuG={vari.varattu_g}
+                  halytysrajaG={vari.halytysraja_g}
+                  taysirajaG={vari.taysiraja_g}
+                  oletusHalytysG={asetukset.oletus_halytysraja_g}
+                  oletusTaysiG={asetukset.oletus_taysiraja_g}
+                />
               </CardContent>
             </Card>
           </Link>

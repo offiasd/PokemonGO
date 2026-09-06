@@ -36,10 +36,12 @@ type VariRow = Database["public"]["Tables"]["varit"]["Row"];
 function VariRuudukko({
   varit,
   oletusHalytysraja,
+  oletusTaysiraja,
   naytaHinnat,
 }: {
   varit: { vari: VariRow; kokonaishinta: number }[];
   oletusHalytysraja: number;
+  oletusTaysiraja: number;
   naytaHinnat: boolean;
 }) {
   return (
@@ -49,6 +51,7 @@ function VariRuudukko({
           key={vari.id}
           vari={vari}
           oletusHalytysraja={oletusHalytysraja}
+          oletusTaysiraja={oletusTaysiraja}
           naytaHinnat={naytaHinnat}
           kokonaishinta={kokonaishinta}
         />
@@ -143,6 +146,13 @@ export default async function VaritSivu({
   // Sivutus tehdään lajittelun jälkeen JS:ssä, koska hinta-, saldo- ja
   // suosiojärjestys lasketaan täällä eikä kannassa: kannan range-rajaus
   // palauttaisi väärän viipaleen.
+  // Loppuneet lasketaan samasta datasta jolla lista piirretään, ei erillisellä
+  // kyselyllä. Sama sääntö kuin kortin merkinnässä: vapaa saldo, eli varatut
+  // grammat on jo luvattu töihin.
+  const loppuneita = varitHinnoin.filter(
+    ({ vari }) => vari.saldo_g - vari.varattu_g <= 0
+  ).length;
+
   const sivuja = Math.max(1, Math.ceil(varitHinnoin.length / SIVUKOKO));
   const nykyinenSivu = rajaaSivu(sivu, sivuja);
   const sivunVarit = varitHinnoin.slice((nykyinenSivu - 1) * SIVUKOKO, nykyinenSivu * SIVUKOKO);
@@ -173,7 +183,11 @@ export default async function VaritSivu({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Värit</h1>
-          <p className="text-muted-foreground">Värivaraston hallinta ja saldot.</p>
+          <p className="text-sm text-muted-foreground">
+            {varitHinnoin.length} {varitHinnoin.length === 1 ? "väri" : "väriä"}
+            {loppuneita > 0 && ` · ${loppuneita} loppu`}
+          </p>
+          <div className="mt-2 h-0.5 w-full bg-korostus" />
         </div>
         {kayttaja.role === "admin" && (
           <Button asChild>
@@ -201,10 +215,11 @@ export default async function VaritSivu({
           <div className="flex flex-wrap items-end justify-between gap-3">
             <VarienJarjestysValinta naytaHinnat={naytaHinnat} />
             <div className="flex flex-wrap items-center gap-3">
-              <p className="text-sm text-muted-foreground">
-                {varitHinnoin.length} {varitHinnoin.length === 1 ? "väri" : "väriä"}
-                {sivuja > 1 && ` - sivu ${nykyinenSivu}/${sivuja}`}
-              </p>
+              {sivuja > 1 && (
+                <p className="text-sm text-muted-foreground">
+                  Sivu {nykyinenSivu}/{sivuja}
+                </p>
+              )}
               <Sivutus sivu={nykyinenSivu} sivuja={sivuja} />
             </div>
           </div>
@@ -233,6 +248,7 @@ export default async function VaritSivu({
                       <VariRuudukko
                         varit={ryhmanVarit}
                         oletusHalytysraja={asetukset.oletus_halytysraja_g}
+                        oletusTaysiraja={asetukset.oletus_taysiraja_g}
                         naytaHinnat={naytaHinnat}
                       />
                     </section>
@@ -243,6 +259,7 @@ export default async function VaritSivu({
               <VariRuudukko
                 varit={sivunVarit}
                 oletusHalytysraja={asetukset.oletus_halytysraja_g}
+                oletusTaysiraja={asetukset.oletus_taysiraja_g}
                 naytaHinnat={naytaHinnat}
               />
             ))}

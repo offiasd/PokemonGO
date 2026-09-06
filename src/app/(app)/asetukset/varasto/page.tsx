@@ -29,24 +29,41 @@ export default async function VarastoSivu() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Hälytysraja</CardTitle>
+          <CardTitle>Saldon rajat</CardTitle>
           <CardDescription>
-            Väri merkitään vähissä oleviin, kun saldo alittaa rajan. Värikohtainen raja ohittaa
-            tämän oletuksen.
+            Väri merkitään vähissä oleviin, kun saldo alittaa hälytysrajan. Täysiraja on
+            saldopalkin asteikon yläpää: taso jolla väri katsotaan täydeksi. Värikohtaiset rajat
+            ohittavat nämä oletukset.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Asetuslomake>
-            <div className="grid gap-2 sm:max-w-xs">
-              <Label htmlFor="oletus_halytysraja_g">Oletushälytysraja (g)</Label>
-              <Input
-                id="oletus_halytysraja_g"
-                name="oletus_halytysraja_g"
-                type="number"
-                step="1"
-                min="0"
-                defaultValue={asetukset.oletus_halytysraja_g}
-              />
+            <div className="grid gap-4 sm:max-w-lg sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="oletus_halytysraja_g">Oletushälytysraja (g)</Label>
+                <Input
+                  id="oletus_halytysraja_g"
+                  name="oletus_halytysraja_g"
+                  type="number"
+                  step="1"
+                  min="0"
+                  defaultValue={asetukset.oletus_halytysraja_g}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="oletus_taysiraja_g">Oletustäysiraja (g)</Label>
+                <Input
+                  id="oletus_taysiraja_g"
+                  name="oletus_taysiraja_g"
+                  type="number"
+                  step="1"
+                  min="1"
+                  defaultValue={asetukset.oletus_taysiraja_g}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Vaikuttaa vain saldopalkin asteikkoon, ei hälytyksiin.
+                </p>
+              </div>
             </div>
           </Asetuslomake>
         </CardContent>

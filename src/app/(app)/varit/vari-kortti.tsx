@@ -4,7 +4,8 @@ import { ExternalLink, Paintbrush } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SaldoPalkki } from "@/components/saldo-palkki";
+import { SaldoMerkinta, SaldoPalkki } from "@/components/saldo-palkki";
+import { laskeSaldoTila } from "@/lib/saldo";
 import { muotoileEuro, muotoileGrammat, varisavynNimi, VARISAVYN_VARIKOODI } from "@/lib/vakiot";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -45,16 +46,29 @@ function turvallinenLinkki(linkki: string | null): string | null {
 export function VariKortti({
   vari,
   oletusHalytysraja,
+  oletusTaysiraja,
   naytaHinnat,
   kokonaishinta,
 }: {
   vari: VariRow;
   oletusHalytysraja: number;
+  oletusTaysiraja: number;
   naytaHinnat: boolean;
   /** Ostohinta + toimituskulu + tulli + ALV (asetusten arvoilla). */
   kokonaishinta: number;
 }) {
   const tilauslinkki = turvallinenLinkki(vari.myyja_linkki);
+  const rajat = {
+    saldoG: vari.saldo_g,
+    varattuG: vari.varattu_g,
+    halytysrajaG: vari.halytysraja_g,
+    taysirajaG: vari.taysiraja_g,
+    oletusHalytysG: oletusHalytysraja,
+    oletusTaysiG: oletusTaysiraja,
+  };
+  // Merkintä ja palkki lukevat saman funktion, jottei kortissa voi näkyä
+  // keltainen palkki vihreällä merkinnällä.
+  const { tila, teksti } = laskeSaldoTila(rajat);
 
   return (
     <Card
@@ -123,14 +137,18 @@ export function VariKortti({
           )}
 
           <div className="grid min-w-0 gap-1">
-            <p className="min-w-0 text-sm">
-              <span className="text-muted-foreground">Saldo</span>{" "}
-              <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
-            </p>
-            <SaldoPalkki
-              saldoG={vari.saldo_g}
-              halytysrajaG={vari.halytysraja_g ?? oletusHalytysraja}
-            />
+            {/* Merkintä mahtuu saldorivin oikeaan reunaan. Kapeimmalla
+                kortilla (2 saraketta 320 px:n näytöllä) se ei mahdu, jolloin se
+                kiertyy omalle rivilleen - saldoluvun katkaisu olisi pahempi,
+                koska juuri se luku kortista luetaan. */}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1 gap-y-0.5">
+              <p className="min-w-0 text-sm">
+                <span className="text-muted-foreground">Saldo</span>{" "}
+                <span className="font-medium">{muotoileGrammat(vari.saldo_g)}</span>
+              </p>
+              <SaldoMerkinta tila={tila} teksti={teksti} />
+            </div>
+            <SaldoPalkki {...rajat} />
             {vari.varattu_g > 0 && (
               <p className="min-w-0 text-xs text-muted-foreground">
                 Varattu töihin {muotoileGrammat(vari.varattu_g)} (vapaana{" "}
