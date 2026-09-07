@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { kaytettavatKayttotarkoitukset, opinAvain, type Kayttotarkoitus } from "@/lib/kulut";
 
 import { KulutValilehdet } from "../valilehdet";
+import { KuitinLiitteet, type LiiteNakyma } from "./kuitin-liitteet";
 import { KuitinLomake } from "./kuitin-lomake";
 import { KuitinPoisto } from "./kuitin-poisto";
 
@@ -27,15 +28,24 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
 
   if (!kuitti) notFound();
 
-  // Kuitit ovat yksityisessä ämpärissä, joten kuva luetaan aikarajoitetulla
-  // allekirjoitetulla linkillä eikä julkisella osoitteella.
-  let tiedostoUrl: string | null = null;
-  if (kuitti.tiedosto_polku) {
-    const { data } = await supabase.storage
-      .from("kuitit")
-      .createSignedUrl(kuitti.tiedosto_polku, LINKIN_VOIMASSAOLO_S);
-    tiedostoUrl = data?.signedUrl ?? null;
-  }
+  // Kuitilla voi olla monta sivua: pitkä kassakuitti ei mahdu yhteen kuvaan.
+  // Kuitit ovat yksityisessä ämpärissä, joten jokainen sivu luetaan
+  // aikarajoitetulla allekirjoitetulla linkillä eikä julkisella osoitteella.
+  const { data: liiteRivit } = await supabase
+    .from("kuitin_liitteet")
+    .select("id, polku, tyyppi")
+    .eq("kuitti_id", id)
+    .order("jarjestys")
+    .order("created_at");
+
+  const liitteet: LiiteNakyma[] = await Promise.all(
+    (liiteRivit ?? []).map(async (liite) => {
+      const { data } = await supabase.storage
+        .from("kuitit")
+        .createSignedUrl(liite.polku, LINKIN_VOIMASSAOLO_S);
+      return { id: liite.id, tyyppi: liite.tyyppi, url: data?.signedUrl ?? null };
+    })
+  );
 
   const luokat = luokatVastaus.data ?? [];
   const opitut = Object.fromEntries(
@@ -61,32 +71,16 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
             tarkistusta varten. Leveällä kuva on rinnalla omassa palstassaan. */}
         <Card className="order-2 lg:order-none lg:sticky lg:top-6">
           <CardHeader>
-            <CardTitle className="text-base">Kuitti</CardTitle>
+            <CardTitle className="text-base">
+              {liitteet.length > 1 ? `Kuitti (${liitteet.length} sivua)` : "Kuitti"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {!tiedostoUrl && (
-              <p className="text-sm text-muted-foreground">
-                Kuittiin ei ole liitetty tiedostoa.
-              </p>
-            )}
-            {tiedostoUrl && kuitti.tiedosto_tyyppi === "application/pdf" && (
-              <a
-                href={tiedostoUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-primary underline underline-offset-2"
-              >
-                Avaa PDF
-              </a>
-            )}
-            {tiedostoUrl && kuitti.tiedosto_tyyppi !== "application/pdf" && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={tiedostoUrl}
-                alt="Kuitti"
-                className="w-full rounded-md border object-contain"
-              />
-            )}
+            <KuitinLiitteet
+              kuittiId={kuitti.id}
+              liitteet={liitteet}
+              luovutettu={kuitti.luovutettu_at !== null}
+            />
             <p className="mt-3 text-xs text-muted-foreground">
               Säilytettävä{" "}
               {new Date(kuitti.sailytettava_asti).toLocaleDateString("fi-FI")} asti

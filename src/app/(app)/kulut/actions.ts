@@ -38,7 +38,8 @@ export interface KuitinRiviSyote {
 export async function luoKuitti(
   tiedostoPolku: string,
   tiedostoTyyppi: string,
-  lahde: "kamera" | "tiedosto"
+  lahde: "kamera" | "tiedosto",
+  tiiviste?: string
 ): Promise<KuittiTulos> {
   try {
     const kayttaja = await vaaditaanAdmin();
@@ -49,8 +50,6 @@ export async function luoKuitti(
       .insert({
         paivays: new Date().toISOString().slice(0, 10),
         lahde,
-        tiedosto_polku: tiedostoPolku,
-        tiedosto_tyyppi: tiedostoTyyppi,
         tila: "luonnos",
         luoja_id: kayttaja.id,
       })
@@ -61,10 +60,113 @@ export async function luoKuitti(
       return { ok: false, virhe: error?.message ?? "Kuitin tallennus epäonnistui." };
     }
 
+    // Tiedosto tulee liitteenä, ja trigger peilaa ensimmäisen liitteen kuitin
+    // omiin sarakkeisiin. Näin sama kuitti voi myöhemmin saada lisää sivuja
+    // ilman että mikään vanha kysely muuttuu.
+    const { error: liiteVirhe } = await supabase.from("kuitin_liitteet").insert({
+      kuitti_id: data.id,
+      polku: tiedostoPolku,
+      tyyppi: tiedostoTyyppi,
+      jarjestys: 0,
+      tiiviste: tiiviste ?? null,
+    });
+    if (liiteVirhe) {
+      await supabase.from("kuitit").delete().eq("id", data.id);
+      return { ok: false, virhe: liiteVirhe.message };
+    }
+
     revalidatePath("/kulut");
     return { ok: true, id: data.id };
   } catch (virhe) {
     return { ok: false, virhe: virheteksti(virhe, "Kuitin tallennus epäonnistui.") };
+  }
+}
+
+/** Yksi ladattu tiedosto matkalla kuitiksi. */
+export interface LadattuTiedosto {
+  polku: string;
+  tyyppi: string;
+  tiiviste: string;
+}
+
+/**
+ * Luo erän tiedostoista yhden kuitin kutakin kohden ja asettaa ne lukujonoon.
+ *
+ * Kuitteja ei lueta tässä: kaksikymmentä vision-kutsua peräkkäin kaatuisi
+ * Edge Functionin aikarajaan. Rivit syntyvät heti luonnoksina, ja jono lukee
+ * ne muutama kerrallaan taustalla - näkymän voi sulkea kesken.
+ */
+export async function luoKuititErasta(
+  eraId: string,
+  tiedostot: LadattuTiedosto[],
+  lahde: "kamera" | "tiedosto"
+): Promise<{ ok: true; luotuja: number } | { ok: false; virhe: string }> {
+  try {
+    const kayttaja = await vaaditaanAdmin();
+    const supabase = await createClient();
+
+    if (tiedostot.length === 0) return { ok: false, virhe: "Ei ladattuja tiedostoja." };
+    if (tiedostot.length > 20) return { ok: false, virhe: "Kerralla voi lisätä enintään 20 tiedostoa." };
+
+    const tanaan = new Date().toISOString().slice(0, 10);
+    const { data: luodut, error } = await supabase
+      .from("kuitit")
+      .insert(
+        tiedostot.map(() => ({
+          paivays: tanaan,
+          lahde,
+          tila: "luonnos" as const,
+          luoja_id: kayttaja.id,
+          era_id: eraId,
+          poiminnan_tila: "jonossa",
+        }))
+      )
+      .select("id");
+    if (error || !luodut) {
+      return { ok: false, virhe: error?.message ?? "Kuittien luonti epäonnistui." };
+    }
+
+    const { error: liiteVirhe } = await supabase.from("kuitin_liitteet").insert(
+      luodut.map((kuitti, i) => ({
+        kuitti_id: kuitti.id,
+        polku: tiedostot[i].polku,
+        tyyppi: tiedostot[i].tyyppi,
+        jarjestys: 0,
+        tiiviste: tiedostot[i].tiiviste,
+      }))
+    );
+    if (liiteVirhe) {
+      await supabase
+        .from("kuitit")
+        .delete()
+        .in("id", luodut.map((k) => k.id));
+      return { ok: false, virhe: liiteVirhe.message };
+    }
+
+    revalidatePath("/kulut");
+    return { ok: true, luotuja: luodut.length };
+  } catch (virhe) {
+    return { ok: false, virhe: virheteksti(virhe, "Kuittien luonti epäonnistui.") };
+  }
+}
+
+/** Poistaa koko erän kuitteineen ja tiedostoineen. */
+export async function poistaKuittiEra(eraId: string): Promise<KuittiTulos> {
+  try {
+    await vaaditaanAdmin();
+    const supabase = await createClient();
+
+    const { data: polut, error } = await supabase.rpc("poista_kuittiera", { p_era_id: eraId });
+    if (error) return { ok: false, virhe: error.message };
+
+    if (polut && polut.length > 0) {
+      await supabase.storage.from("kuitit").remove(polut);
+    }
+
+    revalidatePath("/kulut");
+    return { ok: true };
+  } catch (virhe) {
+    return { ok: false, virhe: virheteksti(virhe, "Erän poisto epäonnistui.") };
   }
 }
 
@@ -177,15 +279,15 @@ export async function poistaKuitti(kuittiId: string): Promise<KuittiTulos> {
     await vaaditaanAdmin();
     const supabase = await createClient();
 
-    const { data: polku, error } = await supabase.rpc("poista_kuitti_pysyvasti", {
+    const { data: polut, error } = await supabase.rpc("poista_kuitti_pysyvasti", {
       p_kuitti_id: kuittiId,
     });
     if (error) return { ok: false, virhe: error.message };
 
-    // Tiedosto vasta kun rivi on poissa: jos poisto kaatuu, tosite säilyy
-    // kokonaisena eikä jää kuvattomaksi.
-    if (polku) {
-      await supabase.storage.from("kuitit").remove([polku]);
+    // Tiedostot vasta kun rivi on poissa: jos poisto kaatuu, tosite säilyy
+    // kokonaisena eikä jää kuvattomaksi. Liitteitä voi olla monta.
+    if (polut && polut.length > 0) {
+      await supabase.storage.from("kuitit").remove(polut);
     }
 
     revalidatePath("/kulut");
@@ -236,31 +338,49 @@ export async function korvaaKuitinTiedosto(
   kuittiId: string,
   tiedostoPolku: string,
   tiedostoTyyppi: string,
-  lahde: "kamera" | "tiedosto"
+  lahde: "kamera" | "tiedosto",
+  tiiviste?: string
 ): Promise<KuittiTulos> {
   try {
     await vaaditaanAdmin();
     const supabase = await createClient();
 
+    // Uudelleenkuvaus korvaa ensimmäisen sivun. Muut sivut jäävät paikoilleen:
+    // pitkästä kuitista kuvataan yleensä uudelleen se sivu joka epäonnistui.
     const { data: vanha } = await supabase
-      .from("kuitit")
-      .select("tiedosto_polku")
-      .eq("id", kuittiId)
-      .single();
+      .from("kuitin_liitteet")
+      .select("id, polku")
+      .eq("kuitti_id", kuittiId)
+      .order("jarjestys")
+      .order("created_at")
+      .limit(1)
+      .maybeSingle();
 
-    const { error } = await supabase
+    if (vanha) {
+      const { error } = await supabase
+        .from("kuitin_liitteet")
+        .update({ polku: tiedostoPolku, tyyppi: tiedostoTyyppi, tiiviste: tiiviste ?? null })
+        .eq("id", vanha.id);
+      if (error) return { ok: false, virhe: error.message };
+    } else {
+      const { error } = await supabase.from("kuitin_liitteet").insert({
+        kuitti_id: kuittiId,
+        polku: tiedostoPolku,
+        tyyppi: tiedostoTyyppi,
+        jarjestys: 0,
+        tiiviste: tiiviste ?? null,
+      });
+      if (error) return { ok: false, virhe: error.message };
+    }
+
+    const { error: kuittiVirhe } = await supabase
       .from("kuitit")
-      .update({
-        tiedosto_polku: tiedostoPolku,
-        tiedosto_tyyppi: tiedostoTyyppi,
-        lahde,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ lahde, updated_at: new Date().toISOString() })
       .eq("id", kuittiId);
-    if (error) return { ok: false, virhe: error.message };
+    if (kuittiVirhe) return { ok: false, virhe: kuittiVirhe.message };
 
-    if (vanha?.tiedosto_polku && vanha.tiedosto_polku !== tiedostoPolku) {
-      await supabase.storage.from("kuitit").remove([vanha.tiedosto_polku]);
+    if (vanha?.polku && vanha.polku !== tiedostoPolku) {
+      await supabase.storage.from("kuitit").remove([vanha.polku]);
     }
 
     revalidatePath(`/kulut/${kuittiId}`);

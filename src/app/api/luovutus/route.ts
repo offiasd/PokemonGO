@@ -88,14 +88,25 @@ export async function GET(pyynto: Request) {
     return NextResponse.json({ virhe: "Kaudella ei ole kuitteja." }, { status: 400 });
   }
 
-  const { data: rivitRaaka } = await supabase
-    .from("kuitin_rivit")
-    .select("*")
-    .in(
-      "kuitti_id",
-      kuititRaaka.map((k) => k.id)
-    )
-    .order("jarjestys");
+  const [{ data: rivitRaaka }, { data: liiteRivit }] = await Promise.all([
+    supabase
+      .from("kuitin_rivit")
+      .select("*")
+      .in(
+        "kuitti_id",
+        kuititRaaka.map((k) => k.id)
+      )
+      .order("jarjestys"),
+    // Kuitilla voi olla monta sivua, ja kirjanpitäjälle menevät ne kaikki.
+    supabase
+      .from("kuitin_liitteet")
+      .select("kuitti_id, polku, tyyppi, jarjestys")
+      .in(
+        "kuitti_id",
+        kuititRaaka.map((k) => k.id)
+      )
+      .order("jarjestys"),
+  ]);
 
   const luokat = new Map((luokatVastaus.data ?? []).map((l) => [l.id, l.nimi]));
   const kaikki: VientiKuitti[] = kuititRaaka.map((kuitti) => ({
@@ -107,6 +118,9 @@ export async function GET(pyynto: Request) {
     muistiinpano: kuitti.muistiinpano,
     tiedosto_polku: kuitti.tiedosto_polku,
     tiedosto_tyyppi: kuitti.tiedosto_tyyppi,
+    liitteet: (liiteRivit ?? [])
+      .filter((l) => l.kuitti_id === kuitti.id)
+      .map((l) => ({ polku: l.polku, tyyppi: l.tyyppi })),
     rivit: (rivitRaaka ?? [])
       .filter((r) => r.kuitti_id === kuitti.id)
       .map((r) => ({
@@ -127,13 +141,15 @@ export async function GET(pyynto: Request) {
   const tiedostot = new Map<string, Tosite>();
   if (muodot.includes("pdf") || muodot.includes("zip")) {
     for (const kuitti of kuitit) {
-      if (!kuitti.tiedosto_polku || tiedostot.has(kuitti.tiedosto_polku)) continue;
-      const { data } = await supabase.storage.from("kuitit").download(kuitti.tiedosto_polku);
-      if (!data) continue;
-      tiedostot.set(kuitti.tiedosto_polku, {
-        data: new Uint8Array(await data.arrayBuffer()),
-        tyyppi: kuitti.tiedosto_tyyppi ?? "image/jpeg",
-      });
+      for (const liite of kuitti.liitteet) {
+        if (tiedostot.has(liite.polku)) continue;
+        const { data } = await supabase.storage.from("kuitit").download(liite.polku);
+        if (!data) continue;
+        tiedostot.set(liite.polku, {
+          data: new Uint8Array(await data.arrayBuffer()),
+          tyyppi: liite.tyyppi,
+        });
+      }
     }
   }
 

@@ -130,12 +130,58 @@ export interface Database {
           mitatoity_at: string | null;
           /** Miksi kuitti mitätöitiin. Kulkee aina mitatoity_at:n kanssa. */
           mitatointi_syy: string | null;
+          /** Latauserä, jos kuitti tuli monen kuitin lisäyksessä. */
+          era_id: string | null;
+          /** Lukujonon tila. */
+          poiminnan_tila: "ei_luettu" | "jonossa" | "luetaan" | "luettu" | "virhe";
+          poiminnan_virhe: string | null;
+          poiminnan_yritykset: number;
+          poiminta_alkoi_at: string | null;
           luoja_id: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["kuitit"]["Row"]> & { paivays: string };
         Update: Partial<Database["public"]["Tables"]["kuitit"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      /**
+       * Kuitin kuvat ja PDF:t järjestyksessä.
+       *
+       * Pitkä kassakuitti ei mahdu yhteen kuvaan, joten samaan kuittiin
+       * kuuluu 2-3 kuvaa. Ensimmäinen liite peilautuu triggerillä kuitin
+       * tiedosto_polku-sarakkeeseen, joten vanhat kyselyt toimivat entiseen
+       * tapaan.
+       */
+      kuitin_liitteet: {
+        Row: {
+          id: string;
+          kuitti_id: string;
+          polku: string;
+          tyyppi: string;
+          jarjestys: number;
+          /** Tiedoston SHA-256 heksana kaksoiskappaleiden tunnistukseen. */
+          tiiviste: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["kuitin_liitteet"]["Row"]> & {
+          kuitti_id: string;
+          polku: string;
+          tyyppi: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["kuitin_liitteet"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      /** Yksi latauskerta: ilman erää ei tiedä mitä 20 kuitin latauksesta onnistui. */
+      kuittierat: {
+        Row: {
+          id: string;
+          luoja_id: string | null;
+          tiedostoja: number;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["kuittierat"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["kuittierat"]["Row"]>;
         Relationships: EiSuhteita;
       };
       kuitin_rivit: {
@@ -903,14 +949,24 @@ export interface Database {
         Args: { p_kausi: string };
         Returns: undefined;
       };
+      luo_kuittiera: {
+        Args: { p_tiedostoja: number };
+        /** Uuden erän tunniste. */
+        Returns: string;
+      };
       mitatoi_kuitti: {
         Args: { p_kuitti_id: string; p_syy: string };
         Returns: undefined;
       };
+      poista_kuittiera: {
+        Args: { p_era_id: string };
+        /** Poistettujen tiedostojen polut Storagen siivousta varten. */
+        Returns: string[];
+      };
       poista_kuitti_pysyvasti: {
         Args: { p_kuitti_id: string };
-        /** Poistetun kuitin tiedostopolku Storagen siivousta varten. */
-        Returns: string | null;
+        /** Poistetun kuitin tiedostopolut Storagen siivousta varten. */
+        Returns: string[];
       };
       poista_valmis_tyo: {
         Args: { p_tyo_id: string; p_syy: PeruutuksenSyy; p_tarkennus?: string | null };

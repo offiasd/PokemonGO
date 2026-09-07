@@ -1,11 +1,19 @@
-// Supabase Edge Function: "Lue kuitti" -painike kuitin sivulla.
-// Vision-malli lukee Storageen tallennetun kuitin ja palauttaa rivit,
+// Supabase Edge Function: kuitin luku.
+// Vision-malli lukee Storageen tallennetut kuitin liitteet ja palauttaa rivit,
 // päiväyksen, toimittajan, loppusumman ja ALV-erittelyn.
 //
-// Funktio ei kirjoita kantaan mitään. Se palauttaa poiminnan lomakkeelle,
-// jossa käyttäjä tarkistaa ja tallentaa: poiminta on ehdotus, ei totuus,
-// ja sama tallennuspolku pysyy yhtenä riippumatta siitä tuliko tieto
-// mallilta vai näppäimistöltä.
+// Kaksi kutsutapaa:
+//
+//   1. Käyttäjä painaa "Lue kuitti". Funktio ei kirjoita kantaan mitään vaan
+//      palauttaa poiminnan lomakkeelle, jossa käyttäjä tarkistaa ja tallentaa:
+//      poiminta on ehdotus, ei totuus, ja sama tallennuspolku pysyy yhtenä
+//      riippumatta siitä tuliko tieto mallilta vai näppäimistöltä.
+//   2. Lukujono kutsuu palvelinavaimella ({ jono: true }). Silloin kirjoitus
+//      tehdään kannassa, koska monen kuitin erää ei lueta selaimen auki
+//      pitämisen varassa - käyttäjä voi sulkea näkymän kesken.
+//
+// Kuitilla voi olla monta liitettä: pitkä kassakuitti ei mahdu yhteen kuvaan.
+// Ne annetaan mallille järjestyksessä yhtenä kuittina.
 //
 // Avaimeton ympäristö on sallittu tila: ilman ANTHROPIC_API_KEY:tä funktio
 // palauttaa siistin suomenkielisen viestin eikä kaadu, jolloin käsinsyöttö
@@ -38,6 +46,32 @@ const ENIMMAISVASTAUS = 8000;
 interface LueKuittiVastaus {
   poiminta: KuittiPoiminta;
   arvio: PoiminnanArvio;
+}
+
+/** Kuitin yksi liite valmiina mallille. */
+interface Liite {
+  polku: string;
+  tyyppi: string;
+}
+
+/**
+ * Bearer-tunnisteen rooli.
+ *
+ * Allekirjoitusta ei tarvitse tarkistaa täällä: Supabasen portti tarkistaa
+ * JWT:n ennen kuin funktio ajetaan, joten tänne asti pääsee vain kelvollinen
+ * tunniste. Rooli erottaa palvelinavaimen käyttäjän tunnisteesta - avaimen
+ * merkkijonovertailu ei kelpaa, koska projektilla voi olla sekä vanha JWT- että
+ * uusi salaisuusmuotoinen palvelinavain.
+ */
+function tunnisteenRooli(authHeader: string): string | null {
+  try {
+    const osat = authHeader.replace(/^Bearer\s+/i, "").split(".");
+    if (osat.length !== 3) return null;
+    const runko = JSON.parse(atob(osat[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof runko?.role === "string" ? runko.role : null;
+  } catch {
+    return null;
+  }
 }
 
 function json(vastaus: LueKuittiVastaus | { virhe: string }, status = 200): Response {
@@ -78,72 +112,139 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const palvelinavain = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const osoite = Deno.env.get("SUPABASE_URL") ?? "";
+  let jonokuitti: string | null = null;
+  let jonoAsiakas: ReturnType<typeof createClient> | null = null;
+
+  /**
+   * Virhe ulos yhtä tietä.
+   *
+   * Jonokutsussa virhe on merkittävä kuitille: kukaan ei ole katsomassa
+   * vastausta, ja ilman merkintää kuitti jäisi ikuisesti "luetaan"-tilaan.
+   */
+  async function virhe(viesti: string, status = 200): Promise<Response> {
+    if (jonokuitti && jonoAsiakas) {
+      await jonoAsiakas.rpc("merkitse_poiminta_virheeksi", {
+        p_kuitti_id: jonokuitti,
+        p_virhe: viesti,
+      });
+    }
+    return json({ virhe: viesti }, status);
+  }
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ virhe: "Ei kirjautunut" }, 401);
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const pyynto = await req.json().catch(() => ({}));
+    const kuittiId = typeof pyynto?.kuitti_id === "string" ? pyynto.kuitti_id : null;
+    if (!kuittiId) return json({ virhe: "Kuitin tunniste puuttuu" }, 400);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return json({ virhe: "Ei kirjautunut" }, 401);
+    // Jonokutsu tunnistetaan palvelinavaimesta: sitä ei ole selaimessa, joten
+    // kirjoitusoikeutta ei voi saada käyttäjän tunnuksilla.
+    const jonokutsu =
+      pyynto?.jono === true &&
+      (tunnisteenRooli(authHeader) === "service_role" ||
+        (palvelinavain !== "" && authHeader === `Bearer ${palvelinavain}`));
 
-    const { data: profiili } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    if (profiili?.role !== "admin") return json({ virhe: "Vain admin voi lukea kuitteja" }, 403);
+    const supabase = jonokutsu
+      ? createClient(osoite, palvelinavain)
+      : createClient(osoite, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+          global: { headers: { Authorization: authHeader } },
+        });
+
+    if (jonokutsu) {
+      jonokuitti = kuittiId;
+      jonoAsiakas = supabase;
+    } else {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return json({ virhe: "Ei kirjautunut" }, 401);
+
+      const { data: profiili } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (profiili?.role !== "admin") return json({ virhe: "Vain admin voi lukea kuitteja" }, 403);
+    }
 
     const avain = Deno.env.get("ANTHROPIC_API_KEY");
     if (!avain) {
-      return json({
-        virhe:
-          "Automaattinen poiminta ei ole käytössä: ANTHROPIC_API_KEY puuttuu Supabase-projektin asetuksista. Täytä kuitin tiedot käsin.",
-      });
+      return await virhe(
+        "Automaattinen poiminta ei ole käytössä: ANTHROPIC_API_KEY puuttuu Supabase-projektin asetuksista. Täytä kuitin tiedot käsin."
+      );
     }
 
-    const { kuitti_id } = await req.json().catch(() => ({ kuitti_id: null }));
-    if (!kuitti_id || typeof kuitti_id !== "string") {
-      return json({ virhe: "Kuitin tunniste puuttuu" }, 400);
+    // Liitteet järjestyksessä: pitkä kassakuitti on monta kuvaa, ja niiden
+    // järjestys ratkaisee kumpi puolikas on kuitin alku.
+    const { data: liitteet } = await supabase
+      .from("kuitin_liitteet")
+      .select("polku, tyyppi")
+      .eq("kuitti_id", kuittiId)
+      .order("jarjestys", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    let lista: Liite[] = (liitteet ?? []).map((l) => ({
+      polku: l.polku as string,
+      tyyppi: (l.tyyppi as string) ?? "image/jpeg",
+    }));
+
+    if (lista.length === 0) {
+      // Vanha kuitti ilman liiteriviä: sarake on yhä olemassa peilikuvana.
+      const { data: kuitti, error: kuittiVirhe } = await supabase
+        .from("kuitit")
+        .select("tiedosto_polku, tiedosto_tyyppi")
+        .eq("id", kuittiId)
+        .single();
+      if (kuittiVirhe || !kuitti) return await virhe("Kuittia ei löytynyt", 404);
+      if (kuitti.tiedosto_polku) {
+        lista = [
+          { polku: kuitti.tiedosto_polku, tyyppi: kuitti.tiedosto_tyyppi ?? "image/jpeg" },
+        ];
+      }
     }
 
-    const { data: kuitti, error: kuittiVirhe } = await supabase
-      .from("kuitit")
-      .select("tiedosto_polku, tiedosto_tyyppi")
-      .eq("id", kuitti_id)
-      .single();
-    if (kuittiVirhe || !kuitti) return json({ virhe: "Kuittia ei löytynyt" }, 404);
-    if (!kuitti.tiedosto_polku) {
-      return json({ virhe: "Kuittiin ei ole liitetty tiedostoa, joten luettavaa ei ole." });
+    if (lista.length === 0) {
+      return await virhe("Kuittiin ei ole liitetty tiedostoa, joten luettavaa ei ole.");
     }
 
-    const tyyppi = kuitti.tiedosto_tyyppi ?? "image/jpeg";
-    if (tyyppi !== "application/pdf" && !TUETUT_KUVAT.includes(tyyppi)) {
-      return json({
-        virhe: `Tiedostomuotoa ${tyyppi} ei voi lukea automaattisesti. Kuvaa kuitti uudelleen tai liitä se PDF:nä.`,
-      });
+    const lohkot: Record<string, unknown>[] = [];
+    for (const liite of lista) {
+      if (liite.tyyppi !== "application/pdf" && !TUETUT_KUVAT.includes(liite.tyyppi)) {
+        return await virhe(
+          `Tiedostomuotoa ${liite.tyyppi} ei voi lukea automaattisesti. Kuvaa kuitti uudelleen tai liitä se PDF:nä.`
+        );
+      }
+
+      const { data: tiedosto, error: latausVirhe } = await supabase.storage
+        .from("kuitit")
+        .download(liite.polku);
+      if (latausVirhe || !tiedosto) {
+        return await virhe(
+          `Kuitin tiedostoa ei saatu luettua: ${latausVirhe?.message ?? "tuntematon syy"}`
+        );
+      }
+
+      const tavut = new Uint8Array(await tiedosto.arrayBuffer());
+      const raja = liite.tyyppi === "application/pdf" ? PDF_ENIMMAISKOKO : KUVAN_ENIMMAISKOKO;
+      if (tavut.length > raja) {
+        return await virhe(
+          `Tiedosto on ${(tavut.length / 1024 / 1024).toFixed(1)} MB ja liian suuri luettavaksi (yläraja ${(raja / 1024 / 1024).toFixed(1)} MB). Kuvaa kuitti uudelleen.`
+        );
+      }
+
+      lohkot.push(sisaltolohko(liite.tyyppi, base64(tavut)));
     }
 
-    const { data: tiedosto, error: latausVirhe } = await supabase.storage
-      .from("kuitit")
-      .download(kuitti.tiedosto_polku);
-    if (latausVirhe || !tiedosto) {
-      return json({ virhe: `Kuitin tiedostoa ei saatu luettua: ${latausVirhe?.message ?? "tuntematon syy"}` });
-    }
-
-    const tavut = new Uint8Array(await tiedosto.arrayBuffer());
-    const raja = tyyppi === "application/pdf" ? PDF_ENIMMAISKOKO : KUVAN_ENIMMAISKOKO;
-    if (tavut.length > raja) {
-      return json({
-        virhe: `Tiedosto on ${(tavut.length / 1024 / 1024).toFixed(1)} MB ja liian suuri luettavaksi (yläraja ${(raja / 1024 / 1024).toFixed(1)} MB). Kuvaa kuitti uudelleen.`,
-      });
-    }
+    // Yksi kuitti, monta sivua: mallille kerrotaan että kyse on samasta
+    // tositteesta, jottei se lue kolmea kuvaa kolmena kuittina.
+    const ohje =
+      lista.length === 1
+        ? "Lue tämä kuitti."
+        : `Nämä ${lista.length} kuvaa ovat saman kuitin osia järjestyksessä. Lue ne yhtenä kuittina.`;
 
     const vastaus = await fetch(RAJAPINTA, {
       method: "POST",
@@ -165,10 +266,7 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: [
-              sisaltolohko(tyyppi, base64(tavut)),
-              { type: "text", text: "Lue tämä kuitti." },
-            ],
+            content: [...lohkot, { type: "text", text: ohje }],
           },
         ],
       }),
@@ -183,12 +281,12 @@ Deno.serve(async (req) => {
           : vastaus.status === 429
             ? "Rajapinnan käyttöraja tuli vastaan. Yritä hetken kuluttua uudelleen."
             : `Rajapinta vastasi virheellä ${vastaus.status}.`;
-      return json({ virhe: `Kuitin luku epäonnistui: ${syy} Voit täyttää tiedot käsin.` });
+      return await virhe(`Kuitin luku epäonnistui: ${syy} Voit täyttää tiedot käsin.`);
     }
 
     const runko = await vastaus.json();
-    const lohkot: unknown[] = Array.isArray(runko?.content) ? runko.content : [];
-    const tyokalu = lohkot.find(
+    const sisalto: unknown[] = Array.isArray(runko?.content) ? runko.content : [];
+    const tyokalu = sisalto.find(
       (lohko): lohko is { type: string; name: string; input: unknown } =>
         typeof lohko === "object" &&
         lohko !== null &&
@@ -196,17 +294,29 @@ Deno.serve(async (req) => {
         (lohko as { name?: unknown }).name === TYOKALU.name
     );
     if (!tyokalu) {
-      return json({
-        virhe: "Malli ei palauttanut kuitin tietoja. Yritä uudelleen tai täytä tiedot käsin.",
-      });
+      return await virhe(
+        "Malli ei palauttanut kuitin tietoja. Yritä uudelleen tai täytä tiedot käsin."
+      );
     }
 
     const poiminta = jasennaPoiminta(tyokalu.input);
-    return json({ poiminta, arvio: arvioiPoiminta(poiminta) });
-  } catch (virhe) {
-    console.error("lue-kuitti epäonnistui", virhe);
-    return json({
-      virhe: "Kuitin luku epäonnistui odottamattomaan virheeseen. Voit täyttää tiedot käsin.",
-    });
+    const arvio = arvioiPoiminta(poiminta);
+
+    if (jonokutsu) {
+      const { error: tallennusVirhe } = await supabase.rpc("tallenna_poiminta", {
+        p_kuitti_id: kuittiId,
+        p_poiminta: poiminta as unknown as Record<string, unknown>,
+      });
+      if (tallennusVirhe) {
+        return await virhe(`Poiminnan tallennus epäonnistui: ${tallennusVirhe.message}`);
+      }
+    }
+
+    return json({ poiminta, arvio });
+  } catch (poikkeus) {
+    console.error("lue-kuitti epäonnistui", poikkeus);
+    return await virhe(
+      "Kuitin luku epäonnistui odottamattomaan virheeseen. Voit täyttää tiedot käsin."
+    );
   }
 });

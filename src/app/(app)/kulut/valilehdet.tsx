@@ -62,7 +62,10 @@ export function KulutValilehdet({
     {
       nimi: "Kuitti",
       osoite: kuitinOsoite ? `/kulut/${kuitinOsoite}` : null,
-      aktiivinen: pathname.startsWith("/kulut/") && pathname !== "/kulut/luovutus",
+      aktiivinen:
+        pathname.startsWith("/kulut/") &&
+        pathname !== "/kulut/luovutus" &&
+        !pathname.startsWith("/kulut/era/"),
     },
     {
       nimi: "Paketti",

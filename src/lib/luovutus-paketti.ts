@@ -151,7 +151,7 @@ async function teePdf(
   // --- Kuitti per sivu ---
   for (const ryhma of ryhmat) {
     for (const kuitti of ryhma.kuitit) {
-      const sivu = pdf.addPage([A4.leveys, A4.korkeus]);
+      let sivu = pdf.addPage([A4.leveys, A4.korkeus]);
       let sy = A4.korkeus - REUNUS;
 
       const teksti = (arvo: string, koko: number, lihava = false, harmaa = false) => {
@@ -223,46 +223,68 @@ async function teePdf(
       }
 
       // --- Tosite ---
-      const tiedosto = kuitti.tiedosto_polku ? tiedostot.get(kuitti.tiedosto_polku) : undefined;
-      if (!tiedosto) {
+      // Kuitilla voi olla monta sivua. Ensimmäinen mahtuu tietojen alle samalle
+      // sivulle, loput saavat omansa: puolikas kuitti ei ole tosite.
+      const sivutTositteesta = kuitti.liitteet
+        .map((liite) => tiedostot.get(liite.polku))
+        .filter((t): t is Tosite => t !== undefined);
+
+      if (sivutTositteesta.length === 0) {
         sy -= 10;
         teksti("Tositetta ei ole liitetty.", 10, false, true);
         continue;
       }
 
-      if (tiedosto.tyyppi === "application/pdf") {
-        teksti("Tosite on liitetty seuraavina sivuina.", 10, false, true);
-        try {
-          const lahde = await PDFDocument.load(tiedosto.data);
-          const sivut = await pdf.copyPages(lahde, lahde.getPageIndices());
-          for (const kopio of sivut) pdf.addPage(kopio);
-        } catch {
-          // Vioittunut PDF ei saa kaataa koko koostetta: muut kuitit ovat
-          // silti luovutettavia, ja puute näkyy koosteessa.
-          teksti("Tositetta ei saatu liitettyä.", 10, false, true);
+      if (sivutTositteesta.length > 1) {
+        teksti(`Tosite on ${sivutTositteesta.length} sivua.`, 10, false, true);
+      }
+
+      let ensimmainen = true;
+      for (const tiedosto of sivutTositteesta) {
+        if (tiedosto.tyyppi === "application/pdf") {
+          if (ensimmainen) teksti("Tosite on liitetty seuraavina sivuina.", 10, false, true);
+          try {
+            const lahde = await PDFDocument.load(tiedosto.data);
+            const sivut = await pdf.copyPages(lahde, lahde.getPageIndices());
+            for (const kopio of sivut) pdf.addPage(kopio);
+          } catch {
+            // Vioittunut PDF ei saa kaataa koko koostetta: muut kuitit ovat
+            // silti luovutettavia, ja puute näkyy koosteessa.
+            teksti("Tositetta ei saatu liitettyä.", 10, false, true);
+          }
+          ensimmainen = false;
+          continue;
         }
-        continue;
-      }
 
-      let kuva: PDFImage;
-      try {
-        kuva =
-          tiedosto.tyyppi === "image/png"
-            ? await pdf.embedPng(tiedosto.data)
-            : await pdf.embedJpg(tiedosto.data);
-      } catch {
-        teksti("Tositetta ei saatu liitettyä.", 10, false, true);
-        continue;
-      }
+        let kuva: PDFImage;
+        try {
+          kuva =
+            tiedosto.tyyppi === "image/png"
+              ? await pdf.embedPng(tiedosto.data)
+              : await pdf.embedJpg(tiedosto.data);
+        } catch {
+          teksti("Tositetta ei saatu liitettyä.", 10, false, true);
+          ensimmainen = false;
+          continue;
+        }
 
-      const tilaaKorkeutta = sy - REUNUS - 10;
-      const kerroin = Math.min(leveys / kuva.width, tilaaKorkeutta / kuva.height, 1);
-      sivu.drawImage(kuva, {
-        x: REUNUS,
-        y: sy - kuva.height * kerroin - 10,
-        width: kuva.width * kerroin,
-        height: kuva.height * kerroin,
-      });
+        // Seuraaville sivuille oma sivunsa: kuitin tietojen alla oleva tila
+        // riittää vain yhdelle kuvalle.
+        if (!ensimmainen) {
+          sivu = pdf.addPage([A4.leveys, A4.korkeus]);
+          sy = A4.korkeus - REUNUS;
+        }
+
+        const tilaaKorkeutta = sy - REUNUS - 10;
+        const kerroin = Math.min(leveys / kuva.width, tilaaKorkeutta / kuva.height, 1);
+        sivu.drawImage(kuva, {
+          x: REUNUS,
+          y: sy - kuva.height * kerroin - 10,
+          width: kuva.width * kerroin,
+          height: kuva.height * kerroin,
+        });
+        ensimmainen = false;
+      }
     }
   }
 
@@ -299,16 +321,19 @@ export function kokoaTiedostot(
     if (asetukset.muodot.includes("zip")) {
       const kuvat: Record<string, Uint8Array> = {};
       for (const kuitti of kuitit) {
-        const tosite = kuitti.tiedosto_polku ? tiedostot.get(kuitti.tiedosto_polku) : undefined;
-        if (!tosite) continue;
-        // Sama toimittaja, päivä ja summa voi esiintyä kahdesti; juokseva
-        // numero erottaa ne toisistaan eikä ylikirjoita.
-        let nimi = kuvanTiedostonimi(kuitti);
-        let numero = 2;
-        while (kuvat[nimi]) {
-          nimi = kuvanTiedostonimi(kuitti).replace(/(\.[^.]+)$/, `_${numero++}$1`);
+        for (const liite of kuitti.liitteet) {
+          const tosite = tiedostot.get(liite.polku);
+          if (!tosite) continue;
+          // Sama toimittaja, päivä ja summa voi esiintyä kahdesti, ja saman
+          // kuitin sivut jakavat nimen; juokseva numero erottaa ne toisistaan
+          // eikä ylikirjoita.
+          let nimi = kuvanTiedostonimi(kuitti);
+          let numero = 2;
+          while (kuvat[nimi]) {
+            nimi = kuvanTiedostonimi(kuitti).replace(/(\.[^.]+)$/, `_${numero++}$1`);
+          }
+          kuvat[nimi] = tosite.data;
         }
-        kuvat[nimi] = tosite.data;
       }
       // Kuvat ovat jo pakattuja; uudelleenpakkaus veisi aikaa eikä tilaa.
       paketti.set(paketinNimi(kausi, "zip"), zipSync(kuvat, { level: 0 }));

@@ -336,7 +336,13 @@ export function KuitinLomake({
         toast.error(lataus.virhe);
         return;
       }
-      const tulos = await korvaaKuitinTiedosto(kuitti.id, lataus.polku, lataus.tyyppi, lahde);
+      const tulos = await korvaaKuitinTiedosto(
+        kuitti.id,
+        lataus.polku,
+        lataus.tyyppi,
+        lahde,
+        lataus.tiiviste
+      );
       if (!tulos.ok) {
         toast.error(tulos.virhe);
         await createClient().storage.from("kuitit").remove([lataus.polku]);

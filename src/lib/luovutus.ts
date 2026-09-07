@@ -86,6 +86,11 @@ export interface VientiKuitti {
   muistiinpano: string | null;
   tiedosto_polku: string | null;
   tiedosto_tyyppi: string | null;
+  /**
+   * Kuitin kaikki sivut järjestyksessä. Pitkä kassakuitti on monta kuvaa,
+   * ja kirjanpitäjälle on mentävä ne kaikki - ei vain ensimmäistä.
+   */
+  liitteet: { polku: string; tyyppi: string }[];
   rivit: VientiRivi[];
 }
 
