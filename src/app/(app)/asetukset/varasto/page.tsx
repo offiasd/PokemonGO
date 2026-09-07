@@ -16,7 +16,7 @@ export default async function VarastoSivu() {
     // Varaston arvo lasketaan JS:ssä asetusten arvoilla, joten haetaan
     // hinnanlaskennan tarvitsemat sarakkeet eikä valmista summaa.
     supabase
-      .from("varit")
+      .from("varit_nakyma")
       .select(
         "saldo_g, ostohinta_per_kg, alkupera, tullimaksu_prosentti, alv_prosentti, toimituskulu_per_kg"
       )

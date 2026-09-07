@@ -44,7 +44,9 @@ import type { VariLomakeTila } from "./actions";
 
 const TYHJA_VARI_TILA: VariLomakeTila = { virhe: null, viesti: null };
 
-type VariRow = Database["public"]["Tables"]["varit"]["Row"];
+// Lomake saa rivin varit_nakyma-näkymästä: hintasarakkeet ovat siellä
+// nullable, koska ne ovat tyhjiä muulle kuin adminille.
+type VariRow = Database["public"]["Views"]["varit_nakyma"]["Row"];
 
 interface VariLomakeProps {
   vari?: VariRow;

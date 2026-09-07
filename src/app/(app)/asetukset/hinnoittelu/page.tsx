@@ -3,7 +3,6 @@ import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 
 import { Asetuslomake } from "../asetuslomake";
 
@@ -118,19 +117,10 @@ export default async function HinnoitteluSivu() {
               </div>
             </div>
 
-            {/* Piilokenttä kertoo palvelimelle että kytkin oli tällä lomakkeella:
-                pois päältä oleva kytkin ei lähetä mitään. */}
-            <input type="hidden" name="nayta_hinnat_maalaajalle_lomakkeella" value="1" />
-            <div className="flex items-center gap-3">
-              <Switch
-                id="nayta_hinnat_maalaajalle"
-                name="nayta_hinnat_maalaajalle"
-                defaultChecked={asetukset.nayta_hinnat_maalaajalle}
-              />
-              <Label htmlFor="nayta_hinnat_maalaajalle" className="font-normal">
-                Näytä kilohinnat ja tuntiveloitukset myös maalaaja-roolille
-              </Label>
-            </div>
+            {/* Kytkin "Näytä kilohinnat ja tuntiveloitukset myös maalaajalle" on
+                poistettu: ostohinnat, tuntiveloitukset ja katteet ovat nyt
+                adminin tietoa myös tietokannassa, joten kytkin ei voisi enää
+                näyttää niitä vaikka se olisi päällä. */}
           </Asetuslomake>
         </CardContent>
       </Card>

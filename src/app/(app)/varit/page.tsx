@@ -27,7 +27,7 @@ import { Sivutus } from "@/components/sivutus";
 
 import { VariKortti } from "./vari-kortti";
 
-type VariRow = Database["public"]["Tables"]["varit"]["Row"];
+type VariRow = Database["public"]["Views"]["varit_nakyma"]["Row"];
 
 /**
  * Värikorttien ruudukko. Maksimileveydellä neljä saraketta; kapeammilla
@@ -77,7 +77,9 @@ export default async function VaritSivu({
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
 
-  const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
+  // Ostohinta ja siitä laskettu kilohinta ovat adminin tietoa: kanta ei
+  // palauta niitä maalaajalle lainkaan (varit_nakyma).
+  const naytaHinnat = kayttaja.role === "admin";
 
   // Tyyppi ja sävy ovat monivalintoja (pilkkulista URL:ssä), ja ne suodattavat
   // yhtä aikaa: esim. tyyppi=candy&savy=punainen näyttää punaiset candyt.
@@ -94,7 +96,7 @@ export default async function VaritSivu({
   const valittuJarjestys: VarienJarjestys = sallittuJarjestys?.arvo ?? OLETUS_JARJESTYS;
 
   let kysely = supabase
-    .from("varit")
+    .from("varit_nakyma")
     .select("*")
     .order("nimi", { ascending: true });
 

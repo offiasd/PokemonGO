@@ -72,18 +72,19 @@ export default async function OsaSivu({
   const osa = osaVastaus.data;
   if (!osa) notFound();
 
-  const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
+  // Kustannus- ja katetiedot ovat adminin tietoa: kanta ei anna maalaajalle
+  // värin ostohintaa eikä tuntiveloituksia. Maalaaja näkee asiakkaalle
+  // asetetun kiinteän kategoriahinnan, ei laskettua suositusta.
+  const naytaHinnat = kayttaja.role === "admin";
 
-  // Väri- ja hinnoittelutiedot ovat asiakkaalle luvattavaa hintaa, ei
-  // sisäistä kustannustietoa, joten ne lasketaan kaikille rooleille -
-  // nayta_hinnat_maalaajalle-asetus koskee vain alla olevaa sisäistä
-  // kustannusarviota.
-  const varitHinnoin = await Promise.all(
-    (variVastaus.data ?? []).map(async (vari) => {
-      const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
-      return { ...vari, kokonaishinta: data ?? 0 };
-    })
-  );
+  const varitHinnoin = naytaHinnat
+    ? await Promise.all(
+        (variVastaus.data ?? []).map(async (vari) => {
+          const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
+          return { ...vari, kokonaishinta: data ?? 0 };
+        })
+      )
+    : (variVastaus.data ?? []).map((vari) => ({ ...vari, kokonaishinta: 0 }));
 
   const tuntiveloitukset = new Map<TyoVaihe, number>();
   for (const t of tuntiveloitusVastaus.data ?? []) {
@@ -182,33 +183,9 @@ export default async function OsaSivu({
               kategoriahinnat={kategoriahintaVastaus.data ?? []}
               varit={varitHinnoin}
               variKategoriat={variKategoriaVastaus.data ?? []}
+              laskettuHinnoittelu={false}
             />
           </div>
-
-          {naytaHinnat && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Suositushinta kategorioittain</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {kategoriaKustannukset.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    Ei hinnoiteltuja kategorioita.
-                  </p>
-                )}
-                <ul className="grid gap-1 text-sm">
-                  {kategoriaKustannukset.map((k) => (
-                    <li key={k.avain} className="flex justify-between">
-                      <span>{k.nimi}</span>
-                      <span className="text-muted-foreground">
-                        {muotoileValiEuro(k.suositusMin, k.suositusMax)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
     );

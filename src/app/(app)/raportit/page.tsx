@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanKayttaja } from "@/lib/supabase/kayttaja";
-import { haeAsetukset } from "@/lib/supabase/asetukset";
 import {
   Card,
   CardContent,
@@ -53,8 +52,7 @@ export default async function RaportitSivu({
 
   const kayttaja = await vaaditaanKayttaja();
   const supabase = await createClient();
-  const asetukset = await haeAsetukset();
-  const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
+  const naytaHinnat = kayttaja.role === "admin";
 
   const [varitVastaus, osatVastaus, kaytetyinVastaus] = await Promise.all([
     supabase.from("varit").select("id, nimi").order("nimi"),
@@ -83,7 +81,9 @@ export default async function RaportitSivu({
     const avain = t[jakso] as string;
     const nykyinen = ryhmat.get(avain) ?? { kg: 0, eur: 0, tapahtumia: 0 };
     nykyinen.kg += t.toteutunut_kulutus_kg;
-    nykyinen.eur += t.maalikustannus_eur;
+    // Kustannus on NULL maalaajalle: kanta ei anna hintatietoa, ja summa
+    // jää silloin nollaan (€-sarake on muutenkin piilossa).
+    nykyinen.eur += t.maalikustannus_eur ?? 0;
     nykyinen.tapahtumia += 1;
     ryhmat.set(avain, nykyinen);
   }

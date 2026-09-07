@@ -55,6 +55,7 @@ export function OsanHinnoittelu({
   kategoriahinnat,
   varit,
   variKategoriat,
+  laskettuHinnoittelu = true,
 }: {
   manuaalinenHinta: number | null;
   /** Kate-% erikseen EU- ja ei-EU-väreille. */
@@ -67,6 +68,12 @@ export function OsanHinnoittelu({
   kategoriahinnat: Kategoriahinta[];
   varit: Vari[];
   variKategoriat: VariKategoria[];
+  /**
+   * Saako hinnan laskea värin ostohinnasta. Maalaajalla ei ole pääsyä
+   * ostohintoihin, joten hänelle näytetään vain adminin asettama kiinteä
+   * hinta - laskenta nollahinnoilla antaisi liian halvan luvun.
+   */
+  laskettuHinnoittelu?: boolean;
 }) {
   const variKategoriaKartta = useMemo(() => {
     const kartta = new Map<string, Set<MaaliTyyppi>>();
@@ -129,6 +136,12 @@ export function OsanHinnoittelu({
   // päälle omana kustannuksenaan riippumatta kategorian hinnoitteluperusteesta.
   const hintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari) return null;
+    if (!laskettuHinnoittelu) {
+      return (
+        kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakkausValittu) ??
+        manuaalinenHinta
+      );
+    }
     // Maalaus ja suojaus tehdään jokaiselle värikerrokselle erikseen.
     const varienMaara = kategoria ? kategorianVarienMaara(kategoria, lakkausValittu) : 1;
     const tyokustannus =
@@ -172,6 +185,7 @@ export function OsanHinnoittelu({
     pesunKustannus,
     maalinpoistoValittu,
     maalinpoistonKustannus,
+    laskettuHinnoittelu,
   ]);
 
   function vaihdaKategoria(v: string) {
@@ -187,6 +201,7 @@ export function OsanHinnoittelu({
         <CardTitle>Hinnoittele työ</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
+        {laskettuHinnoittelu && (
         <div className="grid gap-2">
           <Label className="text-xs text-muted-foreground">Lisätyöt</Label>
           <div className="flex items-center gap-2">
@@ -210,6 +225,7 @@ export function OsanHinnoittelu({
             </Label>
           </div>
         </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
@@ -297,6 +313,12 @@ export function OsanHinnoittelu({
             <span className="text-sm text-muted-foreground">Hinta asiakkaalle</span>
             <span className="text-lg font-semibold">{muotoileEuro(hintaEur)}</span>
           </div>
+        )}
+
+        {hintaEur === null && !laskettuHinnoittelu && valittuKategoriahinta && valittuVari && (
+          <p className="border-t pt-4 text-sm text-muted-foreground">
+            Tälle kategorialle ei ole kiinteää hintaa - hinnan asettaa admin.
+          </p>
         )}
       </CardContent>
     </Card>

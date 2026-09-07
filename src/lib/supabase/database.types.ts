@@ -766,8 +766,44 @@ export interface Database {
         };
         Relationships: EiSuhteita;
       };
+      /**
+       * Värit sovellukselle. Hintasarakkeet ovat NULL muulle kuin adminille,
+       * joten sama kysely kelpaa molemmille rooleille - näytettävä hinta
+       * ratkaistaan roolista, ei tästä.
+       */
+      varit_nakyma: {
+        Row: Omit<
+          Database["public"]["Tables"]["varit"]["Row"],
+          | "ostohinta_per_kg"
+          | "tullimaksu_prosentti"
+          | "alv_prosentti"
+          | "toimituskulu_per_kg"
+          | "alkuperainen_hinta"
+          | "alkuperainen_valuutta"
+          | "alkuperainen_yksikko"
+        > & {
+          ostohinta_per_kg: number | null;
+          tullimaksu_prosentti: number | null;
+          alv_prosentti: number | null;
+          toimituskulu_per_kg: number | null;
+          alkuperainen_hinta: number | null;
+          alkuperainen_valuutta: string | null;
+          alkuperainen_yksikko: string | null;
+        };
+        Relationships: EiSuhteita;
+      };
+      /** Hälytyslista on maalaajan työkalu, joten siinä ei ole hintasarakkeita. */
       varit_halytykset: {
-        Row: Database["public"]["Tables"]["varit"]["Row"] & {
+        Row: Omit<
+          Database["public"]["Tables"]["varit"]["Row"],
+          | "ostohinta_per_kg"
+          | "tullimaksu_prosentti"
+          | "alv_prosentti"
+          | "toimituskulu_per_kg"
+          | "alkuperainen_hinta"
+          | "alkuperainen_valuutta"
+          | "alkuperainen_yksikko"
+        > & {
           efektiivinen_halytysraja_g: number;
         };
         Relationships: EiSuhteita;
@@ -814,7 +850,8 @@ export interface Database {
           kappalemaara: number;
           toteutunut_kulutus_g: number;
           toteutunut_kulutus_kg: number;
-          maalikustannus_eur: number;
+          /** Vain adminille; maalaajalle NULL. */
+          maalikustannus_eur: number | null;
           kayttaja_id: string | null;
         };
         Relationships: EiSuhteita;

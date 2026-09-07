@@ -63,9 +63,6 @@ export async function paivitaAsetukset(
       muutokset[kentta] = String(formData.get(kentta) ?? "").trim() || null;
     }
   }
-  if (formData.has("nayta_hinnat_maalaajalle_lomakkeella")) {
-    muutokset.nayta_hinnat_maalaajalle = formData.get("nayta_hinnat_maalaajalle") === "on";
-  }
   if (formData.has("halytys_ilmoitukset_lomakkeella")) {
     muutokset.halytys_ilmoitukset_kaytossa = formData.get("halytys_ilmoitukset_kaytossa") === "on";
   }

@@ -4,7 +4,8 @@ type AsetuksetRow = Database["public"]["Tables"]["asetukset"]["Row"];
 
 export interface VarinHintatiedot {
   alkupera: Alkupera;
-  ostohinta_per_kg: number;
+  /** NULL kun lukijalla ei ole oikeutta hintoihin (ks. varit_nakyma). */
+  ostohinta_per_kg: number | null;
   tullimaksu_prosentti: number | null;
   alv_prosentti: number | null;
   toimituskulu_per_kg: number | null;

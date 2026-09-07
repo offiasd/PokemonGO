@@ -148,6 +148,7 @@ export function TyonLomake({
   oletusLakkaId,
   oletusKateprosentit,
   muokattavaTyo,
+  laskettuHinnoittelu = true,
 }: {
   osat: Osa[];
   varit: Vari[];
@@ -159,6 +160,12 @@ export function TyonLomake({
   oletusLakkaId: string | null;
   /** Asetusten katteet, joilla "Muu"-rivin hinta lasketaan maalin hinnasta. */
   oletusKateprosentit: Kateprosentit;
+  /**
+   * Saako hinnan laskea värin ostohinnasta ja työkustannuksesta. Maalaajalla
+   * ei ole pääsyä kumpaankaan, joten hänelle tarjotaan adminin asettama
+   * kiinteä kategoriahinta ja muuten käsin kirjoitettava hinta.
+   */
+  laskettuHinnoittelu?: boolean;
   /** Annettuna lomake muokkaa olemassa olevaa keskeneräistä työtä. */
   muokattavaTyo?: {
     id: string;
@@ -314,6 +321,12 @@ export function TyonLomake({
   // hintalisällä, kuten laskettuakin hintaa.
   const osanLaskettuHintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari || !valittuOsa) return null;
+    if (!laskettuHinnoittelu) {
+      return (
+        kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakattu) ??
+        valittuOsa.manuaalinen_hinta
+      );
+    }
     // Maalaus ja suojaus tehdään jokaiselle värikerrokselle erikseen.
     const varienMaara = kategoria ? kategorianVarienMaara(kategoria, lakattu) : 1;
     const tyokustannus =
@@ -356,12 +369,13 @@ export function TyonLomake({
     kategoria,
     lakattu,
     pakollinenRooli,
+    laskettuHinnoittelu,
   ]);
 
   // "Muu"-rivin hinta tulee maalin kulutuksesta ja asetusten katteesta, koska
   // kategoriahintaa ei ole (ks. muunKohteenHinta).
   const muunLaskettuHintaEur = useMemo(() => {
-    if (!onMuu || !valittuVari) return null;
+    if (!onMuu || !valittuVari || !laskettuHinnoittelu) return null;
     return muunKohteenHinta(
       [
         { ...valittuVari, grammat: arvioituKulutusG },
@@ -385,16 +399,21 @@ export function TyonLomake({
     lisavarit,
     varit,
     oletusKateprosentit,
+    laskettuHinnoittelu,
   ]);
 
   const laskettuHintaEur = onMuu ? muunLaskettuHintaEur : osanLaskettuHintaEur;
 
   // Custom-työn hinta on maalaajan päätettävissä: laskettu hinta on vain
-  // lähtöarvo, koska monivärityön hintaa ei voi johtaa kategoriasta.
-  const yksikkohintaEur =
-    kulutusKasin && laskettuHintaEur !== null
-      ? Math.round(numeroTaiOletus(hintaSyote ?? "", laskettuHintaEur) * 100) / 100
-      : laskettuHintaEur;
+  // lähtöarvo, koska monivärityön hintaa ei voi johtaa kategoriasta. Sama
+  // kenttä tulee näkyviin kun hinnoittelutietoja ei ole käytettävissä: silloin
+  // kiinteän kategoriahinnan puuttuessa hinta kirjoitetaan itse.
+  const hintaKasin = kulutusKasin || !laskettuHinnoittelu;
+  const yksikkohintaEur = !hintaKasin
+    ? laskettuHintaEur
+    : (hintaSyote ?? "").trim() === "" && laskettuHintaEur === null
+      ? null
+      : Math.round(numeroTaiOletus(hintaSyote ?? "", laskettuHintaEur ?? 0) * 100) / 100;
 
   // Koskematon kenttä näyttää esitäytön ja seuraa kategorian tai värin vaihtoa;
   // kirjoitettu arvo jää voimaan.
@@ -468,8 +487,12 @@ export function TyonLomake({
   }
 
   function lisaaKoriin() {
-    if ((!valittuOsa && !onMuu) || !valittuVari || yksikkohintaEur === null) {
+    if ((!valittuOsa && !onMuu) || !valittuVari) {
       toast.error("Valitse osa, kategoria ja väri.");
+      return;
+    }
+    if (yksikkohintaEur === null) {
+      toast.error("Anna hinta asiakkaalle - sitä ei voi laskea näillä tiedoilla.");
       return;
     }
     if (onMuu && !omaKuvaus.trim()) {
@@ -969,9 +992,34 @@ export function TyonLomake({
             </div>
           )}
 
+          {/* Maalaajalla ei ole hinnoittelutietoja, joten laskettua hintaa ei
+              synny kiinteän kategoriahinnan puuttuessa: hinta kirjoitetaan
+              käsin samaan tapaan kuin custom-rivillä. */}
+          {!laskettuHinnoittelu && !kulutusKasin && valittuVari && (kategoria || onMuu) && (
+            <div className="grid gap-1 sm:max-w-[16rem]">
+              <Label htmlFor="hinta_kasin" className="text-xs text-muted-foreground">
+                Hinta €
+                {laskettuHintaEur !== null && ` - kiinteä ${muotoileEuro(laskettuHintaEur)}`}
+              </Label>
+              <Input
+                id="hinta_kasin"
+                type="number"
+                min="0"
+                step="0.01"
+                value={kentanArvo(hintaSyote, laskettuHintaEur ?? 0)}
+                onChange={(e) => setHintaSyote(e.target.value)}
+              />
+              {laskettuHintaEur === null && (
+                <p className="text-xs text-muted-foreground">
+                  Kategorialle ei ole kiinteää hintaa - kirjoita asiakkaalta veloitettava hinta.
+                </p>
+              )}
+            </div>
+          )}
+
           {kategoria && valittuVari && yksikkohintaEur !== null && (
             <p className="text-sm break-words text-muted-foreground">
-              {kulutusKasin ? "Hinta: " : "Laskettu hinta: "}
+              {hintaKasin ? "Hinta: " : "Laskettu hinta: "}
               <span className="font-medium text-foreground">{muotoileEuro(yksikkohintaEur)}</span>
               {arvioituKulutusG > 0 && (
                 <>

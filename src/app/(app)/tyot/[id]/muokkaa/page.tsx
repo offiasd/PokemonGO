@@ -90,12 +90,20 @@ export default async function MuokkaaTyotaSivu({
     };
   });
 
-  const varitHinnoin = await Promise.all(
-    (varitVastaus.data ?? []).map(async (vari) => {
-      const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
-      return { ...vari, kokonaishinta: data ?? 0 };
-    })
-  );
+  // Hinnan laskenta tarvitsee värin ostohinnan ja tuntiveloitukset, joihin
+  // maalaajalla ei ole pääsyä. Maalaaja voi silti muokata omaa keskeneräistä
+  // työtään: hinta tulee silloin kiinteästä kategoriahinnasta tai kirjoitetaan
+  // käsin.
+  const laskettuHinnoittelu = kayttaja.role === "admin";
+
+  const varitHinnoin = laskettuHinnoittelu
+    ? await Promise.all(
+        (varitVastaus.data ?? []).map(async (vari) => {
+          const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });
+          return { ...vari, kokonaishinta: data ?? 0 };
+        })
+      )
+    : (varitVastaus.data ?? []).map((vari) => ({ ...vari, kokonaishinta: 0 }));
 
   // Nimet haetaan erikseen: työn rivi voi viitata myös poistettuun osaan tai
   // väriin, jotka eivät ole yllä olevissa aktiivisten listoissa.
@@ -169,6 +177,7 @@ export default async function MuokkaaTyotaSivu({
             }}
             oletusPohjavariId={asetukset.oletus_pohjavari_id}
             oletusLakkaId={asetukset.oletus_lakka_id}
+            laskettuHinnoittelu={laskettuHinnoittelu}
             muokattavaTyo={{
               id: tyo.id,
               asiakas: tyo.asiakas,

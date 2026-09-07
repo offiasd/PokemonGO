@@ -9,7 +9,7 @@ import { laskeSaldoTila } from "@/lib/saldo";
 import { muotoileEuro, muotoileGrammat, varisavynNimi, VARISAVYN_VARIKOODI } from "@/lib/vakiot";
 import type { Database } from "@/lib/supabase/database.types";
 
-type VariRow = Database["public"]["Tables"]["varit"]["Row"];
+type VariRow = Database["public"]["Views"]["varit_nakyma"]["Row"];
 
 // Nimi mahtuu harvoin yhdelle riville kaikilla korttileveyksillä, joten
 // fonttikoko lasketaan nimen pituudesta suhteessa kortin leveyteen (cqi =

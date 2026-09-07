@@ -78,13 +78,26 @@ export default async function OsatSivu({
   const nykyinenSivu = rajaaSivu(sivu, sivuja);
   const osat = kaikkiOsat.slice((nykyinenSivu - 1) * SIVUKOKO, nykyinenSivu * SIVUKOKO);
 
-  // Näytetään korteissa asiakashinta-asteikko (halvin-kallein sellinen kategoria)
-  // kaikille käyttäjärooleille - kyseessä on asiakkaalle näkyvä hinta, ei
-  // sisäinen kustannustieto. Samalla laskentaperusteella kuin osan omalla
-  // sivulla, mutta työkustannus lasketaan tässä JS:ssä RPC-kutsujen sijaan,
-  // jotta listasivu ei tee erillistä tietokantakutsua jokaiselle osalle.
+  // Korteissa näkyy asiakashinta-asteikko (halvin-kallein kategoria): se on
+  // asiakkaalle näytettävä hinta, ei sisäinen kustannustieto. Adminille asteikko
+  // lasketaan samalla perusteella kuin osan omalla sivulla, mutta työkustannus
+  // lasketaan tässä JS:ssä RPC-kutsujen sijaan, jotta listasivu ei tee erillistä
+  // tietokantakutsua jokaiselle osalle.
   const hintaskaalat = new Map<string, { min: number; max: number }>();
-  if (osat.length > 0) {
+  // Laskettu suositushinta perustuu värin ostohintaan, jota maalaaja ei saa
+  // lukea. Maalaajalle näytetään siksi vain adminin asettamat kiinteät
+  // kategoriahinnat - keksitty luku olisi pahempi kuin puuttuva.
+  if (kayttaja.role !== "admin") {
+    for (const osa of osat) {
+      const kiinteat = (kategoriahintaVastaus.data ?? [])
+        .filter((k) => k.osa_id === osa.id)
+        .flatMap((k) => [k.hinta, k.hinta_lakattu])
+        .filter((h): h is number => typeof h === "number");
+      if (kiinteat.length > 0) {
+        hintaskaalat.set(osa.id, { min: Math.min(...kiinteat), max: Math.max(...kiinteat) });
+      }
+    }
+  } else if (osat.length > 0) {
     const varitHinnoin = await Promise.all(
       (variVastaus.data ?? []).map(async (vari) => {
         const { data } = await supabase.rpc("vari_kokonaishinta", { p_vari_id: vari.id });

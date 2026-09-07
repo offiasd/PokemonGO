@@ -27,7 +27,7 @@ export default async function VariSivu({
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
 
-  const { data: vari } = await supabase.from("varit").select("*").eq("id", id).single();
+  const { data: vari } = await supabase.from("varit_nakyma").select("*").eq("id", id).single();
   if (!vari) notFound();
 
   const { data: kategoriaRivit } = await supabase
@@ -47,7 +47,7 @@ export default async function VariSivu({
     .order("luotu", { ascending: false })
     .limit(3);
 
-  const naytaHinnat = kayttaja.role === "admin" || asetukset.nayta_hinnat_maalaajalle;
+  const naytaHinnat = kayttaja.role === "admin";
 
   const halytysraja = vari.halytysraja_g ?? asetukset.oletus_halytysraja_g;
 
