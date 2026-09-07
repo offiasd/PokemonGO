@@ -805,6 +805,11 @@ export interface Database {
         Args: { p_tyo_id: string };
         Returns: undefined;
       };
+      poista_kuitti_pysyvasti: {
+        Args: { p_kuitti_id: string };
+        /** Poistetun kuitin tiedostopolku Storagen siivousta varten. */
+        Returns: string | null;
+      };
       poista_valmis_tyo: {
         Args: { p_tyo_id: string; p_syy: PeruutuksenSyy; p_tarkennus?: string | null };
         Returns: undefined;

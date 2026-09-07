@@ -164,39 +164,32 @@ export async function tallennaKuitti(
 }
 
 /**
- * Poistaa kuitin.
+ * Poistaa kuitin, sen rivit ja tiedoston pysyvästi.
  *
- * Kanta estää poiston säilytysajan kuluessa omalla liipaisimellaan; tämä
- * kertoo saman suomeksi ennen turhaa kantakutsua ja siivoaa myös tiedoston.
+ * Tarkoitettu testikuittien siivoukseen. Kanta suojaa tositteita
+ * säilytysajan yli, joten poisto menee nimetyn kantatoiminnon kautta, joka
+ * sallii sen vain nimenomaisesta pyynnöstä: vahingossa tapahtuva delete
+ * torjutaan yhä. Riviensä luokitteluista opittu jää voimaan - se on tieto
+ * tuotteesta, ei kuitista.
  */
 export async function poistaKuitti(kuittiId: string): Promise<KuittiTulos> {
   try {
     await vaaditaanAdmin();
     const supabase = await createClient();
 
-    const { data: kuitti } = await supabase
-      .from("kuitit")
-      .select("tiedosto_polku, sailytettava_asti")
-      .eq("id", kuittiId)
-      .single();
-    if (!kuitti) return { ok: false, virhe: "Kuittia ei löytynyt." };
-
-    if (new Date(kuitti.sailytettava_asti) >= new Date()) {
-      const paiva = new Date(kuitti.sailytettava_asti).toLocaleDateString("fi-FI");
-      return {
-        ok: false,
-        virhe: `Kuittia ei voi poistaa ennen ${paiva}: kirjanpitolaki vaatii tositteen säilyttämisen.`,
-      };
-    }
-
-    const { error } = await supabase.from("kuitit").delete().eq("id", kuittiId);
+    const { data: polku, error } = await supabase.rpc("poista_kuitti_pysyvasti", {
+      p_kuitti_id: kuittiId,
+    });
     if (error) return { ok: false, virhe: error.message };
 
-    if (kuitti.tiedosto_polku) {
-      await supabase.storage.from("kuitit").remove([kuitti.tiedosto_polku]);
+    // Tiedosto vasta kun rivi on poissa: jos poisto kaatuu, tosite säilyy
+    // kokonaisena eikä jää kuvattomaksi.
+    if (polku) {
+      await supabase.storage.from("kuitit").remove([polku]);
     }
 
     revalidatePath("/kulut");
+    revalidatePath("/");
     return { ok: true };
   } catch (virhe) {
     return { ok: false, virhe: virheteksti(virhe, "Kuitin poisto epäonnistui.") };

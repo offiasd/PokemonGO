@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { kaytettavatKayttotarkoitukset, opinAvain, type Kayttotarkoitus } from "@/lib/kulut";
 
 import { KuitinLomake } from "./kuitin-lomake";
+import { KuitinPoisto } from "./kuitin-poisto";
 
 /** Allekirjoitetun linkin voimassaolo. Kuitit ovat yksityisiä. */
 const LINKIN_VOIMASSAOLO_S = 60 * 60;
@@ -98,6 +99,16 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
               {new Date(kuitti.sailytettava_asti).toLocaleDateString("fi-FI")} asti
               (kirjanpitolaki 2:10 §).
             </p>
+
+            <div className="mt-3 border-t pt-3">
+              <KuitinPoisto
+                kuittiId={kuitti.id}
+                toimittaja={kuitti.toimittaja}
+                paivays={kuitti.paivays}
+                loppusummaEur={kuitti.loppusumma_eur}
+                sailytettavaAsti={kuitti.sailytettava_asti}
+              />
+            </div>
           </CardContent>
         </Card>
 
