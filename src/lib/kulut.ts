@@ -287,3 +287,44 @@ export function etsiKaksoiskappaleet<
   }
   return [...ryhmat.values()].filter((r) => r.length > 1);
 }
+
+/**
+ * Toimittajan tunnusikoni.
+ *
+ * Kuittilista luetaan silmäillen, ja toimittaja tunnistuu ikonista nopeammin
+ * kuin nimestä. Avainsanat ovat toimialan mukaisia eivätkä yrityskohtaisia,
+ * jotta uusi rautakauppa saa oikean ikonin ilman koodimuutosta.
+ *
+ * Palauttaa avaimen, ei komponenttia: tämä moduuli on puhdasta logiikkaa ja
+ * ajettavissa ilman Reactia.
+ */
+export type ToimittajanIkoni =
+  | "polttoaine"
+  | "rautakauppa"
+  | "maali"
+  | "posti"
+  | "kauppa"
+  | "verkkokauppa"
+  | "kuitti";
+
+const TOIMITTAJAN_IKONIT: { sanat: RegExp; ikoni: ToimittajanIkoni }[] = [
+  // Polttoaine on toiminimellä yksityisotto, mutta kuitti tallennetaan silti -
+  // ja pumppu erottuu listalla heti.
+  { sanat: /\b(neste|abc|st1|shell|teboil|seo|gasum)\b/i, ikoni: "polttoaine" },
+  { sanat: /\b(posti|matkahuolto|dhl|schenker|kaukokiito|ups|fedex)\b/i, ikoni: "posti" },
+  {
+    sanat: /(prismatic|pulver|powder|tikkuril|teknos|maalikaup)/i,
+    ikoni: "maali",
+  },
+  {
+    sanat: /\b(puuilo|motonet|biltema|k-?rauta|bauhaus|starkki|rautia|ikh|würth|wurth|ahlsell|etra|tokmanni)\b/i,
+    ikoni: "rautakauppa",
+  },
+  { sanat: /\b(verkkokauppa|amazon|ebay|alibaba|aliexpress|digikey)\b/i, ikoni: "verkkokauppa" },
+  { sanat: /\b(k-market|s-market|prisma|lidl|citymarket|sale|alepa)\b/i, ikoni: "kauppa" },
+];
+
+export function toimittajanIkoni(toimittaja: string | null): ToimittajanIkoni {
+  if (!toimittaja) return "kuitti";
+  return TOIMITTAJAN_IKONIT.find((t) => t.sanat.test(toimittaja))?.ikoni ?? "kuitti";
+}

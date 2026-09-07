@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { AlertTriangle, Camera, FileText, Receipt } from "lucide-react";
+import { AlertTriangle, FileText, PackageCheck, Send } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { ToimittajanKuvake } from "@/components/toimittajan-kuvake";
+import { cn } from "@/lib/utils";
 import { muotoileEuro, KUUKAUDEN_NIMI } from "@/lib/vakiot";
 import {
   kuluinaYhteensa,
@@ -71,6 +73,19 @@ export default async function KulutSivu({
         .in("kuitti_id", vuodenIdt)
     : { data: [] };
 
+  // Kuukausiautomaatin kokoama mutta vielä lähettämätön kausi. Ilmoitus on
+  // sovelluksessa eikä sähköpostissa, ja se näkyy riippumatta siitä mitä
+  // kuukautta selataan: paketti odottaa vaikka katsoisi toista kuuta.
+  const { data: odottavaLuovutus } = await supabase
+    .from("luovutukset")
+    .select("kausi, kuitteja, kuluina_eur, tarkistukset")
+    .eq("tila", "koottu")
+    .lt("kausi", alku)
+    .gt("kuitteja", 0)
+    .order("kausi", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const luokat = new Map((luokatVastaus.data ?? []).map((l) => [l.id, l.nimi]));
   const kuukaudenIdt = new Set(kuititIlmanRiveja.map((k) => k.id));
   const kuitit = kuititIlmanRiveja.map((kuitti) => ({
@@ -120,6 +135,30 @@ export default async function KulutSivu({
       </div>
 
       <KuukaudenValinta vuosi={vuosi} kuukausi={kuukausi} />
+
+      {odottavaLuovutus && (
+        <Card className="border-korostus">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <PackageCheck className="size-4 text-korostus" />
+              {KUUKAUDEN_NIMI[Number(odottavaLuovutus.kausi.slice(5, 7)) - 1]}n paketti valmis
+            </CardTitle>
+            <CardDescription>
+              {odottavaLuovutus.kuitteja} kuittia, {muotoileEuro(odottavaLuovutus.kuluina_eur)}{" "}
+              kuluina. Tarkista ja lähetä.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild size="sm">
+              <Link
+                href={`/kulut/luovutus?vuosi=${odottavaLuovutus.kausi.slice(0, 4)}&kk=${Number(odottavaLuovutus.kausi.slice(5, 7)) - 1}`}
+              >
+                Avaa luovutus
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -239,6 +278,13 @@ export default async function KulutSivu({
         </CardContent>
       </Card>
 
+      <Button asChild variant="outline">
+        <Link href={`/kulut/luovutus?vuosi=${vuosi}&kk=${kuukausi}`}>
+          <Send className="size-4" />
+          Luovutus kirjanpitäjälle
+        </Link>
+      </Button>
+
       {!asetukset.alv_rekisterissa && (
         <p className="text-xs text-muted-foreground">
           Yritys ei ole ALV-rekisterissä, joten ALV-sarakkeet ovat piilossa. Tiedot poimitaan
@@ -262,44 +308,52 @@ interface KuittiKortilla {
   kuitin_rivit: { brutto_eur: number; verokanta: number | null; kayttotarkoitus: Kayttotarkoitus | null }[];
 }
 
-/** Yksi kuitti listalla. Toimittaja ja summa riittävät tunnistamiseen. */
+/**
+ * Yksi kuitti listalla.
+ *
+ * Toimittajakohtainen ikoni tunnistaa kuitin nopeammin kuin nimi, ja
+ * puutteellisen kuitin lämmin tausta erottuu ilman että riviä lukee.
+ * Rivillä näkyy sekä kuitin loppusumma että se osa joka on yrityksen kulua:
+ * ero on yksityisottoja, eikä sitä pidä joutua laskemaan päässä.
+ */
 function KuittiRivi({ kuitti }: { kuitti: KuittiKortilla }) {
   const luokittelematta = kuitti.kuitin_rivit.filter((r) => !r.kayttotarkoitus).length;
   const tasmays = tarkistaTasmays(kuitti.loppusumma_eur, kuitti.kuitin_rivit);
-  const onPdf = kuitti.tiedosto_tyyppi === "application/pdf";
+  const eiRiveja = kuitti.kuitin_rivit.length === 0;
+  const puutteellinen = eiRiveja || luokittelematta > 0 || !tasmays.tasmaa;
+  const kuluina = kuluinaYhteensa(kuitti.kuitin_rivit);
+
+  const tila = eiRiveja
+    ? "Ei rivejä"
+    : luokittelematta > 0
+      ? `${luokittelematta} luokittelematta`
+      : !tasmays.tasmaa
+        ? "Ei täsmää loppusummaan"
+        : null;
 
   return (
     <Link
       href={`/kulut/${kuitti.id}`}
       className="flex min-w-0 items-center gap-3 rounded-md border p-3 transition-colors hover:bg-accent/50"
     >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        {onPdf ? (
-          <FileText className="size-4" />
-        ) : kuitti.lahde === "kamera" ? (
-          <Camera className="size-4" />
-        ) : (
-          <Receipt className="size-4" />
-        )}
-      </span>
+      <ToimittajanKuvake toimittaja={kuitti.toimittaja} puutteellinen={puutteellinen} />
       <span className="grid min-w-0 flex-1 gap-0.5">
-        <span className="truncate text-sm font-medium">
-          {kuitti.toimittaja ?? "Toimittaja puuttuu"}
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm font-medium">
+            {kuitti.toimittaja ?? "Toimittaja puuttuu"}
+          </span>
+          {kuitti.tiedosto_tyyppi === "application/pdf" && (
+            <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+          )}
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className={cn("text-xs", puutteellinen ? "text-warning" : "text-muted-foreground")}>
           {new Date(kuitti.paivays).toLocaleDateString("fi-FI")}
-          {kuitti.kuitin_rivit.length > 0 && ` · ${kuitti.kuitin_rivit.length} riviä`}
+          {" · "}
+          {tila ?? `kuluina ${muotoileEuro(kuluina)}`}
         </span>
       </span>
-      <span className="flex shrink-0 items-center gap-2">
-        {kuitti.kuitin_rivit.length === 0 && <Badge variant="secondary">Ei rivejä</Badge>}
-        {luokittelematta > 0 && <Badge variant="secondary">{luokittelematta} luokittelematta</Badge>}
-        {kuitti.kuitin_rivit.length > 0 && !tasmays.tasmaa && (
-          <Badge variant="destructive">Ei täsmää</Badge>
-        )}
-        <span className="text-sm font-medium tabular-nums">
-          {muotoileEuro(kuitti.loppusumma_eur)}
-        </span>
+      <span className="text-sm font-medium tabular-nums">
+        {muotoileEuro(kuitti.loppusumma_eur)}
       </span>
     </Link>
   );

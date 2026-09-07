@@ -168,6 +168,44 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["kuittirivin_oppi"]["Row"]>;
         Relationships: EiSuhteita;
       };
+      luovutukset: {
+        Row: {
+          id: string;
+          /** Kuukauden ensimmäinen päivä. */
+          kausi: string;
+          tila: "koottu" | "lahetetty";
+          tarkistukset: unknown | null;
+          asetukset: unknown | null;
+          kuitteja: number;
+          kuluina_eur: number;
+          yhteensa_eur: number;
+          koottu_at: string;
+          lahetetty_at: string | null;
+          lahettaja_id: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["luovutukset"]["Row"]> & { kausi: string };
+        Update: Partial<Database["public"]["Tables"]["luovutukset"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      luovutuksen_loki: {
+        Row: {
+          id: string;
+          luovutus_id: string;
+          tapahtuma: "lahetetty" | "avattu";
+          asetukset: unknown | null;
+          kuitti_idt: string[];
+          kuitteja: number;
+          kuluina_eur: number;
+          kayttaja_id: string | null;
+          aika: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["luovutuksen_loki"]["Row"]> & {
+          luovutus_id: string;
+          tapahtuma: "lahetetty" | "avattu";
+        };
+        Update: Partial<Database["public"]["Tables"]["luovutuksen_loki"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
       profiles: {
         Row: {
           id: string;
@@ -803,6 +841,23 @@ export interface Database {
       };
       palauta_tyo_keskeneraiseksi: {
         Args: { p_tyo_id: string };
+        Returns: undefined;
+      };
+      luovutuksen_tarkistukset: {
+        Args: { p_kausi: string };
+        /** LuovutuksenTarkistukset-muotoinen jsonb (ks. src/lib/luovutus.ts). */
+        Returns: unknown;
+      };
+      kokoa_luovutus: {
+        Args: { p_kausi: string };
+        Returns: unknown;
+      };
+      laheta_luovutus: {
+        Args: { p_kausi: string; p_asetukset: unknown };
+        Returns: unknown;
+      };
+      avaa_luovutus: {
+        Args: { p_kausi: string };
         Returns: undefined;
       };
       poista_kuitti_pysyvasti: {
