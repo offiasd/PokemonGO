@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { opinAvain, type Kayttotarkoitus } from "@/lib/kulut";
+import type { AlvErittelynRivi } from "@/lib/supabase/database.types";
 
 /**
  * Toiminnon lopputulos arvona eikä heitettynä virheenä: Next.js piilottaa
@@ -83,6 +84,8 @@ export async function tallennaKuitti(
     loppusummaEur: number;
     muistiinpano: string | null;
     tila: "luonnos" | "tarkistettava" | "valmis";
+    /** Poiminnan lukema erittely. Tallennetaan myös ilman ALV-rekisteröintiä. */
+    alvErittely: AlvErittelynRivi[] | null;
   },
   rivit: KuitinRiviSyote[]
 ): Promise<KuittiTulos> {
@@ -99,6 +102,7 @@ export async function tallennaKuitti(
         loppusumma_eur: kuitti.loppusummaEur,
         muistiinpano: kuitti.muistiinpano,
         tila: kuitti.tila,
+        alv_erittely: kuitti.alvErittely,
         updated_at: new Date().toISOString(),
       })
       .eq("id", kuittiId);
@@ -196,5 +200,51 @@ export async function poistaKuitti(kuittiId: string): Promise<KuittiTulos> {
     return { ok: true };
   } catch (virhe) {
     return { ok: false, virhe: virheteksti(virhe, "Kuitin poisto epäonnistui.") };
+  }
+}
+
+/**
+ * Vaihtaa kuitin tiedoston uuteen.
+ *
+ * Uudelleenkuvaus on tarjottava ennen käsin korjaamista: lämpöpaperi
+ * haalistuu ja rypistyy, ja tarkempi kuva korjaa poiminnan kerralla siinä
+ * missä käsin naputtelu korjaa yhden rivin. Vanha tiedosto poistetaan vasta
+ * kun uusi on kannassa, jottei kuitti jää hetkeksikään ilman tositetta.
+ */
+export async function korvaaKuitinTiedosto(
+  kuittiId: string,
+  tiedostoPolku: string,
+  tiedostoTyyppi: string,
+  lahde: "kamera" | "tiedosto"
+): Promise<KuittiTulos> {
+  try {
+    await vaaditaanAdmin();
+    const supabase = await createClient();
+
+    const { data: vanha } = await supabase
+      .from("kuitit")
+      .select("tiedosto_polku")
+      .eq("id", kuittiId)
+      .single();
+
+    const { error } = await supabase
+      .from("kuitit")
+      .update({
+        tiedosto_polku: tiedostoPolku,
+        tiedosto_tyyppi: tiedostoTyyppi,
+        lahde,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", kuittiId);
+    if (error) return { ok: false, virhe: error.message };
+
+    if (vanha?.tiedosto_polku && vanha.tiedosto_polku !== tiedostoPolku) {
+      await supabase.storage.from("kuitit").remove([vanha.tiedosto_polku]);
+    }
+
+    revalidatePath(`/kulut/${kuittiId}`);
+    return { ok: true };
+  } catch (virhe) {
+    return { ok: false, virhe: virheteksti(virhe, "Tiedoston vaihto epäonnistui.") };
   }
 }

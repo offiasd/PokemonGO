@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Camera, Loader2, Paperclip, Plus, ScanText, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { createClient } from "@/lib/supabase/client";
+import { lataaKuitinTiedosto } from "@/lib/kuvanpakkaus";
+import type { AlvErittelynRivi } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 import { muotoileEuro } from "@/lib/vakiot";
 import {
@@ -27,7 +38,7 @@ import {
   type KayttotarkoituksenTiedot,
 } from "@/lib/kulut";
 
-import { tallennaKuitti } from "../actions";
+import { korvaaKuitinTiedosto, tallennaKuitti } from "../actions";
 
 interface RiviSyote {
   avain: string;
@@ -38,6 +49,19 @@ interface RiviSyote {
   kayttotarkoitus: Kayttotarkoitus | null;
   kululuokkaId: string | null;
   muistiinpano: string | null;
+}
+
+/**
+ * Edge Functionin lue-kuitti palauttama poiminta.
+ * Sama rakenne kuin supabase/functions/lue-kuitti/poiminta.ts.
+ */
+interface PoimittuKuitti {
+  toimittaja: string | null;
+  paivays: string | null;
+  maksupaiva: string | null;
+  loppusumma_eur: number | null;
+  rivit: { teksti: string; maara: number | null; brutto_eur: number; verokanta: number | null }[];
+  alv_erittely: AlvErittelynRivi[];
 }
 
 const EI_LUOKKAA = "ei-luokkaa";
@@ -70,6 +94,7 @@ export function KuitinLomake({
     loppusummaEur: number;
     muistiinpano: string | null;
     tila: "luonnos" | "tarkistettava" | "valmis";
+    alvErittely: AlvErittelynRivi[] | null;
   };
   rivit: RiviSyote[];
   luokat: { id: string; nimi: string }[];
@@ -89,6 +114,16 @@ export function KuitinLomake({
   const [loppusumma, setLoppusumma] = useState(String(kuitti.loppusummaEur));
   const [muistiinpano, setMuistiinpano] = useState(kuitti.muistiinpano ?? "");
   const [rivit, setRivit] = useState<RiviSyote[]>(alkuRivit);
+  // Erittely tallennetaan vaikka yritys ei olisi ALV-rekisterissä: täsmäytys
+  // nojaa siihen, ja rekisteröitymisen tullessa se on jo historiassa.
+  const [alvErittely, setAlvErittely] = useState<AlvErittelynRivi[] | null>(
+    kuitti.alvErittely
+  );
+  const [lukee, setLukee] = useState(false);
+  const [vaihtaa, setVaihtaa] = useState(false);
+  const [poiminnanHuomiot, setPoiminnanHuomiot] = useState<string[]>([]);
+  const kameraRef = useRef<HTMLInputElement>(null);
+  const tiedostoRef = useRef<HTMLInputElement>(null);
 
   const opittuKartta = new Map(
     Object.entries(opitut).map(([avain, arvo]) => [
@@ -104,23 +139,132 @@ export function KuitinLomake({
     setRivit((vanhat) => vanhat.map((r) => (r.avain === avain ? { ...r, ...muutos } : r)));
 
   /**
-   * Rivin tekstin perusteella esitäytetty luokittelu.
+   * Rivin tekstin perusteella päätelty luokittelu.
    *
-   * Ehdotus, ei automaatti: se asetetaan vain jos riviä ei ole jo luokiteltu,
-   * ja käyttäjä voi aina vaihtaa sen.
+   * Ehdotus, ei automaatti: käyttäjä voi aina vaihtaa sen. Käyttötarkoitus,
+   * jota tämä yritysmuoto ei tunne, laskeutuu yksityisotoksi - luokka ei saa
+   * jäädä roikkumaan tilaan jota ei ole olemassa.
    */
+  function ehdotusTekstille(teksti: string): Partial<RiviSyote> {
+    const ehdotus = ehdotaLuokittelu(teksti, opittuKartta);
+    if (!ehdotus) return {};
+    const sallittu = kayttotarkoitukset.some((k) => k.arvo === ehdotus.kayttotarkoitus);
+    return {
+      kayttotarkoitus: sallittu ? ehdotus.kayttotarkoitus : "yksityisotto",
+      kululuokkaId: ehdotus.luokka
+        ? (luokat.find((l) => l.nimi === ehdotus.luokka)?.id ?? null)
+        : null,
+    };
+  }
+
+  /** Esitäyttö vain luokittelemattomalle riville, jottei valinta katoa alta. */
   function ehdotaRiville(avain: string, teksti: string) {
     const rivi = rivit.find((r) => r.avain === avain);
     if (!rivi || rivi.kayttotarkoitus) return;
-    const ehdotus = ehdotaLuokittelu(teksti, opittuKartta);
-    if (!ehdotus) return;
-    const sallittu = kayttotarkoitukset.some((k) => k.arvo === ehdotus.kayttotarkoitus);
+    const ehdotus = ehdotusTekstille(teksti);
+    if (!ehdotus.kayttotarkoitus) return;
     paivita(avain, {
-      kayttotarkoitus: sallittu ? ehdotus.kayttotarkoitus : "yksityisotto",
-      kululuokkaId: ehdotus.luokka
-        ? (luokat.find((l) => l.nimi === ehdotus.luokka)?.id ?? rivi.kululuokkaId)
-        : rivi.kululuokkaId,
+      kayttotarkoitus: ehdotus.kayttotarkoitus,
+      kululuokkaId: ehdotus.kululuokkaId ?? rivi.kululuokkaId,
     });
+  }
+
+  /**
+   * Kuitin luku vision-mallilla.
+   *
+   * Poiminta täyttää lomakkeen mutta ei tallenna: tallennuspolku pysyy yhtenä
+   * riippumatta siitä tuliko tieto mallilta vai näppäimistöltä, ja käyttäjä
+   * näkee mitä kantaan on menossa. Jos poiminta ei onnistu, lomake jää
+   * ennalleen ja käsinsyöttö toimii kuten ennen.
+   */
+  function lueKuitti() {
+    if (rivit.length > 0 && !window.confirm("Poiminta korvaa nykyiset rivit. Jatketaanko?")) {
+      return;
+    }
+    setLukee(true);
+    setPoiminnanHuomiot([]);
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase.functions.invoke("lue-kuitti", {
+          body: { kuitti_id: kuitti.id },
+        });
+        if (error) {
+          toast.error(
+            "Kuitin luku epäonnistui - tarkista että Edge Function 'lue-kuitti' on julkaistu Supabase-projektissa."
+          );
+          return;
+        }
+        if (data?.virhe) {
+          toast.warning(data.virhe);
+          return;
+        }
+
+        const poiminta = data?.poiminta as PoimittuKuitti | undefined;
+        if (!poiminta) {
+          toast.error("Poiminta ei palauttanut tietoja.");
+          return;
+        }
+
+        if (poiminta.toimittaja) setToimittaja(poiminta.toimittaja);
+        if (poiminta.paivays) setPaivays(poiminta.paivays);
+        setMaksupaiva(poiminta.maksupaiva ?? "");
+        if (poiminta.loppusumma_eur !== null) setLoppusumma(String(poiminta.loppusumma_eur));
+        setAlvErittely(poiminta.alv_erittely.length > 0 ? poiminta.alv_erittely : null);
+        setRivit(
+          poiminta.rivit.map((rivi, jarjestys) => ({
+            avain: `poimittu-${seuraavaAvain.current++}-${jarjestys}`,
+            teksti: rivi.teksti,
+            maara: rivi.maara,
+            bruttoEur: rivi.brutto_eur,
+            verokanta: rivi.verokanta,
+            kayttotarkoitus: null,
+            kululuokkaId: null,
+            muistiinpano: null,
+            ...ehdotusTekstille(rivi.teksti),
+          }))
+        );
+
+        const huomiot: string[] = data?.arvio?.huomiot ?? [];
+        setPoiminnanHuomiot(huomiot);
+        if (huomiot.length > 0) {
+          toast.warning("Kuitti luettu, mutta tarkista merkityt kohdat.");
+        } else {
+          toast.success(`Kuitti luettu: ${poiminta.rivit.length} riviä. Tarkista ja luokittele.`);
+        }
+      } finally {
+        setLukee(false);
+      }
+    })();
+  }
+
+  /**
+   * Uudelleenkuvaus.
+   *
+   * Tarjotaan ennen käsin korjaamista, koska tarkempi kuva korjaa poiminnan
+   * kerralla siinä missä naputtelu korjaa yhden rivin.
+   */
+  async function vaihdaTiedosto(tiedosto: File, lahde: "kamera" | "tiedosto") {
+    setVaihtaa(true);
+    try {
+      const lataus = await lataaKuitinTiedosto(tiedosto);
+      if (!lataus.ok) {
+        toast.error(lataus.virhe);
+        return;
+      }
+      const tulos = await korvaaKuitinTiedosto(kuitti.id, lataus.polku, lataus.tyyppi, lahde);
+      if (!tulos.ok) {
+        toast.error(tulos.virhe);
+        await createClient().storage.from("kuitit").remove([lataus.polku]);
+        return;
+      }
+      toast.success("Uusi kuva tallennettu. Lue kuitti uudelleen.");
+      router.refresh();
+    } finally {
+      setVaihtaa(false);
+      if (kameraRef.current) kameraRef.current.value = "";
+      if (tiedostoRef.current) tiedostoRef.current.value = "";
+    }
   }
 
   const tasmays = tarkistaTasmays(luku(loppusumma), rivit.map((r) => ({
@@ -161,6 +305,7 @@ export function KuitinLomake({
           loppusummaEur: luku(loppusumma),
           muistiinpano: muistiinpano.trim() || null,
           tila,
+          alvErittely,
         },
         rivit.map((r) => ({
           teksti: r.teksti,
@@ -185,6 +330,86 @@ export function KuitinLomake({
 
   return (
     <div className="grid gap-6">
+      <input
+        ref={kameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const tiedosto = e.target.files?.[0];
+          if (tiedosto) void vaihdaTiedosto(tiedosto, "kamera");
+        }}
+      />
+      <input
+        ref={tiedostoRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          const tiedosto = e.target.files?.[0];
+          if (tiedosto) void vaihdaTiedosto(tiedosto, "tiedosto");
+        }}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Poiminta</CardTitle>
+          <CardDescription>
+            Malli lukee kuitin ja täyttää kentät. Ehdotus, ei totuus - tarkista luvut ennen
+            tallennusta.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={lueKuitti} disabled={lukee || vaihtaa}>
+              {lukee ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ScanText className="size-4" />
+              )}
+              Lue kuitti
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={lukee || vaihtaa}
+              onClick={() => kameraRef.current?.click()}
+            >
+              {vaihtaa ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Camera className="size-4" />
+              )}
+              Kuvaa uudelleen
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={lukee || vaihtaa}
+              onClick={() => tiedostoRef.current?.click()}
+            >
+              <Paperclip className="size-4" />
+              Vaihda tiedosto
+            </Button>
+          </div>
+
+          {poiminnanHuomiot.length > 0 && (
+            <div className="grid gap-1 rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
+              <span className="font-medium">
+                Poiminta jätti tarkistettavaa. Kuittia ei hylätä - kuvaa se uudelleen tai korjaa
+                kohdat alta.
+              </span>
+              {poiminnanHuomiot.map((huomio) => (
+                <span key={huomio} className="text-muted-foreground">
+                  {huomio}
+                </span>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Kuitin tiedot</CardTitle>
@@ -398,6 +623,48 @@ export function KuitinLomake({
           </div>
         </CardContent>
       </Card>
+
+      {naytaAlv && alvErittely && alvErittely.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">ALV-erittely</CardTitle>
+            <CardDescription>
+              Kuitilta luettu, kannoittain. Tallennettu poiminnassa riippumatta siitä oliko
+              yritys silloin ALV-rekisterissä.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Kanta</TableHead>
+                  <TableHead className="text-right">Veroton</TableHead>
+                  <TableHead className="text-right">Vero</TableHead>
+                  <TableHead className="text-right">Verollinen</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {alvErittely.map((erittely) => (
+                  <TableRow key={erittely.verokanta}>
+                    <TableCell>
+                      {String(erittely.verokanta).replace(".", ",")}&nbsp;%
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {muotoileEuro(erittely.veroton_eur)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {muotoileEuro(erittely.vero_eur)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {muotoileEuro(erittely.verollinen_eur)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {kaytossaOlevatVihjeet.length > 0 && (
         <div className="grid gap-1 rounded-md border bg-muted/30 p-3 text-xs">

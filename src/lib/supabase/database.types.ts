@@ -20,6 +20,18 @@ export type Alkupera = "EU" | "USA" | "muu";
 /** Varastosaldon muutoksen laji: lisätty erä vai manuaalinen oikaisu. */
 export type VarastomuutosTyyppi = "taydennys" | "korjaus";
 export type KayttajaRooli = "admin" | "maalaaja";
+
+/**
+ * Yksi rivi kuitin ALV-erittelytaulukosta, luettuna kuitista sellaisenaan.
+ * Tallennetaan vaikka yritys ei olisi ALV-rekisterissä: täsmäytys nojaa
+ * siihen, ja rekisteröitymisen tullessa ajankohtaiseksi historia on valmiina.
+ */
+export interface AlvErittelynRivi {
+  verokanta: number;
+  veroton_eur: number;
+  vero_eur: number;
+  verollinen_eur: number;
+}
 export type MaaliTyyppi =
   | "solid"
   | "transparent"
@@ -109,7 +121,7 @@ export interface Database {
           tila: "luonnos" | "tarkistettava" | "valmis";
           muistiinpano: string | null;
           /** Poiminnan lukema ALV-erittely kannoittain. */
-          alv_erittely: unknown | null;
+          alv_erittely: AlvErittelynRivi[] | null;
           /** Kirjanpitolain mukainen säilytysajan päättymispäivä. Kanta laskee. */
           sailytettava_asti: string;
           luoja_id: string | null;

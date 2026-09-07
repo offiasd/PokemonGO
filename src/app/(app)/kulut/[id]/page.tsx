@@ -110,6 +110,7 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
             loppusummaEur: kuitti.loppusumma_eur,
             muistiinpano: kuitti.muistiinpano,
             tila: kuitti.tila,
+            alvErittely: kuitti.alv_erittely,
           }}
           rivit={rivit.map((r) => ({
             avain: r.id,

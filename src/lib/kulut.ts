@@ -89,12 +89,12 @@ const ESITAYTOT: { sanat: RegExp; kayttotarkoitus: Kayttotarkoitus; luokka: stri
     luokka: null,
   },
   {
-    sanat: /\b(teippi|pahvi|laatikko|kupla|muovikalvo|pakkaus|nippuside|vaahtomuovi)/i,
+    sanat: /\b(teippi|maskausteippi|pahvi|laatikko|kupla|muovikalvo|pakkaus|nippuside|vaahtomuovi)/i,
     kayttotarkoitus: "yrityksen_tarvike",
     luokka: "Pakkaus ja lähetys",
   },
   {
-    sanat: /\b(posti|rahti|lahetys|lähetys|matkahuolto|toimitusmaksu|noutopiste)/i,
+    sanat: /\b(posti|rahti|lahetys|lähetys|matkahuolto|toimitusmaksu|toimituskulu|noutopiste)/i,
     kayttotarkoitus: "yrityksen_tarvike",
     luokka: "Pakkaus ja lähetys",
   },
