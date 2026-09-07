@@ -23,10 +23,10 @@ export const VIENTIMUODOT: { arvo: Vientimuoto; nimi: string }[] = [
   { arvo: "zip", nimi: "Kuvat (ZIP)" },
 ];
 
-export const RYHMITTELYT: { arvo: Ryhmittely; nimi: string }[] = [
-  { arvo: "kuukausi", nimi: "Kuukausi" },
-  { arvo: "toimittaja", nimi: "Toimittaja" },
-  { arvo: "kayttotarkoitus", nimi: "Käyttötarkoitus" },
+export const RYHMITTELYT: { arvo: Ryhmittely; nimi: string; kuvaus: string }[] = [
+  { arvo: "kuukausi", nimi: "Kuukausi", kuvaus: "kuukausittain" },
+  { arvo: "toimittaja", nimi: "Toimittaja", kuvaus: "toimittajittain" },
+  { arvo: "kayttotarkoitus", nimi: "Käyttötarkoitus", kuvaus: "käyttötarkoituksittain" },
 ];
 
 export const TARKKUUDET: { arvo: Tarkkuus; nimi: string }[] = [
@@ -312,7 +312,7 @@ export function paketinNimi(kausi: string, muoto: Vientimuoto | "paketti"): stri
 /** Yhteenveto siitä mitä painike tuottaa. Näytetään ennen latausta. */
 export function paketinKuvaus(asetukset: Vientiasetukset): string {
   const maara = asetukset.muodot.length;
-  const ryhmittely = RYHMITTELYT.find((r) => r.arvo === asetukset.ryhmittely)?.nimi.toLowerCase();
+  const ryhmittely = RYHMITTELYT.find((r) => r.arvo === asetukset.ryhmittely)?.kuvaus;
   const tarkkuus = TARKKUUDET.find((t) => t.arvo === asetukset.tarkkuus)?.nimi.toLowerCase();
   const osat = [
     `Paketti sisältää ${maara} ${maara === 1 ? "tiedoston" : "tiedostoa"}`,

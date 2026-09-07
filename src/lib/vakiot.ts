@@ -161,6 +161,17 @@ export function muotoileEuro(arvo: number | null | undefined): string {
   return arvo.toLocaleString("fi-FI", { style: "currency", currency: "EUR" });
 }
 
+/**
+ * Lyhyt päiväys ilman vuotta: "5.9."
+ *
+ * Kuukausilistalla vuosi on jo otsikossa, joten sen toistaminen joka rivillä
+ * vie tilaa numeroilta jotka oikeasti erottavat kuitit toisistaan.
+ */
+export function muotoilePaivaLyhyt(paivays: string): string {
+  const paiva = new Date(paivays);
+  return `${paiva.getDate()}.${paiva.getMonth() + 1}.`;
+}
+
 export function muotoileGrammat(arvo: number | null | undefined): string {
   if (arvo === null || arvo === undefined) return "-";
   return `${arvo.toLocaleString("fi-FI", { maximumFractionDigits: 0 })} g`;

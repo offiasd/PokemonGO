@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, FileText, PackageCheck, Send } from "lucide-react";
+import { AlertTriangle, PackageCheck } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
@@ -7,8 +7,6 @@ import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ToimittajanKuvake } from "@/components/toimittajan-kuvake";
-import { cn } from "@/lib/utils";
 import { muotoileEuro, KUUKAUDEN_NIMI } from "@/lib/vakiot";
 import {
   kuluinaYhteensa,
@@ -17,11 +15,12 @@ import {
   PIENHANKINTAKATTO_EUR,
   riviteYhteensa,
   tarkistaTasmays,
-  type Kayttotarkoitus,
 } from "@/lib/kulut";
 
 import { KuitinLisays } from "./kuitin-lisays";
+import { Kuittilista, type KuittiListalla } from "./kuittilista";
 import { KuukaudenValinta } from "./kuukauden-valinta";
+import { KulutValilehdet } from "./valilehdet";
 
 export default async function KulutSivu({
   searchParams,
@@ -78,7 +77,7 @@ export default async function KulutSivu({
   // kuukautta selataan: paketti odottaa vaikka katsoisi toista kuuta.
   const { data: odottavaLuovutus } = await supabase
     .from("luovutukset")
-    .select("kausi, kuitteja, kuluina_eur, tarkistukset")
+    .select("kausi, kuitteja, kuluina_eur")
     .eq("tila", "koottu")
     .lt("kausi", alku)
     .gt("kuitteja", 0)
@@ -103,14 +102,30 @@ export default async function KulutSivu({
 
   const pienhankinnat = laskePienhankinnat(vuodenRivit ?? []);
 
-  // Puutteelliset nostetaan esiin heti eikä piiloteta listaan: juuri ne
-  // estävät kuukauden luovutuksen kirjanpitäjälle.
-  const puutteelliset = kuitit.filter((k) => {
-    const luokittelematta = k.kuitin_rivit.some((r) => !r.kayttotarkoitus);
-    const eiRiveja = k.kuitin_rivit.length === 0;
-    const tasmays = tarkistaTasmays(k.loppusumma_eur, k.kuitin_rivit);
-    return luokittelematta || eiRiveja || !tasmays.tasmaa;
+  // Puutteen syy kerrotaan rivillä eikä omassa laatikossaan: lista pysyy
+  // aikajärjestyksessä, eikä sama kuitti näy kahdessa paikassa.
+  const listalle: KuittiListalla[] = kuitit.map((kuitti) => {
+    const luokittelematta = kuitti.kuitin_rivit.filter((r) => !r.kayttotarkoitus).length;
+    const tasmays = tarkistaTasmays(kuitti.loppusumma_eur, kuitti.kuitin_rivit);
+    const puute =
+      kuitti.kuitin_rivit.length === 0
+        ? "Ei rivejä"
+        : luokittelematta > 0
+          ? "Luokittelematta"
+          : !tasmays.tasmaa
+            ? "Ei täsmää loppusummaan"
+            : null;
+    return {
+      id: kuitti.id,
+      toimittaja: kuitti.toimittaja,
+      paivays: kuitti.paivays,
+      loppusummaEur: kuitti.loppusumma_eur,
+      kuluinaEur: kuluinaYhteensa(kuitti.kuitin_rivit),
+      onPdf: kuitti.tiedosto_tyyppi === "application/pdf",
+      puute,
+    };
   });
+  const puutteellisia = listalle.filter((k) => k.puute !== null).length;
 
   // Kululuokkien jakauma on käyttäjän omaa seurantaa, ei kirjanpitoa.
   const luokittain = new Map<string, number>();
@@ -123,18 +138,40 @@ export default async function KulutSivu({
   const suurinLuokka = jakauma[0]?.[1] ?? 0;
 
   return (
-    <div className="grid gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Kulut</h1>
-        <p className="text-sm text-muted-foreground">
-          {kuitit.length} {kuitit.length === 1 ? "kuitti" : "kuittia"} ·{" "}
-          {muotoileEuro(kuluina)} kuluina
-          {puutteelliset.length > 0 && ` · ${puutteelliset.length} puutteellista`}
-        </p>
-        <div className="mt-2 h-0.5 w-full bg-korostus" />
-      </div>
+    <div className="grid gap-4">
+      <KulutValilehdet />
 
-      <KuukaudenValinta vuosi={vuosi} kuukausi={kuukausi} />
+      <Card>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-0.5">
+            <div className="flex min-w-0 items-baseline justify-between gap-3">
+              <h1 className="truncate text-xl font-semibold">
+                {KUUKAUDEN_NIMI[kuukausi]} {vuosi}
+              </h1>
+              <p className="shrink-0 text-xl font-semibold tabular-nums">
+                {muotoileEuro(kuluina)}
+              </p>
+            </div>
+            <div className="flex min-w-0 items-baseline justify-between gap-3 text-sm text-muted-foreground">
+              <p className="truncate">
+                {kuitit.length} {kuitit.length === 1 ? "kuitti" : "kuittia"}
+              </p>
+              <p className="shrink-0">kuluina · yhteensä {muotoileEuro(yhteensa)}</p>
+            </div>
+          </div>
+
+          {puutteellisia > 0 && (
+            <p className="flex items-center gap-2 rounded-lg bg-tila-keltainen-pinta px-4 py-3 text-sm text-tila-keltainen-teksti">
+              <AlertTriangle className="size-4 shrink-0" />
+              {puutteellisia} {puutteellisia === 1 ? "kuitti" : "kuittia"} vaatii huomiota
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Nuolet on nimetty naapurikuukausilla: kuluva kuukausi lukee jo
+          otsikossa, eikä sen toistaminen kertoisi mitään uutta. */}
+      <KuukaudenValinta vuosi={vuosi} kuukausi={kuukausi} naapurit />
 
       {odottavaLuovutus && (
         <Card className="border-korostus">
@@ -161,47 +198,10 @@ export default async function KulutSivu({
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            {KUUKAUDEN_NIMI[kuukausi]} {vuosi}
-          </CardTitle>
-          <CardDescription>
-            Kuluina on se osa, joka on yrityksen kulua. Erotus yhteensä-summaan on
-            yksityisottoja ja luokittelemattomia rivejä.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="grid gap-0.5">
-            <p className="text-xs text-muted-foreground">Kuluina</p>
-            <p className="text-2xl font-semibold tabular-nums">{muotoileEuro(kuluina)}</p>
-          </div>
-          <div className="grid gap-0.5">
-            <p className="text-xs text-muted-foreground">Yhteensä</p>
-            <p className="text-2xl font-semibold tabular-nums text-muted-foreground">
-              {muotoileEuro(yhteensa)}
-            </p>
-          </div>
+        <CardContent>
+          <Kuittilista kuitit={listalle} />
         </CardContent>
       </Card>
-
-      {puutteelliset.length > 0 && (
-        <Card className="border-warning">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-4 text-warning" />
-              Puutteelliset kuitit ({puutteelliset.length})
-            </CardTitle>
-            <CardDescription>
-              Nämä estävät kuukauden luovutuksen kirjanpitäjälle.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {puutteelliset.map((kuitti) => (
-              <KuittiRivi key={kuitti.id} kuitti={kuitti} />
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
@@ -262,29 +262,6 @@ export default async function KulutSivu({
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Kuitit</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {kuitit.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Ei kuitteja tälle kuukaudelle. Kuvaa ensimmäinen alareunan painikkeesta.
-            </p>
-          )}
-          {kuitit.map((kuitti) => (
-            <KuittiRivi key={kuitti.id} kuitti={kuitti} />
-          ))}
-        </CardContent>
-      </Card>
-
-      <Button asChild variant="outline">
-        <Link href={`/kulut/luovutus?vuosi=${vuosi}&kk=${kuukausi}`}>
-          <Send className="size-4" />
-          Luovutus kirjanpitäjälle
-        </Link>
-      </Button>
-
       {!asetukset.alv_rekisterissa && (
         <p className="text-xs text-muted-foreground">
           Yritys ei ole ALV-rekisterissä, joten ALV-sarakkeet ovat piilossa. Tiedot poimitaan
@@ -295,66 +272,5 @@ export default async function KulutSivu({
 
       <KuitinLisays />
     </div>
-  );
-}
-
-interface KuittiKortilla {
-  id: string;
-  toimittaja: string | null;
-  paivays: string;
-  loppusumma_eur: number;
-  lahde: string;
-  tiedosto_tyyppi: string | null;
-  kuitin_rivit: { brutto_eur: number; verokanta: number | null; kayttotarkoitus: Kayttotarkoitus | null }[];
-}
-
-/**
- * Yksi kuitti listalla.
- *
- * Toimittajakohtainen ikoni tunnistaa kuitin nopeammin kuin nimi, ja
- * puutteellisen kuitin lämmin tausta erottuu ilman että riviä lukee.
- * Rivillä näkyy sekä kuitin loppusumma että se osa joka on yrityksen kulua:
- * ero on yksityisottoja, eikä sitä pidä joutua laskemaan päässä.
- */
-function KuittiRivi({ kuitti }: { kuitti: KuittiKortilla }) {
-  const luokittelematta = kuitti.kuitin_rivit.filter((r) => !r.kayttotarkoitus).length;
-  const tasmays = tarkistaTasmays(kuitti.loppusumma_eur, kuitti.kuitin_rivit);
-  const eiRiveja = kuitti.kuitin_rivit.length === 0;
-  const puutteellinen = eiRiveja || luokittelematta > 0 || !tasmays.tasmaa;
-  const kuluina = kuluinaYhteensa(kuitti.kuitin_rivit);
-
-  const tila = eiRiveja
-    ? "Ei rivejä"
-    : luokittelematta > 0
-      ? `${luokittelematta} luokittelematta`
-      : !tasmays.tasmaa
-        ? "Ei täsmää loppusummaan"
-        : null;
-
-  return (
-    <Link
-      href={`/kulut/${kuitti.id}`}
-      className="flex min-w-0 items-center gap-3 rounded-md border p-3 transition-colors hover:bg-accent/50"
-    >
-      <ToimittajanKuvake toimittaja={kuitti.toimittaja} puutteellinen={puutteellinen} />
-      <span className="grid min-w-0 flex-1 gap-0.5">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-sm font-medium">
-            {kuitti.toimittaja ?? "Toimittaja puuttuu"}
-          </span>
-          {kuitti.tiedosto_tyyppi === "application/pdf" && (
-            <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
-        </span>
-        <span className={cn("text-xs", puutteellinen ? "text-warning" : "text-muted-foreground")}>
-          {new Date(kuitti.paivays).toLocaleDateString("fi-FI")}
-          {" · "}
-          {tila ?? `kuluina ${muotoileEuro(kuluina)}`}
-        </span>
-      </span>
-      <span className="text-sm font-medium tabular-nums">
-        {muotoileEuro(kuitti.loppusumma_eur)}
-      </span>
-    </Link>
   );
 }

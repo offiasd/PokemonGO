@@ -1,14 +1,12 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { kaytettavatKayttotarkoitukset, opinAvain, type Kayttotarkoitus } from "@/lib/kulut";
 
+import { KulutValilehdet } from "../valilehdet";
 import { KuitinLomake } from "./kuitin-lomake";
 import { KuitinPoisto } from "./kuitin-poisto";
 
@@ -55,18 +53,13 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
   const rivit = rivitData ?? [];
 
   return (
-    <div className="grid gap-6">
-      <div className="flex items-center gap-2">
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/kulut">
-            <ArrowLeft className="size-4" />
-            Kulut
-          </Link>
-        </Button>
-      </div>
+    <div className="grid gap-4">
+      <KulutValilehdet kuittiId={kuitti.id} />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
-        <Card className="lg:sticky lg:top-6">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
+        {/* Kapealla näytöllä rivit ensin: kuitti luetaan riveiltä, ja kuva on
+            tarkistusta varten. Leveällä kuva on rinnalla omassa palstassaan. */}
+        <Card className="order-2 lg:order-none lg:sticky lg:top-6">
           <CardHeader>
             <CardTitle className="text-base">Kuitti</CardTitle>
           </CardHeader>
@@ -112,32 +105,34 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
           </CardContent>
         </Card>
 
-        <KuitinLomake
-          kuitti={{
-            id: kuitti.id,
-            toimittaja: kuitti.toimittaja,
-            paivays: kuitti.paivays,
-            maksupaiva: kuitti.maksupaiva,
-            loppusummaEur: kuitti.loppusumma_eur,
-            muistiinpano: kuitti.muistiinpano,
-            tila: kuitti.tila,
-            alvErittely: kuitti.alv_erittely,
-          }}
-          rivit={rivit.map((r) => ({
-            avain: r.id,
-            teksti: r.teksti,
-            maara: r.maara,
-            bruttoEur: r.brutto_eur,
-            verokanta: r.verokanta,
-            kayttotarkoitus: r.kayttotarkoitus,
-            kululuokkaId: r.kululuokka_id,
-            muistiinpano: r.muistiinpano,
-          }))}
-          luokat={luokat}
-          opitut={opitut}
-          kayttotarkoitukset={kaytettavatKayttotarkoitukset(asetukset)}
-          naytaAlv={asetukset.alv_rekisterissa}
-        />
+        <div className="order-1 lg:order-none">
+          <KuitinLomake
+            kuitti={{
+              id: kuitti.id,
+              toimittaja: kuitti.toimittaja,
+              paivays: kuitti.paivays,
+              maksupaiva: kuitti.maksupaiva,
+              loppusummaEur: kuitti.loppusumma_eur,
+              muistiinpano: kuitti.muistiinpano,
+              tila: kuitti.tila,
+              alvErittely: kuitti.alv_erittely,
+            }}
+            rivit={rivit.map((r) => ({
+              avain: r.id,
+              teksti: r.teksti,
+              maara: r.maara,
+              bruttoEur: r.brutto_eur,
+              verokanta: r.verokanta,
+              kayttotarkoitus: r.kayttotarkoitus,
+              kululuokkaId: r.kululuokka_id,
+              muistiinpano: r.muistiinpano,
+            }))}
+            luokat={luokat}
+            opitut={opitut}
+            kayttotarkoitukset={kaytettavatKayttotarkoitukset(asetukset)}
+            naytaAlv={asetukset.alv_rekisterissa}
+          />
+        </div>
       </div>
     </div>
   );

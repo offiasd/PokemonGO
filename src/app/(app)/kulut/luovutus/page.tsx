@@ -1,9 +1,5 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
-import { Button } from "@/components/ui/button";
 import { KUUKAUDEN_NIMI } from "@/lib/vakiot";
 import {
   paketinKuvaus,
@@ -12,6 +8,7 @@ import {
 } from "@/lib/luovutus";
 
 import { KuukaudenValinta } from "../kuukauden-valinta";
+import { KulutValilehdet } from "../valilehdet";
 import { LuovutusNakyma } from "./luovutus-nakyma";
 
 /**
@@ -73,23 +70,8 @@ export default async function LuovutusSivu({
   }));
 
   return (
-    <div className="grid gap-6">
-      <div className="flex items-center gap-2">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/kulut?vuosi=${vuosi}&kk=${kuukausi}`}>
-            <ArrowLeft className="size-4" />
-            Kulut
-          </Link>
-        </Button>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-semibold">Luovutus kirjanpitäjälle</h1>
-        <p className="text-sm text-muted-foreground">
-          Tarkistukset, aineiston lataus ja kauden lukitus.
-        </p>
-        <div className="mt-2 h-0.5 w-full bg-korostus" />
-      </div>
+    <div className="grid gap-4">
+      <KulutValilehdet />
 
       <KuukaudenValinta vuosi={vuosi} kuukausi={kuukausi} />
 

@@ -1,4 +1,14 @@
-import { Fuel, Hammer, Package, Receipt, ShoppingCart, SprayCan, Store } from "lucide-react";
+import {
+  Fuel,
+  Hammer,
+  Package,
+  Receipt,
+  ShoppingCart,
+  Globe,
+  SprayCan,
+  Store,
+  Wrench,
+} from "lucide-react";
 
 import { toimittajanIkoni, type ToimittajanIkoni } from "@/lib/kulut";
 import { cn } from "@/lib/utils";
@@ -6,10 +16,12 @@ import { cn } from "@/lib/utils";
 const KUVAKKEET = {
   polttoaine: Fuel,
   rautakauppa: Hammer,
+  tyokalu: Wrench,
+  tavaratalo: Store,
   maali: SprayCan,
   posti: Package,
-  kauppa: ShoppingCart,
-  verkkokauppa: Store,
+  ruokakauppa: ShoppingCart,
+  verkkokauppa: Globe,
   kuitti: Receipt,
 } satisfies Record<ToimittajanIkoni, typeof Receipt>;
 

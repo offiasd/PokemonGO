@@ -301,9 +301,11 @@ export function etsiKaksoiskappaleet<
 export type ToimittajanIkoni =
   | "polttoaine"
   | "rautakauppa"
+  | "tyokalu"
+  | "tavaratalo"
   | "maali"
   | "posti"
-  | "kauppa"
+  | "ruokakauppa"
   | "verkkokauppa"
   | "kuitti";
 
@@ -316,12 +318,16 @@ const TOIMITTAJAN_IKONIT: { sanat: RegExp; ikoni: ToimittajanIkoni }[] = [
     sanat: /(prismatic|pulver|powder|tikkuril|teknos|maalikaup)/i,
     ikoni: "maali",
   },
+  // Rautakauppa ja varaosaliike erotetaan toisistaan: molempia käytetään, ja
+  // listalla ne ovat helpompi erottaa eri kuvakkeista kuin nimistä.
+  { sanat: /\b(k-?rauta|bauhaus|starkki|rautia|ahlsell|etra)\b/i, ikoni: "rautakauppa" },
   {
-    sanat: /\b(puuilo|motonet|biltema|k-?rauta|bauhaus|starkki|rautia|ikh|würth|wurth|ahlsell|etra|tokmanni)\b/i,
-    ikoni: "rautakauppa",
+    sanat: /\b(motonet|biltema|ikh|würth|wurth|varaosa|konekesko)\b/i,
+    ikoni: "tyokalu",
   },
+  { sanat: /\b(puuilo|tokmanni|hong ?kong|jysk)\b/i, ikoni: "tavaratalo" },
   { sanat: /\b(verkkokauppa|amazon|ebay|alibaba|aliexpress|digikey)\b/i, ikoni: "verkkokauppa" },
-  { sanat: /\b(k-market|s-market|prisma|lidl|citymarket|sale|alepa)\b/i, ikoni: "kauppa" },
+  { sanat: /\b(k-market|s-market|prisma|lidl|citymarket|sale|alepa)\b/i, ikoni: "ruokakauppa" },
 ];
 
 export function toimittajanIkoni(toimittaja: string | null): ToimittajanIkoni {
