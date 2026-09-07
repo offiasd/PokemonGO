@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertTriangle,
   Camera,
-  Check,
   CheckCircle2,
   Loader2,
   Pencil,
@@ -34,8 +33,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -96,6 +93,14 @@ interface PoimittuKuitti {
 
 const EI_LUOKKAA = "ei-luokkaa";
 
+/**
+ * Kuinka kauan riviä pidetään pohjassa ennen kuin valikko aukeaa.
+ *
+ * Napautus vaihtaa käyttötarkoitusta, joten valikon pitää vaatia selvästi
+ * pidempi painallus - muuten harjoittelematon sormi avaisi sen vahingossa.
+ */
+const PITKA_PAINALLUS_MS = 450;
+
 function luku(arvo: string): number {
   const numero = Number(arvo.replace(",", "."));
   return Number.isFinite(numero) ? numero : 0;
@@ -118,6 +123,7 @@ export function KuitinLomake({
   opitut,
   kayttotarkoitukset,
   naytaAlv,
+  onTosite,
 }: {
   kuitti: {
     id: string;
@@ -136,6 +142,8 @@ export function KuitinLomake({
   kayttotarkoitukset: KayttotarkoituksenTiedot[];
   /** ALV-tiedot näkyvät vain ALV-rekisterissä oleville. */
   naytaAlv: boolean;
+  /** Onko kuittiin liitetty tosite. Ilman sitä ei ole mitä lukea. */
+  onTosite: boolean;
 }) {
   const router = useRouter();
   const [tallentaa, tallenna] = useTransition();
@@ -155,6 +163,10 @@ export function KuitinLomake({
   const [poiminnanHuomiot, setPoiminnanHuomiot] = useState<string[]>([]);
   const [tiedotAuki, setTiedotAuki] = useState(false);
   const [muokattavaRivi, setMuokattavaRivi] = useState<string | null>(null);
+  const [avoinValikko, setAvoinValikko] = useState<string | null>(null);
+  const painallusAjastin = useRef<number | null>(null);
+  const pitkaPainallus = useRef(false);
+  const automaattiLuettu = useRef(false);
   const kameraRef = useRef<HTMLInputElement>(null);
   const tiedostoRef = useRef<HTMLInputElement>(null);
 
@@ -190,6 +202,41 @@ export function KuitinLomake({
     };
   }
 
+  /**
+   * Napautus vaihtaa käyttötarkoituksen seuraavaan.
+   *
+   * Tavallisin korjaus on juuri tämä, ja käytettävissä olevia vaihtoehtoja on
+   * kolme tai neljä - kierto on nopeampi kuin valikon avaaminen ja rivin
+   * etsiminen sieltä. Luokittelematon rivi hyppää ensimmäiseen.
+   */
+  function napautaRivia(rivi: RiviSyote) {
+    // Pitkä painallus avasi jo valikon; sitä seuraava napautus ei saa vaihtaa
+    // käyttötarkoitusta vahingossa.
+    if (pitkaPainallus.current) {
+      pitkaPainallus.current = false;
+      return;
+    }
+    const arvot = kayttotarkoitukset.map((k) => k.arvo);
+    if (arvot.length === 0) return;
+    const nykyinen = rivi.kayttotarkoitus ? arvot.indexOf(rivi.kayttotarkoitus) : -1;
+    paivita(rivi.avain, { kayttotarkoitus: arvot[(nykyinen + 1) % arvot.length] });
+  }
+
+  function aloitaPainallus(avain: string) {
+    pitkaPainallus.current = false;
+    painallusAjastin.current = window.setTimeout(() => {
+      pitkaPainallus.current = true;
+      setAvoinValikko(avain);
+    }, PITKA_PAINALLUS_MS);
+  }
+
+  function lopetaPainallus() {
+    if (painallusAjastin.current !== null) {
+      clearTimeout(painallusAjastin.current);
+      painallusAjastin.current = null;
+    }
+  }
+
   /** Esitäyttö vain luokittelemattomalle riville, jottei valinta katoa alta. */
   function ehdotaRiville(avain: string, teksti: string) {
     const rivi = rivit.find((r) => r.avain === avain);
@@ -210,8 +257,12 @@ export function KuitinLomake({
    * näkee mitä kantaan on menossa. Jos poiminta ei onnistu, lomake jää
    * ennalleen ja käsinsyöttö toimii kuten ennen.
    */
-  function lueKuitti() {
-    if (rivit.length > 0 && !window.confirm("Poiminta korvaa nykyiset rivit. Jatketaanko?")) {
+  function lueKuitti(kysyVarmistus = true) {
+    if (
+      kysyVarmistus &&
+      rivit.length > 0 &&
+      !window.confirm("Poiminta korvaa nykyiset rivit. Jatketaanko?")
+    ) {
       return;
     }
     setLukee(true);
@@ -299,6 +350,33 @@ export function KuitinLomake({
       if (tiedostoRef.current) tiedostoRef.current.value = "";
     }
   }
+
+  /**
+   * Tuore luonnos luetaan heti ilman erillistä painallusta.
+   *
+   * Kuitti on juuri kuvattu, eikä käyttäjän tarvitse pyytää samaa uudelleen.
+   * Ehto on tiukka: vain koskematon luonnos, jossa on tosite mutta ei vielä
+   * yhtään riviä eikä tietoja - näin kertaalleen luettu tai käsin täytetty
+   * kuitti ei koskaan ylikirjoitu itsestään.
+   */
+  const tuoreLuonnos =
+    onTosite &&
+    kuitti.tila === "luonnos" &&
+    alkuRivit.length === 0 &&
+    kuitti.toimittaja === null &&
+    kuitti.loppusummaEur === 0;
+
+  useEffect(() => {
+    if (!tuoreLuonnos || automaattiLuettu.current) return;
+    automaattiLuettu.current = true;
+    lueKuitti(false);
+    // lueKuitti lukee tuoreen tilan joka kutsulla, joten se ei kuulu
+    // riippuvuuksiin - efekti ajetaan kerran kuittia kohden.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tuoreLuonnos]);
+
+  // Ajastin ei saa jäädä käymään kun näkymä suljetaan kesken painalluksen.
+  useEffect(() => lopetaPainallus, []);
 
   const riviYhteenvedot = rivit.map((r) => ({
     brutto_eur: r.bruttoEur,
@@ -462,11 +540,17 @@ export function KuitinLomake({
         )}
 
         <div className="grid px-5">
-          {rivit.length === 0 && (
-            <p className="py-5 text-sm text-muted-foreground">
-              Ei rivejä. Lue kuitti tai lisää rivit käsin.
-            </p>
-          )}
+          {rivit.length === 0 &&
+            (lukee ? (
+              <p className="flex items-center gap-2 py-5 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Luetaan kuittia...
+              </p>
+            ) : (
+              <p className="py-5 text-sm text-muted-foreground">
+                Ei rivejä. Lue kuitti tai lisää rivit käsin.
+              </p>
+            ))}
 
           {rivit.map((rivi, jarjestys) => {
             const yksityinen = rivi.kayttotarkoitus === "yksityisotto";
@@ -483,74 +567,83 @@ export function KuitinLomake({
               .join(" · ");
 
             return (
-              <DropdownMenu key={rivi.avain}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "-mx-2 flex min-w-0 items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-accent/50",
-                      jarjestys > 0 && "border-t",
-                      yksityinen && "opacity-60"
-                    )}
-                  >
-                    <KayttotarkoituksenKuvake kayttotarkoitus={rivi.kayttotarkoitus} />
-                    <span className="grid min-w-0 flex-1 gap-0.5">
-                      <span className="truncate">{rivi.teksti || "Nimetön rivi"}</span>
-                      <span
-                        className={cn(
-                          "truncate text-sm",
-                          rivi.kayttotarkoitus === null
-                            ? "text-warning"
-                            : yksityinen
-                              ? "text-muted-foreground"
-                              : "text-korostus"
-                        )}
-                      >
-                        {selite}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-lg tabular-nums">
-                      {muotoileEuro(rivi.bruttoEur)}
-                    </span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuLabel>Käyttötarkoitus</DropdownMenuLabel>
-                  {kayttotarkoitukset.map((k) => (
-                    <DropdownMenuItem
-                      key={k.arvo}
-                      onSelect={() => paivita(rivi.avain, { kayttotarkoitus: k.arvo })}
+              <div key={rivi.avain} className={cn("relative", jarjestys > 0 && "border-t")}>
+                <button
+                  type="button"
+                  aria-label={`${rivi.teksti || "Nimetön rivi"}: ${selite}. Napauta vaihtaaksesi käyttötarkoitusta, pidä pohjassa avataksesi valikon.`}
+                  onPointerDown={() => aloitaPainallus(rivi.avain)}
+                  onPointerUp={lopetaPainallus}
+                  onPointerLeave={lopetaPainallus}
+                  onPointerCancel={lopetaPainallus}
+                  onClick={() => napautaRivia(rivi)}
+                  onContextMenu={(e) => {
+                    // Hiiren oikea painike ja näppäimistön valikkonäppäin
+                    // avaavat saman valikon kuin pitkä painallus.
+                    e.preventDefault();
+                    lopetaPainallus();
+                    setAvoinValikko(rivi.avain);
+                  }}
+                  className={cn(
+                    "-mx-2 flex w-[calc(100%+1rem)] min-w-0 touch-manipulation items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors select-none hover:bg-accent/50 [-webkit-touch-callout:none]",
+                    yksityinen && "opacity-60"
+                  )}
+                >
+                  <KayttotarkoituksenKuvake kayttotarkoitus={rivi.kayttotarkoitus} />
+                  <span className="grid min-w-0 flex-1 gap-0.5">
+                    <span className="truncate">{rivi.teksti || "Nimetön rivi"}</span>
+                    <span
+                      className={cn(
+                        "truncate text-sm",
+                        rivi.kayttotarkoitus === null
+                          ? "text-warning"
+                          : yksityinen
+                            ? "text-muted-foreground"
+                            : "text-korostus"
+                      )}
                     >
-                      <Check
-                        className={cn(
-                          "size-4",
-                          rivi.kayttotarkoitus === k.arvo ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {k.nimi}
+                      {selite}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-lg tabular-nums">
+                    {muotoileEuro(rivi.bruttoEur)}
+                  </span>
+                </button>
+
+                {/* Valikko avataan ohjatusti, koska napautus on varattu
+                    käyttötarkoituksen vaihtoon. Ankkuri on näkymätön ja
+                    rivin alareunassa, jotta valikko aukeaa rivin kohdalle. */}
+                <DropdownMenu
+                  open={avoinValikko === rivi.avain}
+                  onOpenChange={(auki) => setAvoinValikko(auki ? rivi.avain : null)}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-0 bottom-0 block h-0"
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onSelect={() => setMuokattavaRivi(rivi.avain)}>
+                      <Pencil className="size-4" />
+                      Muokkaa riviä
                     </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => setMuokattavaRivi(rivi.avain)}>
-                    <Pencil className="size-4" />
-                    Muokkaa riviä
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => setRivit((v) => v.filter((r) => r.avain !== rivi.avain))}
-                  >
-                    <Trash2 className="size-4" />
-                    Poista rivi
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setRivit((v) => v.filter((r) => r.avain !== rivi.avain))}
+                    >
+                      <Trash2 className="size-4" />
+                      Poista rivi
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             );
           })}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
           <p className="text-sm text-muted-foreground">
-            Paina riviä vaihtaaksesi käyttötarkoitusta
+            Napauta riviä vaihtaaksesi käyttötarkoitusta · pidä pohjassa muokataksesi
           </p>
           <Button type="button" variant="outline" size="sm" onClick={lisaaRivi}>
             <Plus className="size-4" />
@@ -569,7 +662,7 @@ export function KuitinLomake({
         </CardHeader>
         <CardContent className="grid gap-3">
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={lueKuitti} disabled={lukee || vaihtaa}>
+            <Button type="button" onClick={() => lueKuitti()} disabled={lukee || vaihtaa}>
               {lukee ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
               Lue kuitti
             </Button>

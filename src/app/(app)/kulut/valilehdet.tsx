@@ -20,7 +20,18 @@ import { muistaKuitti, useViimeisinKuitti } from "./viimeisin-kuitti";
  * välilehti olisi tyhjä aina kun listalta ei juuri tultu, ja kolmesta
  * välilehdestä yksi olisi useimmiten kuollut.
  */
-export function KulutValilehdet({ kuittiId }: { kuittiId?: string }) {
+export function KulutValilehdet({
+  kuittiId,
+  kausi,
+}: {
+  kuittiId?: string;
+  /**
+   * Avoinna olevan kuitin päiväys. Kuittisivulla ei ole kuukausiparametreja,
+   * joten ilman tätä Kuukausi-välilehti veisi kuluvaan kuukauteen - eikä juuri
+   * katsottu kuitti näkyisi siellä lainkaan.
+   */
+  kausi?: string;
+}) {
   const pathname = usePathname();
   const parametrit = useSearchParams();
   const muistettu = useViimeisinKuitti();
@@ -31,12 +42,18 @@ export function KulutValilehdet({ kuittiId }: { kuittiId?: string }) {
 
   // Kuukausivalinta kulkee välilehdeltä toiselle, jotta paketti aukeaa
   // samaan kuukauteen jota juuri selattiin.
-  const kausi = new URLSearchParams();
+  const kuukausiparametrit = new URLSearchParams();
   const vuosi = parametrit.get("vuosi");
   const kk = parametrit.get("kk");
-  if (vuosi) kausi.set("vuosi", vuosi);
-  if (kk) kausi.set("kk", kk);
-  const kysely = kausi.toString() ? `?${kausi}` : "";
+  if (vuosi && kk) {
+    kuukausiparametrit.set("vuosi", vuosi);
+    kuukausiparametrit.set("kk", kk);
+  } else if (kausi) {
+    const paiva = new Date(kausi);
+    kuukausiparametrit.set("vuosi", String(paiva.getUTCFullYear()));
+    kuukausiparametrit.set("kk", String(paiva.getUTCMonth()));
+  }
+  const kysely = kuukausiparametrit.toString() ? `?${kuukausiparametrit}` : "";
 
   const kuitinOsoite = kuittiId ?? muistettu;
 

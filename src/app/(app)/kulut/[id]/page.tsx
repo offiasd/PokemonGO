@@ -54,7 +54,7 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
 
   return (
     <div className="grid gap-4">
-      <KulutValilehdet kuittiId={kuitti.id} />
+      <KulutValilehdet kuittiId={kuitti.id} kausi={kuitti.paivays} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
         {/* Kapealla näytöllä rivit ensin: kuitti luetaan riveiltä, ja kuva on
@@ -131,6 +131,7 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
             opitut={opitut}
             kayttotarkoitukset={kaytettavatKayttotarkoitukset(asetukset)}
             naytaAlv={asetukset.alv_rekisterissa}
+            onTosite={Boolean(kuitti.tiedosto_polku)}
           />
         </div>
       </div>
