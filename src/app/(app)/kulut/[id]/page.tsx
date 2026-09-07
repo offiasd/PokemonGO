@@ -112,6 +112,7 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
               muistiinpano: kuitti.muistiinpano,
               tila: kuitti.tila,
               alvErittely: kuitti.alv_erittely,
+              poiminnanTila: kuitti.poiminnan_tila,
             }}
             rivit={rivit.map((r) => ({
               avain: r.id,

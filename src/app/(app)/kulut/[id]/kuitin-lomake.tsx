@@ -134,6 +134,8 @@ export function KuitinLomake({
     muistiinpano: string | null;
     tila: "luonnos" | "tarkistettava" | "valmis";
     alvErittely: AlvErittelynRivi[] | null;
+    /** Lukujonon tila. Jonossa oleva kuitti luetaan taustalla. */
+    poiminnanTila: "ei_luettu" | "jonossa" | "luetaan" | "luettu" | "virhe";
   };
   rivit: RiviSyote[];
   luokat: { id: string; nimi: string }[];
@@ -370,7 +372,11 @@ export function KuitinLomake({
     kuitti.tila === "luonnos" &&
     alkuRivit.length === 0 &&
     kuitti.toimittaja === null &&
-    kuitti.loppusummaEur === 0;
+    kuitti.loppusummaEur === 0 &&
+    // Erässä tullut kuitti on jonossa: se luetaan taustalla, eikä samaa
+    // kuittia kannata lukea kahdesti kun sen sivun sattuu avaamaan.
+    kuitti.poiminnanTila !== "jonossa" &&
+    kuitti.poiminnanTila !== "luetaan";
 
   useEffect(() => {
     if (!tuoreLuonnos || automaattiLuettu.current) return;
