@@ -9,10 +9,10 @@ import {
   Check,
   CheckCircle2,
   Loader2,
-  Paperclip,
   Pencil,
   Plus,
   Receipt,
+  ScanLine,
   ScanText,
   Trash2,
 } from "lucide-react";
@@ -390,6 +390,9 @@ export function KuitinLomake({
           if (tiedosto) void vaihdaTiedosto(tiedosto, "kamera");
         }}
       />
+      {/* Ilman capturea puhelin näyttää oman valitsimensa, jonka kautta
+          pääsee myös laitteen asiakirjaskanneriin. Selaimessa ei ole
+          rajapintaa skannerin avaamiseen suoraan. */}
       <input
         ref={tiedostoRef}
         type="file"
@@ -585,8 +588,8 @@ export function KuitinLomake({
               disabled={lukee || vaihtaa}
               onClick={() => tiedostoRef.current?.click()}
             >
-              <Paperclip className="size-4" />
-              Vaihda tiedosto
+              <ScanLine className="size-4" />
+              Skannaa tai vaihda
             </Button>
           </div>
 

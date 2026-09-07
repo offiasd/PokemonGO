@@ -14,9 +14,16 @@ import { createClient } from "@/lib/supabase/client";
 
 /** Kantaan asetettu yläraja on 10 MB; tarkistetaan jo selaimessa. */
 export const ENIMMAISKOKO_TAVUA = 10 * 1024 * 1024;
-/** Pidemmän sivun pikselimäärä pakkauksen jälkeen. Kuitin teksti pysyy luettavana. */
-const PAKATUN_SIVU_PX = 2000;
-const PAKKAUKSEN_LAATU = 0.82;
+/**
+ * Pidemmän sivun pikselimäärä pakkauksen jälkeen.
+ *
+ * Pitkä lämpöpaperikuitti kuvataan yhtenä otoksena, jolloin rivin teksti jää
+ * muutamaan kymmeneen pikseliin. Poiminta lukee sen sitä varmemmin mitä
+ * enemmän pikseleitä on, ja tällä koolla pakattu kuva on yhä noin megatavun
+ * luokkaa - kaukana Storagen 10 MB:n ja poiminnan 4,5 MB:n rajoista.
+ */
+const PAKATUN_SIVU_PX = 2600;
+const PAKKAUKSEN_LAATU = 0.85;
 
 /**
  * Kuva pienemmäksi.
