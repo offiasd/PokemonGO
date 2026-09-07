@@ -57,14 +57,19 @@ export default async function KulutSivu({
     // eikä valitusta kuukaudesta.
     supabase
       .from("kuitit")
-      .select("id")
+      .select("id, mitatoity_at")
       .gte("paivays", `${vuosi}-01-01`)
       .lt("paivays", `${vuosi + 1}-01-01`),
     supabase.from("kululuokat").select("id, nimi").eq("aktiivinen", true).order("jarjestys"),
   ]);
 
   const kuititIlmanRiveja = kuititVastaus.data ?? [];
+  // Mitätöity kuitti näkyy listassa mutta ei summissa: se on jo luovutettu ja
+  // korjattu, joten sen rivit eivät kuulu kuluihin.
   const vuodenIdt = (vuodenKuititVastaus.data ?? []).map((k) => k.id);
+  const voimassaolevatIdt = new Set(
+    (vuodenKuititVastaus.data ?? []).filter((k) => k.mitatoity_at === null).map((k) => k.id)
+  );
   const { data: vuodenRivit } = vuodenIdt.length
     ? await supabase
         .from("kuitin_rivit")
@@ -96,25 +101,32 @@ export default async function KulutSivu({
 
   // Kaksi lukua: kirjanpidon kannalta merkitsevä on kuluina, mutta yhteensä
   // tarvitaan täsmäytykseen. Ero on yksityisottoja ja luokittelemattomia.
-  const kaikkiRivit = (vuodenRivit ?? []).filter((r) => kuukaudenIdt.has(r.kuitti_id));
+  const kaikkiRivit = (vuodenRivit ?? []).filter(
+    (r) => kuukaudenIdt.has(r.kuitti_id) && voimassaolevatIdt.has(r.kuitti_id)
+  );
   const kuluina = kuluinaYhteensa(kaikkiRivit);
   const yhteensa = riviteYhteensa(kaikkiRivit);
 
-  const pienhankinnat = laskePienhankinnat(vuodenRivit ?? []);
+  const pienhankinnat = laskePienhankinnat(
+    (vuodenRivit ?? []).filter((r) => voimassaolevatIdt.has(r.kuitti_id))
+  );
 
   // Puutteen syy kerrotaan rivillä eikä omassa laatikossaan: lista pysyy
   // aikajärjestyksessä, eikä sama kuitti näy kahdessa paikassa.
   const listalle: KuittiListalla[] = kuitit.map((kuitti) => {
     const luokittelematta = kuitti.kuitin_rivit.filter((r) => !r.kayttotarkoitus).length;
     const tasmays = tarkistaTasmays(kuitti.loppusumma_eur, kuitti.kuitin_rivit);
+    // Mitätöityä ei enää tarvitse korjata: sen puutteet ovat historiaa.
     const puute =
-      kuitti.kuitin_rivit.length === 0
-        ? "Ei rivejä"
-        : luokittelematta > 0
-          ? "Luokittelematta"
-          : !tasmays.tasmaa
-            ? "Ei täsmää loppusummaan"
-            : null;
+      kuitti.mitatoity_at !== null
+        ? null
+        : kuitti.kuitin_rivit.length === 0
+          ? "Ei rivejä"
+          : luokittelematta > 0
+            ? "Luokittelematta"
+            : !tasmays.tasmaa
+              ? "Ei täsmää loppusummaan"
+              : null;
     return {
       id: kuitti.id,
       toimittaja: kuitti.toimittaja,
@@ -123,9 +135,13 @@ export default async function KulutSivu({
       kuluinaEur: kuluinaYhteensa(kuitti.kuitin_rivit),
       onPdf: kuitti.tiedosto_tyyppi === "application/pdf",
       puute,
+      mitatoity: kuitti.mitatoity_at !== null,
+      mitatointiSyy: kuitti.mitatointi_syy,
     };
   });
   const puutteellisia = listalle.filter((k) => k.puute !== null).length;
+  const mitatoityja = listalle.filter((k) => k.mitatoity).length;
+  const voimassaolevia = listalle.length - mitatoityja;
 
   // Kululuokkien jakauma on käyttäjän omaa seurantaa, ei kirjanpitoa.
   const luokittain = new Map<string, number>();
@@ -154,7 +170,8 @@ export default async function KulutSivu({
             </div>
             <div className="flex min-w-0 items-baseline justify-between gap-3 text-sm text-muted-foreground">
               <p className="truncate">
-                {kuitit.length} {kuitit.length === 1 ? "kuitti" : "kuittia"}
+                {voimassaolevia} {voimassaolevia === 1 ? "kuitti" : "kuittia"}
+                {mitatoityja > 0 && ` · ${mitatoityja} mitätöity`}
               </p>
               <p className="shrink-0">kuluina · yhteensä {muotoileEuro(yhteensa)}</p>
             </div>

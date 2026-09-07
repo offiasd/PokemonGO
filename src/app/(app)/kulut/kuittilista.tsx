@@ -18,6 +18,9 @@ export interface KuittiListalla {
   onPdf: boolean;
   /** Puutteen syy suomeksi, tai null kun kuitti on kunnossa. */
   puute: string | null;
+  /** Mitätöity kuitti ei ole summissa mukana mutta pysyy listalla. */
+  mitatoity: boolean;
+  mitatointiSyy: string | null;
 }
 
 /**
@@ -28,6 +31,10 @@ export interface KuittiListalla {
  * pysyy aikajärjestyksessä eikä sama kuitti näy kahdessa paikassa.
  *
  * Nuoli merkitsee sen kuitin, joka on auki Kuitti-välilehdellä.
+ *
+ * Mitätöity kuitti pysyy listalla läpiviivattuna ja syineen: kirjanpidossa
+ * vientejä ei poisteta vaan oikaistaan, ja lukijan pitää nähdä että jotain
+ * korjattiin.
  */
 export function Kuittilista({ kuitit }: { kuitit: KuittiListalla[] }) {
   const avoin = useViimeisinKuitti();
@@ -55,9 +62,9 @@ export function Kuittilista({ kuitit }: { kuitit: KuittiListalla[] }) {
             toimittaja={kuitti.toimittaja}
             puutteellinen={kuitti.puute !== null}
           />
-          <span className="grid min-w-0 flex-1 gap-0.5">
+          <span className={cn("grid min-w-0 flex-1 gap-0.5", kuitti.mitatoity && "opacity-60")}>
             <span className="flex min-w-0 items-center gap-1">
-              <span className="truncate font-medium">
+              <span className={cn("truncate font-medium", kuitti.mitatoity && "line-through")}>
                 {kuitti.toimittaja ?? "Toimittaja puuttuu"}
               </span>
               {kuitti.id === avoin && (
@@ -73,10 +80,17 @@ export function Kuittilista({ kuitit }: { kuitit: KuittiListalla[] }) {
             >
               {muotoilePaivaLyhyt(kuitti.paivays)}
               {" · "}
-              {kuitti.puute ?? `kuluina ${muotoileEuro(kuitti.kuluinaEur)}`}
+              {kuitti.mitatoity
+                ? `Mitätöity: ${kuitti.mitatointiSyy ?? "syytä ei kirjattu"}`
+                : (kuitti.puute ?? `kuluina ${muotoileEuro(kuitti.kuluinaEur)}`)}
             </span>
           </span>
-          <span className="shrink-0 text-lg font-medium tabular-nums">
+          <span
+            className={cn(
+              "shrink-0 text-lg font-medium tabular-nums",
+              kuitti.mitatoity && "text-muted-foreground line-through"
+            )}
+          >
             {muotoileEuro(kuitti.loppusummaEur)}
           </span>
         </Link>

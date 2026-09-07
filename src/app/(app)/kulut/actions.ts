@@ -166,11 +166,11 @@ export async function tallennaKuitti(
 /**
  * Poistaa kuitin, sen rivit ja tiedoston pysyvästi.
  *
- * Tarkoitettu testikuittien siivoukseen. Kanta suojaa tositteita
- * säilytysajan yli, joten poisto menee nimetyn kantatoiminnon kautta, joka
- * sallii sen vain nimenomaisesta pyynnöstä: vahingossa tapahtuva delete
- * torjutaan yhä. Riviensä luokitteluista opittu jää voimaan - se on tieto
- * tuotteesta, ei kuitista.
+ * Poisto on sallittu vain kuitille jota ei ole luovutettu kirjanpitäjälle:
+ * luovuttamaton kuitti ei ole tosite, joten vahingossa kuvattua kuvaa ei
+ * tarvitse säilyttää kuutta vuotta. Luovutetulle kuitille kanta torjuu
+ * poiston ja ohjaa mitätöintiin. Riviensä luokitteluista opittu jää voimaan -
+ * se on tieto tuotteesta, ei kuitista.
  */
 export async function poistaKuitti(kuittiId: string): Promise<KuittiTulos> {
   try {
@@ -193,6 +193,34 @@ export async function poistaKuitti(kuittiId: string): Promise<KuittiTulos> {
     return { ok: true };
   } catch (virhe) {
     return { ok: false, virhe: virheteksti(virhe, "Kuitin poisto epäonnistui.") };
+  }
+}
+
+/**
+ * Mitätöi luovutetun kuitin syineen.
+ *
+ * Kirjanpidossa vientejä ei poisteta vaan oikaistaan: kun kuitti on jo mennyt
+ * kirjanpitäjälle, virhe korjataan merkitsemällä kuitti mitätöidyksi ja
+ * kirjaamalla miksi. Kuva ja rivit säilyvät, mutta summiin kuitti ei enää
+ * kuulu.
+ */
+export async function mitatoiKuitti(kuittiId: string, syy: string): Promise<KuittiTulos> {
+  try {
+    await vaaditaanAdmin();
+    const supabase = await createClient();
+
+    const { error } = await supabase.rpc("mitatoi_kuitti", {
+      p_kuitti_id: kuittiId,
+      p_syy: syy,
+    });
+    if (error) return { ok: false, virhe: error.message };
+
+    revalidatePath("/kulut");
+    revalidatePath(`/kulut/${kuittiId}`);
+    revalidatePath("/");
+    return { ok: true };
+  } catch (virhe) {
+    return { ok: false, virhe: virheteksti(virhe, "Kuitin mitätöinti epäonnistui.") };
   }
 }
 

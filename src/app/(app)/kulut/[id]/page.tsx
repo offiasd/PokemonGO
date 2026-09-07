@@ -99,7 +99,9 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
                 toimittaja={kuitti.toimittaja}
                 paivays={kuitti.paivays}
                 loppusummaEur={kuitti.loppusumma_eur}
-                sailytettavaAsti={kuitti.sailytettava_asti}
+                luovutettuAt={kuitti.luovutettu_at}
+                mitatoityAt={kuitti.mitatoity_at}
+                mitatointiSyy={kuitti.mitatointi_syy}
               />
             </div>
           </CardContent>

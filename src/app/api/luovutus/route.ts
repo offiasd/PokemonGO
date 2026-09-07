@@ -76,6 +76,9 @@ export async function GET(pyynto: Request) {
       .select("*")
       .gte("paivays", kausi)
       .lt("paivays", loppu)
+      // Mitätöity kuitti on jo kertaalleen luovutettu ja oikaistu, joten se ei
+      // kuulu pakettiin uudelleen.
+      .is("mitatoity_at", null)
       .order("paivays"),
     supabase.from("kululuokat").select("id, nimi"),
   ]);

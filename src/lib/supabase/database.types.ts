@@ -124,6 +124,12 @@ export interface Database {
           alv_erittely: AlvErittelynRivi[] | null;
           /** Kirjanpitolain mukainen säilytysajan päättymispäivä. Kanta laskee. */
           sailytettava_asti: string;
+          /** Milloin kuitti lähti kirjanpitäjälle. Sen jälkeen sitä ei voi poistaa. */
+          luovutettu_at: string | null;
+          /** Milloin kuitti mitätöitiin. Mitätöity ei ole summissa mukana. */
+          mitatoity_at: string | null;
+          /** Miksi kuitti mitätöitiin. Kulkee aina mitatoity_at:n kanssa. */
+          mitatointi_syy: string | null;
           luoja_id: string | null;
           created_at: string;
           updated_at: string;
@@ -895,6 +901,10 @@ export interface Database {
       };
       avaa_luovutus: {
         Args: { p_kausi: string };
+        Returns: undefined;
+      };
+      mitatoi_kuitti: {
+        Args: { p_kuitti_id: string; p_syy: string };
         Returns: undefined;
       };
       poista_kuitti_pysyvasti: {
