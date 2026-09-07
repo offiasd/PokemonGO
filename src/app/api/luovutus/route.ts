@@ -118,6 +118,7 @@ export async function GET(pyynto: Request) {
     muistiinpano: kuitti.muistiinpano,
     tiedosto_polku: kuitti.tiedosto_polku,
     tiedosto_tyyppi: kuitti.tiedosto_tyyppi,
+    tositenumero: kuitti.tositenumero,
     liitteet: (liiteRivit ?? [])
       .filter((l) => l.kuitti_id === kuitti.id)
       .map((l) => ({ polku: l.polku, tyyppi: l.tyyppi })),

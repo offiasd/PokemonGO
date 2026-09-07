@@ -172,6 +172,11 @@ async function teePdf(
         false,
         true
       );
+      // Tositenumero on myyjän oma tunniste: kirjanpitäjä löytää sillä saman
+      // tositteen omasta järjestelmästään ja reklamaatio osuu oikeaan ostoon.
+      if (kuitti.tositenumero) {
+        teksti(`Tosite ${kuitti.tositenumero}`, 10, false, true);
+      }
       teksti(
         `Loppusumma ${muotoileEuro(kuitti.loppusumma_eur)} · kuluina ${muotoileEuro(kuitinKuluina(kuitti))}`,
         11

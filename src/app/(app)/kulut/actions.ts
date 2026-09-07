@@ -188,6 +188,9 @@ export async function tallennaKuitti(
     tila: "luonnos" | "tarkistettava" | "valmis";
     /** Poiminnan lukema erittely. Tallennetaan myös ilman ALV-rekisteröintiä. */
     alvErittely: AlvErittelynRivi[] | null;
+    /** Kuitti- tai laskunumero. Kanta normalisoi vertailumuodon triggerillä. */
+    tositenumero: string | null;
+    tositetyyppi: "kuitti" | "lasku" | null;
   },
   rivit: KuitinRiviSyote[]
 ): Promise<KuittiTulos> {
@@ -205,6 +208,8 @@ export async function tallennaKuitti(
         muistiinpano: kuitti.muistiinpano,
         tila: kuitti.tila,
         alv_erittely: kuitti.alvErittely,
+        tositenumero: kuitti.tositenumero,
+        tositetyyppi: kuitti.tositetyyppi,
         updated_at: new Date().toISOString(),
       })
       .eq("id", kuittiId);

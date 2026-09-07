@@ -264,28 +264,77 @@ export function laskePienhankinnat(
 /**
  * Kaksoiskappaleiden tunnistus.
  *
- * Sama ostos voi tulla sekä verkkokaupan PDF:nä että kuvattuna paperikuittina,
- * joten vertailu tehdään sisällöstä eikä tiedostosta: toimittaja, päivä ja
- * loppusumma yhdessä.
+ * Ensisijainen tunniste on tositenumero: se on myyjän itsensä antama, eivätkä
+ * kaksi eri laskua samalta toimittajalta koskaan jaa samaa numeroa. Päiväys,
+ * summa ja toimittaja ovat kuvailevia tietoja, jotka voivat sattua osumaan -
+ * kaksi samansuuruista laskua samalle toimittajalle samana päivänä on täysin
+ * normaali tilanne.
+ *
+ * Vertailu on aina toimittajakohtainen: lasku 1043 Puuilolta ja 1043
+ * Motonetilta eivät liity toisiinsa mitenkään.
  */
-export function kaksoiskappaleenAvain(kuitti: {
+export type Kaksoiskappaleenvarmuus = "sama_numero" | "samankaltainen" | "numerot_eroavat";
+
+export interface Kaksoiskappaleehdokas {
   toimittaja: string | null;
   paivays: string;
   loppusumma_eur: number;
-}): string {
-  const toimittaja = (kuitti.toimittaja ?? "").toLowerCase().replace(/\s+/g, " ").trim();
-  return `${toimittaja}|${kuitti.paivays}|${kuitti.loppusumma_eur.toFixed(2)}`;
+  /** Normalisoitu numero, tai null jos numeroa ei ole. */
+  tositenumero_norm: string | null;
 }
 
-export function etsiKaksoiskappaleet<
-  T extends { id: string; toimittaja: string | null; paivays: string; loppusumma_eur: number },
->(kuitit: T[]): T[][] {
-  const ryhmat = new Map<string, T[]>();
-  for (const kuitti of kuitit) {
-    const avain = kaksoiskappaleenAvain(kuitti);
-    ryhmat.set(avain, [...(ryhmat.get(avain) ?? []), kuitti]);
+/**
+ * Vertailumuoto tositenumerolle.
+ *
+ * "F-2026 1043" ja "F20261043" ovat sama numero, joten välimerkit ja
+ * kirjainkoko karsitaan. Sama sääntö kuin kannan normalisoi_tositenumero.
+ */
+export function normalisoiTositenumero(numero: string | null | undefined): string | null {
+  const puhdas = (numero ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return puhdas === "" ? null : puhdas;
+}
+
+function toimittajaAvain(toimittaja: string | null): string {
+  return (toimittaja ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Onko toinen kuitti epäilty kaksoiskappale tästä, ja kuinka varmasti.
+ *
+ * Palauttaa null kun epäilyä ei ole. Eri tositenumero samalta toimittajalta on
+ * varma osoitus eri tositteesta, joten silloin muita vertailuja ei tehdä -
+ * paitsi jos päivä ja summakin täsmäävät, jolloin kyse voi olla poiminnan
+ * lukuvirheestä haalistuneella kuitilla. Se on kevyt huomautus, ei epäily.
+ */
+export function kaksoiskappaleenVarmuus(
+  tama: Kaksoiskappaleehdokas,
+  toinen: Kaksoiskappaleehdokas
+): Kaksoiskappaleenvarmuus | null {
+  if (toimittajaAvain(tama.toimittaja) !== toimittajaAvain(toinen.toimittaja)) return null;
+
+  if (tama.tositenumero_norm !== null && tama.tositenumero_norm === toinen.tositenumero_norm) {
+    return "sama_numero";
   }
-  return [...ryhmat.values()].filter((r) => r.length > 1);
+
+  const muuTasmaa =
+    toimittajaAvain(tama.toimittaja) !== "" &&
+    tama.paivays === toinen.paivays &&
+    tama.loppusumma_eur === toinen.loppusumma_eur;
+  if (!muuTasmaa) return null;
+
+  if (tama.tositenumero_norm === null || toinen.tositenumero_norm === null) {
+    return "samankaltainen";
+  }
+  return "numerot_eroavat";
+}
+
+/** Epäilyn sanamuoto varmuustason mukaan. */
+export function kaksoiskappaleenViesti(varmuus: Kaksoiskappaleenvarmuus): string {
+  if (varmuus === "sama_numero") return "Tämä kuitti on jo järjestelmässä";
+  if (varmuus === "samankaltainen") {
+    return "Samankaltainen kuitti löytyi - tarkista onko kyseessä sama";
+  }
+  return "Samana päivänä sama summa samalta toimittajalta, mutta tositenumero on eri";
 }
 
 /**

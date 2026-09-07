@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { kaytettavatKayttotarkoitukset, opinAvain, type Kayttotarkoitus } from "@/lib/kulut";
 
 import { KulutValilehdet } from "../valilehdet";
+import { KaksoiskappaleVaroitus, type Epailty } from "./kaksoiskappale-varoitus";
 import { KuitinLiitteet, type LiiteNakyma } from "./kuitin-liitteet";
 import { KuitinLomake } from "./kuitin-lomake";
 import { KuitinPoisto } from "./kuitin-poisto";
@@ -62,9 +63,31 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
     .order("jarjestys");
   const rivit = rivitData ?? [];
 
+  // Kaksoiskappale-epäily haetaan kannasta, jotta sääntö on sama sekä tässä
+  // että luovutuksen tarkistuksissa.
+  const { data: epailyt } = await supabase.rpc("kuitin_kaksoiskappaleet", { p_kuitti_id: id });
+  const kaksoiskappaleet: Epailty[] = (epailyt ?? []).map((e) => ({
+    id: e.id,
+    toimittaja: e.toimittaja,
+    paivays: e.paivays,
+    loppusummaEur: e.loppusumma_eur,
+    tositenumero: e.tositenumero,
+    varmuus: e.varmuus,
+  }));
+
   return (
     <div className="grid gap-4">
       <KulutValilehdet kuittiId={kuitti.id} kausi={kuitti.paivays} />
+
+      <KaksoiskappaleVaroitus
+        kuitti={{
+          toimittaja: kuitti.toimittaja,
+          paivays: kuitti.paivays,
+          loppusummaEur: kuitti.loppusumma_eur,
+          tositenumero: kuitti.tositenumero,
+        }}
+        epaillyt={kaksoiskappaleet}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
         {/* Kapealla näytöllä rivit ensin: kuitti luetaan riveiltä, ja kuva on
@@ -113,6 +136,8 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
               tila: kuitti.tila,
               alvErittely: kuitti.alv_erittely,
               poiminnanTila: kuitti.poiminnan_tila,
+              tositenumero: kuitti.tositenumero,
+              tositetyyppi: kuitti.tositetyyppi,
             }}
             rivit={rivit.map((r) => ({
               avain: r.id,

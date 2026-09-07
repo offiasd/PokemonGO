@@ -86,6 +86,8 @@ export interface VientiKuitti {
   muistiinpano: string | null;
   tiedosto_polku: string | null;
   tiedosto_tyyppi: string | null;
+  /** Myyjän oma kuitti- tai laskunumero. Hyödyllinen reklamaatioissa. */
+  tositenumero: string | null;
   /**
    * Kuitin kaikki sivut järjestyksessä. Pitkä kassakuitti on monta kuvaa,
    * ja kirjanpitäjälle on mentävä ne kaikki - ei vain ensimmäistä.
@@ -196,6 +198,7 @@ const RIVITASON_OTSIKOT = [
   "Päiväys",
   "Maksupäivä",
   "Toimittaja",
+  "Tositenumero",
   "Rivi",
   "Määrä",
   "Brutto EUR",
@@ -213,6 +216,7 @@ const KUITTITASON_OTSIKOT = [
   "Päiväys",
   "Maksupäivä",
   "Toimittaja",
+  "Tositenumero",
   "Loppusumma EUR",
   "Kuluina EUR",
   "Rivejä",
@@ -245,6 +249,7 @@ export function csvSisalto(kuitit: VientiKuitti[], asetukset: Vientiasetukset): 
               kuitti.paivays,
               kuitti.maksupaiva ?? "",
               kentta(kuitti.toimittaja),
+              kentta(kuitti.tositenumero),
               kentta(rivi.teksti),
               rivi.maara === null ? "" : String(rivi.maara).replace(".", ","),
               luku(rivi.brutto_eur),
@@ -270,6 +275,7 @@ export function csvSisalto(kuitit: VientiKuitti[], asetukset: Vientiasetukset): 
             kuitti.paivays,
             kuitti.maksupaiva ?? "",
             kentta(kuitti.toimittaja),
+            kentta(kuitti.tositenumero),
             luku(kuitti.loppusumma_eur),
             luku(kuitinKuluina(kuitti)),
             String(kuitti.rivit.length),

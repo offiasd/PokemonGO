@@ -27,6 +27,16 @@ export interface AlvErittelynRivi {
 
 export interface KuittiPoiminta {
   toimittaja: string | null;
+  /**
+   * Kuitti- tai laskunumero sellaisena kuin se tositteessa lukee.
+   *
+   * Myyjän itsensä antama yksilöivä tunniste, ja siksi ensisijainen tapa
+   * tunnistaa kaksoiskappale. Null jos numeroa ei löydy - keksitty numero
+   * olisi pahempi kuin puuttuva, koska se estäisi aidon kaksoiskappaleen
+   * löytymisen.
+   */
+  tositenumero: string | null;
+  tositetyyppi: "kuitti" | "lasku" | null;
   /** ISO-muodossa (YYYY-MM-DD) tai null jos päiväystä ei saatu luettua. */
   paivays: string | null;
   /** Vain jos eri kuin laskupäivä. */
@@ -52,6 +62,8 @@ Poimi kuitista:
 - kuitin rivit: teksti, määrä, bruttohinta euroina ja rivin verokanta
 - ALV-erittelytaulukko kannoittain, jos kuitissa sellainen on
 - loppusumma
+- tositenumero: kassakuitin kuittinumero tai laskun numero
+- tositetyyppi: kuitti tai lasku
 
 Säännöt:
 1. Kirjoita rivin teksti täsmälleen niin kuin se kuitissa lukee. Älä täydennä
@@ -69,6 +81,12 @@ Säännöt:
 5. Älä laske puuttuvia lukuja itse. Jos jotain ei näy, jätä se tyhjäksi -
    arvattu luku on pahempi kuin puuttuva, koska se näyttää täsmäävän.
 6. Määrä on kappale- tai kilomäärä. Jos sitä ei ole merkitty, jätä tyhjäksi.
+7. Älä arvaa tositenumeroa. Se on kuitissa "Kuitti", "Kuittinumero", "Tosite",
+   "Lasku" tai "Laskunumero" -tekstin yhteydessä oleva myyjän oma numero.
+   Kirjoita se sellaisenaan välimerkkeineen. Jos numeroa ei löydy, palauta
+   null: keksitty numero on pahempi kuin puuttuva, koska sitä käytetään
+   kaksoiskappaleiden tunnistukseen. Älä käytä numerona kassan, myyjän,
+   asiakkaan, viitteen, tilausnumeron tai Y-tunnuksen arvoa.
 
 Palauta tiedot kuitin_tiedot-työkalulla.`;
 
@@ -94,6 +112,16 @@ export const TYOKALU = {
       loppusumma_eur: {
         type: ["number", "null"],
         description: "Kuitin loppusumma euroina, verollisena.",
+      },
+      tositenumero: {
+        type: ["string", "null"],
+        description:
+          "Kuitti- tai laskunumero sellaisena kuin se tositteessa lukee. Null jos ei löydy - älä arvaa.",
+      },
+      tositetyyppi: {
+        type: ["string", "null"],
+        enum: ["kuitti", "lasku", null],
+        description: "Onko tosite kassakuitti vai lasku.",
       },
       rivit: {
         type: "array",
@@ -286,8 +314,15 @@ export function jasennaPoiminta(raaka: unknown): KuittiPoiminta {
   const paivays = paivaykseksi(olio.paivays);
   const maksupaiva = paivaykseksi(olio.maksupaiva);
 
+  const tositetyyppi = teksti(olio.tositetyyppi)?.toLowerCase();
+  // Numero kelpaa vain jos siinä on edes yksi kirjain tai numero: pelkät
+  // viivat ovat lukuvirhe, eivät tunniste.
+  const tositenumero = teksti(olio.tositenumero);
+
   return taydennaVerokannat({
     toimittaja: teksti(olio.toimittaja),
+    tositenumero: tositenumero && /[a-z0-9]/i.test(tositenumero) ? tositenumero : null,
+    tositetyyppi: tositetyyppi === "kuitti" || tositetyyppi === "lasku" ? tositetyyppi : null,
     paivays,
     // Maksupäivä tallennetaan vain jos se on aidosti eri kuin laskun päiväys.
     maksupaiva: maksupaiva && maksupaiva !== paivays ? maksupaiva : null,

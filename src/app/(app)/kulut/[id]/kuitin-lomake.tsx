@@ -84,6 +84,8 @@ interface RiviSyote {
  */
 interface PoimittuKuitti {
   toimittaja: string | null;
+  tositenumero: string | null;
+  tositetyyppi: "kuitti" | "lasku" | null;
   paivays: string | null;
   maksupaiva: string | null;
   loppusumma_eur: number | null;
@@ -136,6 +138,9 @@ export function KuitinLomake({
     alvErittely: AlvErittelynRivi[] | null;
     /** Lukujonon tila. Jonossa oleva kuitti luetaan taustalla. */
     poiminnanTila: "ei_luettu" | "jonossa" | "luetaan" | "luettu" | "virhe";
+    /** Kuitti- tai laskunumero. Ensisijainen kaksoiskappaletunniste. */
+    tositenumero: string | null;
+    tositetyyppi: "kuitti" | "lasku" | null;
   };
   rivit: RiviSyote[];
   luokat: { id: string; nimi: string }[];
@@ -154,6 +159,10 @@ export function KuitinLomake({
   const [toimittaja, setToimittaja] = useState(kuitti.toimittaja ?? "");
   const [paivays, setPaivays] = useState(kuitti.paivays);
   const [maksupaiva, setMaksupaiva] = useState(kuitti.maksupaiva ?? "");
+  const [tositenumero, setTositenumero] = useState(kuitti.tositenumero ?? "");
+  const [tositetyyppi, setTositetyyppi] = useState<"kuitti" | "lasku" | "">(
+    kuitti.tositetyyppi ?? ""
+  );
   const [loppusumma, setLoppusumma] = useState(String(kuitti.loppusummaEur));
   const [muistiinpano, setMuistiinpano] = useState(kuitti.muistiinpano ?? "");
   const [rivit, setRivit] = useState<RiviSyote[]>(alkuRivit);
@@ -293,6 +302,10 @@ export function KuitinLomake({
         }
 
         if (poiminta.toimittaja) setToimittaja(poiminta.toimittaja);
+        // Numeroa ei tyhjennetä jos poiminta ei löytänyt sitä: käsin
+        // kirjoitettu arvo on luotettavampi kuin puuttuva.
+        if (poiminta.tositenumero) setTositenumero(poiminta.tositenumero);
+        if (poiminta.tositetyyppi) setTositetyyppi(poiminta.tositetyyppi);
         if (poiminta.paivays) setPaivays(poiminta.paivays);
         setMaksupaiva(poiminta.maksupaiva ?? "");
         if (poiminta.loppusumma_eur !== null) setLoppusumma(String(poiminta.loppusumma_eur));
@@ -445,6 +458,8 @@ export function KuitinLomake({
           muistiinpano: muistiinpano.trim() || null,
           tila,
           alvErittely,
+          tositenumero: tositenumero.trim() || null,
+          tositetyyppi: tositetyyppi || null,
         },
         rivit.map((r) => ({
           teksti: r.teksti,
@@ -511,6 +526,14 @@ export function KuitinLomake({
               {new Date(paivays).toLocaleDateString("fi-FI")} · {rivit.length}{" "}
               {rivit.length === 1 ? "rivi" : "riviä"}
             </span>
+            {/* Tositenumero näkyy ilman että tietoja tarvitsee avata: se on
+                kirjanpitäjän ja reklamaation tunniste, ei vain sisäinen
+                kaksoiskappaletarkistus. */}
+            {tositenumero.trim() !== "" && (
+              <span className="truncate text-sm text-muted-foreground">
+                Tosite {tositenumero.trim()}
+              </span>
+            )}
             <span className="mt-1 text-3xl font-semibold tabular-nums">
               {muotoileEuro(luku(loppusumma))}
             </span>
@@ -838,6 +861,33 @@ export function KuitinLomake({
                 value={maksupaiva}
                 onChange={(e) => setMaksupaiva(e.target.value)}
               />
+            </div>
+            {/* Tositenumero on myyjän oma tunniste, ja siksi luotettavin tapa
+                tunnistaa sama kuitti kahdesti. Se on myös kirjanpitäjälle ja
+                reklamaatioissa hyödyllinen, joten se näkyy tiedoissa. */}
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)]">
+              <div className="grid gap-2">
+                <Label htmlFor="tositenumero">Tositenumero</Label>
+                <Input
+                  id="tositenumero"
+                  value={tositenumero}
+                  onChange={(e) => setTositenumero(e.target.value)}
+                  placeholder="Kuitti- tai laskunumero"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="tositetyyppi">Tositelaji</Label>
+                <select
+                  id="tositetyyppi"
+                  value={tositetyyppi}
+                  onChange={(e) => setTositetyyppi(e.target.value as "kuitti" | "lasku" | "")}
+                  className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm"
+                >
+                  <option value="">Ei valittu</option>
+                  <option value="kuitti">Kassakuitti</option>
+                  <option value="lasku">Lasku</option>
+                </select>
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="kuitin_muistiinpano">Muistiinpano</Label>

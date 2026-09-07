@@ -122,6 +122,11 @@ export interface Database {
           muistiinpano: string | null;
           /** Poiminnan lukema ALV-erittely kannoittain. */
           alv_erittely: AlvErittelynRivi[] | null;
+          /** Kuitti- tai laskunumero sellaisenaan. Ensisijainen kaksoiskappaletunniste. */
+          tositenumero: string | null;
+          /** Normalisoitu tositenumero vertailua varten. Kanta täyttää triggerillä. */
+          tositenumero_norm: string | null;
+          tositetyyppi: "kuitti" | "lasku" | null;
           /** Kirjanpitolain mukainen säilytysajan päättymispäivä. Kanta laskee. */
           sailytettava_asti: string;
           /** Milloin kuitti lähti kirjanpitäjälle. Sen jälkeen sitä ei voi poistaa. */
@@ -948,6 +953,18 @@ export interface Database {
       avaa_luovutus: {
         Args: { p_kausi: string };
         Returns: undefined;
+      };
+      kuitin_kaksoiskappaleet: {
+        Args: { p_kuitti_id: string };
+        Returns: {
+          id: string;
+          toimittaja: string | null;
+          paivays: string;
+          loppusumma_eur: number;
+          tositenumero: string | null;
+          /** Epäilyn varmuustaso, ks. lib/kulut.ts. */
+          varmuus: "sama_numero" | "samankaltainen" | "numerot_eroavat";
+        }[];
       };
       luo_kuittiera: {
         Args: { p_tiedostoja: number };
