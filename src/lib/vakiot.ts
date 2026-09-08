@@ -162,6 +162,26 @@ export function muotoileEuro(arvo: number | null | undefined): string {
 }
 
 /**
+ * Summa kuitin omassa valuutassa.
+ *
+ * Ulkomainen lasku näytetään sellaisena kuin se on: dollarisumman esittäminen
+ * euroina oli juuri se virhe, jonka takia valuutta tallennetaan erikseen.
+ * Tuntematon koodi näytetään numerona ja koodina, ei kaadeta näkymää.
+ */
+export function muotoileValuutta(
+  arvo: number | null | undefined,
+  valuutta: string | null | undefined
+): string {
+  if (arvo === null || arvo === undefined) return "-";
+  const koodi = (valuutta ?? "EUR").toUpperCase();
+  try {
+    return arvo.toLocaleString("fi-FI", { style: "currency", currency: koodi });
+  } catch {
+    return `${arvo.toLocaleString("fi-FI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${koodi}`;
+  }
+}
+
+/**
  * Lyhyt päiväys ilman vuotta: "5.9."
  *
  * Kuukausilistalla vuosi on jo otsikossa, joten sen toistaminen joka rivillä

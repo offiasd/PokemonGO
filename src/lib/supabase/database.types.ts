@@ -17,6 +17,15 @@ export type VariTyyppi =
 export type TyoVaihe = "pesu" | "maalinpoisto" | "puhallus" | "teippaus" | "maalaus";
 export type Alkupera = "EU" | "USA" | "muu";
 
+/**
+ * Kuitin rivin määrän yksikkö.
+ *
+ * Prismatic ilmoittaa määrät paunoina. Ilman yksikköä paljas luku "3.000" ei
+ * kerro onko kyse kolmesta kilosta vai kolmesta paunasta, eikä sitä voi
+ * käyttää varastotäydennykseen.
+ */
+export type Yksikko = "lb" | "kg" | "g" | "l" | "ml" | "kpl" | "pkt";
+
 /** Varastosaldon muutoksen laji: lisätty erä vai manuaalinen oikaisu. */
 export type VarastomuutosTyyppi = "taydennys" | "korjaus";
 export type KayttajaRooli = "admin" | "maalaaja";
@@ -122,6 +131,16 @@ export interface Database {
           muistiinpano: string | null;
           /** Poiminnan lukema ALV-erittely kannoittain. */
           alv_erittely: AlvErittelynRivi[] | null;
+          /** Laskun valuutta ISO-koodina. EUR-kuiteilla muunnosta ei tehdä. */
+          valuutta: string;
+          /** Loppusumma alkuperäisessä valuutassa, kuitilta luettuna. */
+          loppusumma_valuutassa: number | null;
+          /** Euroa per yksikkö laskun valuuttaa. Käytetään vain jos todellinen_eur puuttuu. */
+          valuuttakurssi: number | null;
+          /** Tililtä luettu todellinen euroveloitus pankkilisineen. Ensisijainen. */
+          todellinen_eur: number | null;
+          /** Mistä euromäärä tulee: pankki, kurssi vai sama (EUR-kuitti). */
+          kurssin_lahde: "pankki" | "kurssi" | "sama" | null;
           /** Kuitti- tai laskunumero sellaisenaan. Ensisijainen kaksoiskappaletunniste. */
           tositenumero: string | null;
           /** Normalisoitu tositenumero vertailua varten. Kanta täyttää triggerillä. */
@@ -199,6 +218,10 @@ export interface Database {
           brutto_eur: number;
           /** Luetaan kuitista, ei päätellä tuoteryhmästä. */
           verokanta: number | null;
+          /** Rivin summa alkuperäisessä valuutassa. brutto_eur johdetaan tästä. */
+          brutto_valuutassa: number | null;
+          /** Määrän yksikkö. Paljas luku ei kelpaa varastotäydennykseen. */
+          yksikko: Yksikko | null;
           kayttotarkoitus: Kayttotarkoitus | null;
           kululuokka_id: string | null;
           muistiinpano: string | null;
@@ -965,6 +988,10 @@ export interface Database {
           /** Epäilyn varmuustaso, ks. lib/kulut.ts. */
           varmuus: "sama_numero" | "samankaltainen" | "numerot_eroavat";
         }[];
+      };
+      paivita_kuitin_eurot: {
+        Args: { p_kuitti_id: string };
+        Returns: undefined;
       };
       luo_kuittiera: {
         Args: { p_tiedostoja: number };

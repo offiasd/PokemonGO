@@ -12,6 +12,13 @@
 export interface PoimittuRivi {
   teksti: string;
   maara: number | null;
+  /** Määrän yksikkö kuitilta, esim. "lb". Null jos kuitissa ei lue sitä. */
+  yksikko: string | null;
+  /**
+   * Rivin loppuhinta kuitin omassa valuutassa. Nimi on historiallinen: EUR on
+   * yleisin tapaus, mutta USD-laskulla tämä on dollareita ja euromäärä
+   * johdetaan kannassa (ks. paivita_kuitin_eurot).
+   */
   brutto_eur: number;
   /** Luettu kuitista. Null jos kuitissa ei lue rivin kantaa. */
   verokanta: number | null;
@@ -27,6 +34,8 @@ export interface AlvErittelynRivi {
 
 export interface KuittiPoiminta {
   toimittaja: string | null;
+  /** Laskun valuutta ISO-koodina kuitilta luettuna. Null = ei mainintaa. */
+  valuutta: string | null;
   /**
    * Kuitti- tai laskunumero sellaisena kuin se tositteessa lukee.
    *
@@ -64,6 +73,8 @@ Poimi kuitista:
 - loppusumma
 - tositenumero: kassakuitin kuittinumero tai laskun numero
 - tositetyyppi: kuitti tai lasku
+- valuutta: laskun valuutta ISO-koodina
+- rivin määrän yksikkö, jos kuitissa on sellainen
 
 Säännöt:
 1. Kirjoita rivin teksti täsmälleen niin kuin se kuitissa lukee. Älä täydennä
@@ -80,13 +91,21 @@ Säännöt:
    voivat jatkua sivun yli.
 5. Älä laske puuttuvia lukuja itse. Jos jotain ei näy, jätä se tyhjäksi -
    arvattu luku on pahempi kuin puuttuva, koska se näyttää täsmäävän.
-6. Määrä on kappale- tai kilomäärä. Jos sitä ei ole merkitty, jätä tyhjäksi.
+6. Määrä on kappale-, paino- tai tilavuusmäärä. Jos sitä ei ole merkitty, jätä
+   tyhjäksi. Kirjaa yksikkö erikseen: lb, kg, g, l, ml, kpl tai pkt. Älä muunna
+   yksiköitä - amerikkalainen lasku ilmoittaa määrät paunoina (lb), ja muunnos
+   tehdään myöhemmin.
 7. Älä arvaa tositenumeroa. Se on kuitissa "Kuitti", "Kuittinumero", "Tosite",
    "Lasku" tai "Laskunumero" -tekstin yhteydessä oleva myyjän oma numero.
    Kirjoita se sellaisenaan välimerkkeineen. Jos numeroa ei löydy, palauta
    null: keksitty numero on pahempi kuin puuttuva, koska sitä käytetään
    kaksoiskappaleiden tunnistukseen. Älä käytä numerona kassan, myyjän,
    asiakkaan, viitteen, tilausnumeron tai Y-tunnuksen arvoa.
+
+8. Valuutta luetaan kuitista: valuuttakoodi, symboli tai maakohtainen konteksti.
+   Summat palautetaan aina siinä valuutassa kuin ne kuitissa ovat - älä muunna
+   euroiksi. Suomalainen kuitti on EUR; amerikkalainen lasku on yleensä USD.
+   Jos valuutasta ei ole mitään merkkiä, jätä tyhjäksi.
 
 Palauta tiedot kuitin_tiedot-työkalulla.`;
 
@@ -111,7 +130,12 @@ export const TYOKALU = {
       },
       loppusumma_eur: {
         type: ["number", "null"],
-        description: "Kuitin loppusumma euroina, verollisena.",
+        description:
+          "Kuitin loppusumma verollisena, kuitin omassa valuutassa. Älä muunna euroiksi.",
+      },
+      valuutta: {
+        type: ["string", "null"],
+        description: "Laskun valuutta ISO-koodina, esim. EUR tai USD. Null jos ei mainintaa.",
       },
       tositenumero: {
         type: ["string", "null"],
@@ -130,8 +154,16 @@ export const TYOKALU = {
           type: "object",
           properties: {
             teksti: { type: "string", description: "Rivin teksti sellaisenaan." },
-            maara: { type: ["number", "null"], description: "Kappale- tai kilomäärä." },
-            brutto_eur: { type: "number", description: "Rivin loppuhinta euroina, verollisena." },
+            maara: { type: ["number", "null"], description: "Kappale-, paino- tai tilavuusmäärä." },
+            yksikko: {
+              type: ["string", "null"],
+              enum: ["lb", "kg", "g", "l", "ml", "kpl", "pkt", null],
+              description: "Määrän yksikkö kuitilta. Älä muunna yksikköä.",
+            },
+            brutto_eur: {
+              type: "number",
+              description: "Rivin loppuhinta verollisena, kuitin omassa valuutassa.",
+            },
             verokanta: {
               type: ["number", "null"],
               description: "Rivin verokanta prosentteina kuitilta luettuna, esim. 25.5.",
@@ -245,6 +277,14 @@ function teksti(arvo: unknown): string | null {
   return siisti ? siisti : null;
 }
 
+/** Kannan sallimat yksiköt. Tuntematon yksikkö jätetään pois, ei arvata. */
+const YKSIKOT = ["lb", "kg", "g", "l", "ml", "kpl", "pkt"];
+
+function yksikoksi(arvo: unknown): string | null {
+  const siisti = teksti(arvo)?.toLowerCase();
+  return siisti && YKSIKOT.includes(siisti) ? siisti : null;
+}
+
 function onOlio(arvo: unknown): arvo is Record<string, unknown> {
   return typeof arvo === "object" && arvo !== null && !Array.isArray(arvo);
 }
@@ -282,6 +322,7 @@ export function jasennaPoiminta(raaka: unknown): KuittiPoiminta {
     .map((rivi) => ({
       teksti: teksti(rivi.teksti) ?? "",
       maara: numeroksi(rivi.maara),
+      yksikko: yksikoksi(rivi.yksikko),
       brutto_eur: sentteina(numeroksi(rivi.brutto_eur) ?? 0),
       verokanta: numeroksi(rivi.verokanta),
     }))
@@ -315,12 +356,16 @@ export function jasennaPoiminta(raaka: unknown): KuittiPoiminta {
   const maksupaiva = paivaykseksi(olio.maksupaiva);
 
   const tositetyyppi = teksti(olio.tositetyyppi)?.toLowerCase();
+  // Valuutta kelpaa vain kolmikirjaimisena ISO-koodina: "dollaria" tai "$" ei
+  // ole koodi, ja arvattu koodi ohjaisi muunnoksen väärään suuntaan.
+  const valuuttakoodi = teksti(olio.valuutta)?.toUpperCase();
   // Numero kelpaa vain jos siinä on edes yksi kirjain tai numero: pelkät
   // viivat ovat lukuvirhe, eivät tunniste.
   const tositenumero = teksti(olio.tositenumero);
 
   return taydennaVerokannat({
     toimittaja: teksti(olio.toimittaja),
+    valuutta: valuuttakoodi && /^[A-Z]{3}$/.test(valuuttakoodi) ? valuuttakoodi : null,
     tositenumero: tositenumero && /[a-z0-9]/i.test(tositenumero) ? tositenumero : null,
     tositetyyppi: tositetyyppi === "kuitti" || tositetyyppi === "lasku" ? tositetyyppi : null,
     paivays,

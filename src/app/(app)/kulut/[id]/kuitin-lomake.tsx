@@ -53,9 +53,9 @@ import {
 import { KayttotarkoituksenKuvake } from "@/components/kayttotarkoituksen-kuvake";
 import { createClient } from "@/lib/supabase/client";
 import { lataaKuitinTiedosto } from "@/lib/kuvanpakkaus";
-import type { AlvErittelynRivi } from "@/lib/supabase/database.types";
+import type { AlvErittelynRivi, Yksikko } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
-import { muotoileEuro } from "@/lib/vakiot";
+import { muotoileEuro, muotoileValuutta } from "@/lib/vakiot";
 import {
   ehdotaLuokittelu,
   kayttotarkoituksenNimi,
@@ -71,6 +71,8 @@ interface RiviSyote {
   avain: string;
   teksti: string;
   maara: number | null;
+  yksikko: Yksikko | null;
+  /** Rivin summa kuitin omassa valuutassa. EUR-kuitilla suoraan euroja. */
   bruttoEur: number;
   verokanta: number | null;
   kayttotarkoitus: Kayttotarkoitus | null;
@@ -86,10 +88,17 @@ interface PoimittuKuitti {
   toimittaja: string | null;
   tositenumero: string | null;
   tositetyyppi: "kuitti" | "lasku" | null;
+  valuutta: string | null;
   paivays: string | null;
   maksupaiva: string | null;
   loppusumma_eur: number | null;
-  rivit: { teksti: string; maara: number | null; brutto_eur: number; verokanta: number | null }[];
+  rivit: {
+    teksti: string;
+    maara: number | null;
+    yksikko: Yksikko | null;
+    brutto_eur: number;
+    verokanta: number | null;
+  }[];
   alv_erittely: AlvErittelynRivi[];
 }
 
@@ -102,6 +111,9 @@ const EI_LUOKKAA = "ei-luokkaa";
  * pidempi painallus - muuten harjoittelematon sormi avaisi sen vahingossa.
  */
 const PITKA_PAINALLUS_MS = 450;
+
+/** Kannan sallimat yksiköt samassa järjestyksessä kuin check-rajoite. */
+const YKSIKOT: Yksikko[] = ["lb", "kg", "g", "l", "ml", "kpl", "pkt"];
 
 function luku(arvo: string): number {
   const numero = Number(arvo.replace(",", "."));
@@ -132,7 +144,8 @@ export function KuitinLomake({
     toimittaja: string | null;
     paivays: string;
     maksupaiva: string | null;
-    loppusummaEur: number;
+    /** Loppusumma kuitin omassa valuutassa. Tätä lomake muokkaa. */
+    loppusummaValuutassa: number;
     muistiinpano: string | null;
     tila: "luonnos" | "tarkistettava" | "valmis";
     alvErittely: AlvErittelynRivi[] | null;
@@ -141,6 +154,13 @@ export function KuitinLomake({
     /** Kuitti- tai laskunumero. Ensisijainen kaksoiskappaletunniste. */
     tositenumero: string | null;
     tositetyyppi: "kuitti" | "lasku" | null;
+    /** Laskun valuutta. Lomakkeen summat ovat tässä valuutassa. */
+    valuutta: string;
+    /** Kannan laskema euromäärä. Vieraalla valuutalla johdettu, ei syötetty. */
+    loppusummaEur: number;
+    todellinenEur: number | null;
+    valuuttakurssi: number | null;
+    kurssinLahde: "pankki" | "kurssi" | "sama" | null;
   };
   rivit: RiviSyote[];
   luokat: { id: string; nimi: string }[];
@@ -163,7 +183,14 @@ export function KuitinLomake({
   const [tositetyyppi, setTositetyyppi] = useState<"kuitti" | "lasku" | "">(
     kuitti.tositetyyppi ?? ""
   );
-  const [loppusumma, setLoppusumma] = useState(String(kuitti.loppusummaEur));
+  const [loppusumma, setLoppusumma] = useState(String(kuitti.loppusummaValuutassa));
+  const [valuutta, setValuutta] = useState(kuitti.valuutta);
+  const [todellinenEur, setTodellinenEur] = useState(
+    kuitti.todellinenEur === null ? "" : String(kuitti.todellinenEur)
+  );
+  const [valuuttakurssi, setValuuttakurssi] = useState(
+    kuitti.valuuttakurssi === null ? "" : String(kuitti.valuuttakurssi)
+  );
   const [muistiinpano, setMuistiinpano] = useState(kuitti.muistiinpano ?? "");
   const [rivit, setRivit] = useState<RiviSyote[]>(alkuRivit);
   // Erittely tallennetaan vaikka yritys ei olisi ALV-rekisterissä: täsmäytys
@@ -306,6 +333,7 @@ export function KuitinLomake({
         // kirjoitettu arvo on luotettavampi kuin puuttuva.
         if (poiminta.tositenumero) setTositenumero(poiminta.tositenumero);
         if (poiminta.tositetyyppi) setTositetyyppi(poiminta.tositetyyppi);
+        if (poiminta.valuutta) setValuutta(poiminta.valuutta);
         if (poiminta.paivays) setPaivays(poiminta.paivays);
         setMaksupaiva(poiminta.maksupaiva ?? "");
         if (poiminta.loppusumma_eur !== null) setLoppusumma(String(poiminta.loppusumma_eur));
@@ -315,6 +343,7 @@ export function KuitinLomake({
             avain: `poimittu-${seuraavaAvain.current++}-${jarjestys}`,
             teksti: rivi.teksti,
             maara: rivi.maara,
+            yksikko: rivi.yksikko,
             bruttoEur: rivi.brutto_eur,
             verokanta: rivi.verokanta,
             kayttotarkoitus: null,
@@ -403,6 +432,12 @@ export function KuitinLomake({
   // Ajastin ei saa jäädä käymään kun näkymä suljetaan kesken painalluksen.
   useEffect(() => lopetaPainallus, []);
 
+  // Kuitin luvut ovat sen omassa valuutassa; euromäärä tulee kannasta.
+  const koodi = valuutta.trim().toUpperCase() || "EUR";
+  const vierasValuutta = koodi !== "EUR";
+  const summa = (arvo: number | null | undefined) => muotoileValuutta(arvo, koodi);
+  const euromaaraTiedossa = !vierasValuutta || kuitti.kurssinLahde !== null;
+
   const riviYhteenvedot = rivit.map((r) => ({
     brutto_eur: r.bruttoEur,
     verokanta: r.verokanta,
@@ -428,6 +463,7 @@ export function KuitinLomake({
         avain,
         teksti: "",
         maara: null,
+        yksikko: null,
         bruttoEur: 0,
         verokanta: null,
         kayttotarkoitus: null,
@@ -455,6 +491,9 @@ export function KuitinLomake({
           paivays,
           maksupaiva: maksupaiva || null,
           loppusummaEur: luku(loppusumma),
+          valuutta: valuutta.trim().toUpperCase() || "EUR",
+          todellinenEur: todellinenEur.trim() === "" ? null : luku(todellinenEur),
+          valuuttakurssi: valuuttakurssi.trim() === "" ? null : luku(valuuttakurssi),
           muistiinpano: muistiinpano.trim() || null,
           tila,
           alvErittely,
@@ -464,6 +503,7 @@ export function KuitinLomake({
         rivit.map((r) => ({
           teksti: r.teksti,
           maara: r.maara,
+          yksikko: r.yksikko,
           bruttoEur: r.bruttoEur,
           verokanta: r.verokanta,
           kayttotarkoitus: r.kayttotarkoitus,
@@ -535,10 +575,27 @@ export function KuitinLomake({
               </span>
             )}
             <span className="mt-1 text-3xl font-semibold tabular-nums">
-              {muotoileEuro(luku(loppusumma))}
+              {summa(luku(loppusumma))}
             </span>
+            {/* Vieraalla valuutalla euromäärä on eri luku kuin kuitilla lukeva:
+                se tulee pankin veloituksesta tai kurssista, ja sen puuttuminen
+                on kerrottava ääneen - muuten dollarisumma näyttäisi euroilta. */}
+            {vierasValuutta && (
+              <span
+                className={cn(
+                  "text-sm",
+                  euromaaraTiedossa ? "text-muted-foreground" : "text-warning"
+                )}
+              >
+                {euromaaraTiedossa
+                  ? `${muotoileEuro(kuitti.loppusummaEur)} · ${
+                      kuitti.kurssinLahde === "pankki" ? "pankin veloitus" : "laskettu kurssilla"
+                    }`
+                  : "Euromäärä vahvistamatta"}
+              </span>
+            )}
             <span className="text-sm text-muted-foreground">
-              kuluina {muotoileEuro(kuluina)}
+              kuluina {summa(kuluina)}
             </span>
           </button>
           <Button
@@ -570,7 +627,7 @@ export function KuitinLomake({
             )}
             {tasmays.tasmaa
               ? `Täsmää loppusummaan${alvTasmaa ? " ja alv-erittelyyn" : ""}`
-              : `Rivit ${muotoileEuro(tasmays.riviteYhteensa)} - ei täsmää loppusummaan`}
+              : `Rivit ${summa(tasmays.riviteYhteensa)} - ei täsmää loppusummaan`}
           </p>
         )}
 
@@ -640,7 +697,7 @@ export function KuitinLomake({
                     </span>
                   </span>
                   <span className="shrink-0 text-lg tabular-nums">
-                    {muotoileEuro(rivi.bruttoEur)}
+                    {summa(rivi.bruttoEur)}
                   </span>
                 </button>
 
@@ -761,13 +818,13 @@ export function KuitinLomake({
                   <TableRow key={erittely.verokanta}>
                     <TableCell>{String(erittely.verokanta).replace(".", ",")}&nbsp;%</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {muotoileEuro(erittely.veroton_eur)}
+                      {summa(erittely.veroton_eur)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {muotoileEuro(erittely.vero_eur)}
+                      {summa(erittely.vero_eur)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {muotoileEuro(erittely.verollinen_eur)}
+                      {summa(erittely.verollinen_eur)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -794,7 +851,7 @@ export function KuitinLomake({
         <CardContent className="grid gap-3">
           {!tasmays.tasmaa && rivit.length > 0 && (
             <p className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
-              Rivien summa ei täsmää loppusummaan ({muotoileEuro(tasmays.erotus)} ero). Kuitti
+              Rivien summa ei täsmää loppusummaan ({summa(tasmays.erotus)} ero). Kuitti
               tallentuu tarkistettavaksi. Jos kuva on epäselvä, kuvaa kuitti uudelleen ennen kuin
               korjaat rivit käsin.
             </p>
@@ -833,7 +890,7 @@ export function KuitinLomake({
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label htmlFor="loppusumma">Loppusumma €</Label>
+                <Label htmlFor="loppusumma">Loppusumma {koodi}</Label>
                 <Input
                   id="loppusumma"
                   type="number"
@@ -862,6 +919,56 @@ export function KuitinLomake({
                 onChange={(e) => setMaksupaiva(e.target.value)}
               />
             </div>
+            {/* Valuutta ratkaisee, mitä lomakkeen summat tarkoittavat. Vieraan
+                valuutan lasku kirjataan omassa valuutassaan, ja euromäärä
+                johdetaan siitä - ensisijaisesti tililtä luetusta veloituksesta,
+                joka sisältää pankin valuuttalisän. */}
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)]">
+              <div className="grid gap-2">
+                <Label htmlFor="valuutta">Valuutta</Label>
+                <Input
+                  id="valuutta"
+                  value={valuutta}
+                  maxLength={3}
+                  onChange={(e) => setValuutta(e.target.value.toUpperCase())}
+                  placeholder="EUR"
+                />
+              </div>
+              {vierasValuutta && (
+                <div className="grid gap-2">
+                  <Label htmlFor="todellinen_eur">Todellinen veloitus tililtä €</Label>
+                  <Input
+                    id="todellinen_eur"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={todellinenEur}
+                    onChange={(e) => setTodellinenEur(e.target.value)}
+                    placeholder="Näkyy tiliotteella"
+                  />
+                </div>
+              )}
+            </div>
+            {vierasValuutta && (
+              <div className="grid gap-2">
+                <Label htmlFor="valuuttakurssi">Valuuttakurssi (€ / {koodi})</Label>
+                <Input
+                  id="valuuttakurssi"
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={valuuttakurssi}
+                  onChange={(e) => setValuuttakurssi(e.target.value)}
+                  placeholder="Vain jos veloitus ei ole vielä tiedossa"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Todellinen veloitus voittaa kurssin: se sisältää pankin valuuttalisän. Ilman
+                  kumpaakaan euromäärää ei lasketa lainkaan - arvattu kurssi olisi väärä luku joka
+                  näyttäisi oikealta.
+                </p>
+              </div>
+            )}
+
             {/* Tositenumero on myyjän oma tunniste, ja siksi luotettavin tapa
                 tunnistaa sama kuitti kahdesti. Se on myös kirjanpitäjälle ja
                 reklamaatioissa hyödyllinen, joten se näkyy tiedoissa. */}
@@ -934,7 +1041,7 @@ export function KuitinLomake({
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="grid gap-2">
                   <Label htmlFor="rivi_maara">Määrä</Label>
                   <Input
@@ -949,8 +1056,30 @@ export function KuitinLomake({
                     }
                   />
                 </div>
+                {/* Määrä ilman yksikköä ei kerro onko "3" kolme kiloa vai
+                    kolme paunaa, eikä sitä voi käyttää varastotäydennykseen. */}
                 <div className="grid gap-2">
-                  <Label htmlFor="rivi_brutto">Hinta €</Label>
+                  <Label htmlFor="rivi_yksikko">Yksikkö</Label>
+                  <select
+                    id="rivi_yksikko"
+                    value={muokattava.yksikko ?? ""}
+                    onChange={(e) =>
+                      paivita(muokattava.avain, {
+                        yksikko: e.target.value === "" ? null : (e.target.value as Yksikko),
+                      })
+                    }
+                    className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm"
+                  >
+                    <option value="">-</option>
+                    {YKSIKOT.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="rivi_brutto">Hinta {koodi}</Label>
                   <Input
                     id="rivi_brutto"
                     type="number"

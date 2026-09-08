@@ -52,7 +52,7 @@ export const OLETUSASETUKSET: Vientiasetukset = {
 
 /** Yksi tarkistus ennen luovutusta, kantafunktion palauttamassa muodossa. */
 export interface Tarkistus {
-  avain: "luokiteltu" | "tasmays" | "kaksoiskappaleet" | "aukot";
+  avain: "luokiteltu" | "tasmays" | "kaksoiskappaleet" | "aukot" | "valuutta";
   nimi: string;
   ok: boolean;
   kuitit: { id: string; toimittaja: string | null; paivays: string; syy: string }[];

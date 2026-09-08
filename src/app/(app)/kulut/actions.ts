@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { opinAvain, type Kayttotarkoitus } from "@/lib/kulut";
-import type { AlvErittelynRivi } from "@/lib/supabase/database.types";
+import type { AlvErittelynRivi, Yksikko } from "@/lib/supabase/database.types";
 
 /**
  * Toiminnon lopputulos arvona eikä heitettynä virheenä: Next.js piilottaa
@@ -21,6 +21,12 @@ function virheteksti(virhe: unknown, oletus: string): string {
 export interface KuitinRiviSyote {
   teksti: string;
   maara: number | null;
+  /** Määrän yksikkö. Paljas luku ei kelpaa varastotäydennykseen. */
+  yksikko: Yksikko | null;
+  /**
+   * Rivin summa kuitin omassa valuutassa. EUR-kuitilla tämä on suoraan
+   * euroja; vieraalla valuutalla kanta johtaa euromäärän tästä.
+   */
   bruttoEur: number;
   verokanta: number | null;
   kayttotarkoitus: Kayttotarkoitus | null;
@@ -191,6 +197,12 @@ export async function tallennaKuitti(
     /** Kuitti- tai laskunumero. Kanta normalisoi vertailumuodon triggerillä. */
     tositenumero: string | null;
     tositetyyppi: "kuitti" | "lasku" | null;
+    /** Laskun valuutta ISO-koodina. */
+    valuutta: string;
+    /** Tililtä luettu todellinen euroveloitus. Ensisijainen euromäärän lähde. */
+    todellinenEur: number | null;
+    /** Euroa per yksikkö valuuttaa. Varajärjestelmä kun veloitusta ei tiedetä. */
+    valuuttakurssi: number | null;
   },
   rivit: KuitinRiviSyote[]
 ): Promise<KuittiTulos> {
@@ -198,13 +210,22 @@ export async function tallennaKuitti(
     await vaaditaanAdmin();
     const supabase = await createClient();
 
+    // Lomakkeen luvut ovat kuitin omassa valuutassa. EUR-kuitilla euromäärä on
+    // sama luku, joten se kirjoitetaan suoraan; vieraalla valuutalla kanta
+    // laskee sen todellisesta veloituksesta tai kurssista.
+    const euroina = kuitti.valuutta === "EUR";
+
     const { error: kuittiVirhe } = await supabase
       .from("kuitit")
       .update({
         toimittaja: kuitti.toimittaja,
         paivays: kuitti.paivays,
         maksupaiva: kuitti.maksupaiva,
-        loppusumma_eur: kuitti.loppusummaEur,
+        valuutta: kuitti.valuutta,
+        loppusumma_valuutassa: kuitti.loppusummaEur,
+        todellinen_eur: euroina ? null : kuitti.todellinenEur,
+        valuuttakurssi: euroina ? null : kuitti.valuuttakurssi,
+        ...(euroina ? { loppusumma_eur: kuitti.loppusummaEur } : {}),
         muistiinpano: kuitti.muistiinpano,
         tila: kuitti.tila,
         alv_erittely: kuitti.alvErittely,
@@ -227,6 +248,8 @@ export async function tallennaKuitti(
           kuitti_id: kuittiId,
           teksti: rivi.teksti.trim(),
           maara: rivi.maara,
+          yksikko: rivi.yksikko,
+          brutto_valuutassa: rivi.bruttoEur,
           brutto_eur: rivi.bruttoEur,
           verokanta: rivi.verokanta,
           kayttotarkoitus: rivi.kayttotarkoitus,
@@ -259,6 +282,15 @@ export async function tallennaKuitti(
           { onConflict: "teksti" }
         );
       }
+    }
+
+    // Rivit kirjoitettiin vasta nyt, joten euromäärät lasketaan tässä: kuitin
+    // oma trigger ei näe rivien muutoksia.
+    if (!euroina) {
+      const { error: valuuttaVirhe } = await supabase.rpc("paivita_kuitin_eurot", {
+        p_kuitti_id: kuittiId,
+      });
+      if (valuuttaVirhe) return { ok: false, virhe: valuuttaVirhe.message };
     }
 
     revalidatePath("/kulut");
