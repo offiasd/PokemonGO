@@ -47,6 +47,15 @@ export default async function VariSivu({
     .order("luotu", { ascending: false })
     .limit(3);
 
+  // Erähistoria vastaa kysymykseen "miksi tämän värin hinta nousi". Näkymä on
+  // adminille rajattu kannassa, joten muille kysely palauttaa tyhjän.
+  const { data: erahistoria } = await supabase
+    .from("varin_erahistoria")
+    .select("*")
+    .eq("vari_id", id)
+    .order("luotu", { ascending: false })
+    .limit(10);
+
   const naytaHinnat = kayttaja.role === "admin";
 
   const halytysraja = vari.halytysraja_g ?? asetukset.oletus_halytysraja_g;
@@ -124,6 +133,21 @@ export default async function VariSivu({
         <CardTitle>Hinnoittelu</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-2 text-sm sm:max-w-md">
+        {hinta.erahinnoiteltu ? (
+          <>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Varaston keskihinta</span>
+              <span className="font-medium">{muotoileEuro(hinta.kokonaishinta)}/kg</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Hinta tulee kirjatuista eristä ja sisältää rahdin ja tullit jo valmiiksi, joten
+              niitä ei lisätä prosenteilla päälle. Jokainen täydennys siirtää keskihintaa
+              määrällään painotettuna - se koskee vain tulevaa kulutusta, sillä tehtyjen töiden
+              maalikustannus on lukittu kulutushetkeensä.
+            </p>
+          </>
+        ) : (
+          <>
         <div className="flex justify-between gap-2">
           <span className="text-muted-foreground">Ostohinta myyjältä (netto)</span>
           <span>{muotoileEuro(hinta.ostohinta)}/kg</span>
@@ -165,6 +189,52 @@ export default async function VariSivu({
             " Tulli ja ALV lasketaan myös rahdista, koska rahti kuuluu tullausarvoon."}{" "}
           Kokonaishintaa käytetään kaikissa kustannus- ja hinta-arvioissa.
         </p>
+          </>
+        )}
+
+        {(erahistoria ?? []).length > 0 && (
+          <div className="mt-2 grid gap-2 border-t pt-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-medium">Erähistoria</span>
+              <Link href="/varit/erat" className="text-xs text-muted-foreground underline">
+                Kaikki erät
+              </Link>
+            </div>
+            {(erahistoria ?? []).map((era) => (
+              <div key={era.id} className="grid gap-0.5 border-t pt-2 first:border-t-0 first:pt-0">
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">
+                    {new Date(era.paivays).toLocaleDateString("fi-FI")}
+                    {era.toimittaja ? ` · ${era.toimittaja}` : ""}
+                    {era.tila === "kesken" && " · arvio"}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {muotoileGrammat(era.maara_g)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    Erän hinta{" "}
+                    {era.hankintahinta_per_kg === null
+                      ? "-"
+                      : `${muotoileEuro(era.hankintahinta_per_kg)}/kg`}
+                  </span>
+                  <span className="tabular-nums">
+                    Keskihinta{" "}
+                    {era.keskihinta_ennen_per_kg === null
+                      ? "-"
+                      : `${muotoileEuro(era.keskihinta_ennen_per_kg)}`}{" "}
+                    →{" "}
+                    {era.keskihinta_jalkeen_per_kg === null
+                      ? "-"
+                      : `${muotoileEuro(era.keskihinta_jalkeen_per_kg)}`}
+                    /kg
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

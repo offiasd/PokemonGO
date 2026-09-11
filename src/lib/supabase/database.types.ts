@@ -26,6 +26,46 @@ export type Alkupera = "EU" | "USA" | "muu";
  */
 export type Yksikko = "lb" | "kg" | "g" | "l" | "ml" | "kpl" | "pkt";
 
+/** Yksi rivi maalierää kirjattaessa: väri, määrä ja laskun tavarahinta. */
+export interface MaalieranRiviSyote {
+  vari_id: string;
+  maara_g: number;
+  tavara_eur: number;
+}
+
+/** Erän omat tiedot. Tulli ja ALV jätetään pois kun tullauspäätös puuttuu. */
+export interface MaalieranSyote {
+  toimittaja: string | null;
+  paivays: string;
+  rahti_eur: number;
+  tulli_eur?: number | null;
+  tuonti_alv_eur?: number | null;
+  kuitti_id?: string | null;
+  muistiinpano?: string | null;
+}
+
+/** Esikatselun rivi: mitä kilohinnaksi tulee ja miten keskihinta muuttuu. */
+export interface MaalieranEsikatselunRivi {
+  vari_id: string;
+  nimi: string;
+  valmistaja: string | null;
+  maara_g: number;
+  tavara_eur: number;
+  kulut_eur: number;
+  hankintahinta_per_kg: number | null;
+  saldo_ennen_g: number;
+  keskihinta_ennen_per_kg: number;
+  keskihinta_jalkeen_per_kg: number;
+}
+
+export interface MaalieranEsikatselu {
+  rivit: MaalieranEsikatselunRivi[];
+  tulli_eur: number;
+  tuonti_alv_eur: number;
+  /** Tullit on arvattu prosenteilla, ei luettu tullauspäätökseltä. */
+  tullit_arvioitu: boolean;
+}
+
 /** Varastosaldon muutoksen laji: lisätty erä vai manuaalinen oikaisu. */
 export type VarastomuutosTyyppi = "taydennys" | "korjaus";
 export type KayttajaRooli = "admin" | "maalaaja";
@@ -384,6 +424,12 @@ export interface Database {
           /** Värin oma täysiraja saldopalkkiin. Null = asetusten oletus. */
           taysiraja_g: number | null;
           varisavy: Varisavy | null;
+          /**
+           * Värillä on vähintään yksi hinnoiteltu erä, joten ostohinta_per_kg
+           * on varaston liukuva keskihinta ja sisältää rahdin ja tullit.
+           * Silloin niitä ei lisätä prosenteilla uudelleen.
+           */
+          hinta_erista: boolean;
           aktiivinen: boolean;
           created_at: string;
           updated_at: string;
@@ -534,6 +580,16 @@ export interface Database {
           /** Muutos grammoina. Korjaus voi olla negatiivinen, täydennys ei. */
           maara_g: number;
           tyyppi: VarastomuutosTyyppi;
+          /** Erä johon täydennys kuuluu. Null = käsin kirjattu tai korjaus. */
+          era_id: string | null;
+          /** Rivin tavarahinta laskulta, ilman rahtia ja tulleja. */
+          tavara_eur: number | null;
+          /** Tämän erän kilohinta kaikkine kuluineen. Ei muutu jälkikäteen. */
+          hankintahinta_per_kg: number | null;
+          /** Värin saldo ennen tätä täydennystä; keskihinnan painotus. */
+          saldo_ennen_g: number | null;
+          keskihinta_ennen_per_kg: number | null;
+          keskihinta_jalkeen_per_kg: number | null;
           kayttaja_id: string | null;
           luotu: string;
         };
@@ -551,6 +607,38 @@ export interface Database {
             referencedColumns: ["id"];
           },
         ];
+      };
+      /**
+       * Maalin ostoerä kuluineen. Rivit ovat varastotayennykset-taulussa:
+       * täydennys on samalla erän rivi, joten saldo ja hankintahinta pysyvät
+       * samassa tapahtumassa.
+       */
+      maalierat: {
+        Row: {
+          id: string;
+          /** Valinnainen: erän voi syöttää käsin ilman kuittia. */
+          kuitti_id: string | null;
+          toimittaja: string | null;
+          paivays: string;
+          /** Rivien tavarahintojen summa. Kanta laskee. */
+          tavara_eur: number;
+          /** Jaetaan riveille painon mukaan. */
+          rahti_eur: number;
+          /** Jaetaan arvon mukaan. Kesken olevassa erässä arvio. */
+          tulli_eur: number;
+          /** Jaetaan arvon mukaan. Kesken olevassa erässä arvio. */
+          tuonti_alv_eur: number;
+          /** kesken = tullauspäätös puuttuu ja hinta on arvio. */
+          tila: "kesken" | "valmis";
+          muistiinpano: string | null;
+          luotu: string;
+          luoja_id: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["maalierat"]["Row"]> & {
+          paivays: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["maalierat"]["Row"]>;
+        Relationships: EiSuhteita;
       };
       vari_kategoriat: {
         Row: {
@@ -875,6 +963,33 @@ export interface Database {
         Relationships: EiSuhteita;
       };
       /**
+       * Värin erätäydennykset hintoineen: milloin, paljonko, millä
+       * kilohinnalla ja mikä keskihinta siitä seurasi. Vain adminille -
+       * hintasarakkeet on peruttu itse taulusta, joten tämä on niiden ainoa
+       * lukutie sovelluksessa.
+       */
+      varin_erahistoria: {
+        Row: {
+          id: string;
+          vari_id: string;
+          era_id: string;
+          maara_g: number;
+          tavara_eur: number | null;
+          hankintahinta_per_kg: number | null;
+          saldo_ennen_g: number | null;
+          keskihinta_ennen_per_kg: number | null;
+          keskihinta_jalkeen_per_kg: number | null;
+          luotu: string;
+          toimittaja: string | null;
+          paivays: string;
+          tila: "kesken" | "valmis";
+          rahti_eur: number;
+          tulli_eur: number;
+          tuonti_alv_eur: number;
+        };
+        Relationships: EiSuhteita;
+      };
+      /**
        * Värit sovellukselle. Hintasarakkeet ovat NULL muulle kuin adminille,
        * joten sama kysely kelpaa molemmille rooleille - näytettävä hinta
        * ratkaistaan roolista, ei tästä.
@@ -1020,6 +1135,27 @@ export interface Database {
       paivita_kuitin_eurot: {
         Args: { p_kuitti_id: string };
         Returns: undefined;
+      };
+      /** Kirjaa maalierän riveineen ja päivittää värien keskihinnan. */
+      luo_maaliera: {
+        Args: { p_era: MaalieranSyote; p_rivit: MaalieranRiviSyote[] };
+        /** Uuden erän tunniste. */
+        Returns: string;
+      };
+      /** Tullauspäätöksen luvut kesken olleelle erälle. */
+      viimeistele_maaliera: {
+        Args: { p_era_id: string; p_tulli_eur: number; p_tuonti_alv_eur: number };
+        Returns: undefined;
+      };
+      /** Erän kilohinnat ja niistä seuraavat keskihinnat tallentamatta mitään. */
+      esikatsele_maaliera: {
+        Args: {
+          p_rivit: MaalieranRiviSyote[];
+          p_rahti_eur?: number;
+          p_tulli_eur?: number | null;
+          p_tuonti_alv_eur?: number | null;
+        };
+        Returns: MaalieranEsikatselu;
       };
       luo_kuittiera: {
         Args: { p_tiedostoja: number };

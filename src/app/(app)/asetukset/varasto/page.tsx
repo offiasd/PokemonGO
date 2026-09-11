@@ -18,7 +18,7 @@ export default async function VarastoSivu() {
     supabase
       .from("varit_nakyma")
       .select(
-        "saldo_g, ostohinta_per_kg, alkupera, tullimaksu_prosentti, alv_prosentti, toimituskulu_per_kg"
+        "saldo_g, ostohinta_per_kg, alkupera, tullimaksu_prosentti, alv_prosentti, toimituskulu_per_kg, hinta_erista"
       )
       .eq("aktiivinen", true),
   ]);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { PackagePlus, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { ilikeHakuehto } from "@/lib/supabase/hakuehto";
@@ -192,12 +192,22 @@ export default async function VaritSivu({
           <div className="mt-2 h-0.5 w-full bg-korostus" />
         </div>
         {kayttaja.role === "admin" && (
-          <Button asChild>
-            <Link href="/varit/uusi">
-              <Plus className="size-4" />
-              Lisää väri
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* Erä on ostotapahtuma eikä yksittäinen väri, joten se on oma
+                polkunsa: sieltä päivittyy usean värin keskihinta kerralla. */}
+            <Button asChild variant="outline">
+              <Link href="/varit/erat">
+                <PackagePlus className="size-4" />
+                Erät
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/varit/uusi">
+                <Plus className="size-4" />
+                Lisää väri
+              </Link>
+            </Button>
+          </div>
         )}
       </div>
 

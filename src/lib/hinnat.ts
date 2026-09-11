@@ -9,6 +9,14 @@ export interface VarinHintatiedot {
   tullimaksu_prosentti: number | null;
   alv_prosentti: number | null;
   toimituskulu_per_kg: number | null;
+  /**
+   * Värillä on hinnoiteltu erä, joten ostohinta on varaston liukuva
+   * keskihinta ja sisältää rahdin ja tullit jo valmiiksi.
+   *
+   * Kenttä on pakollinen tarkoituksella: unohtuessaan se laskisi kulut
+   * kahteen kertaan, ja se virhe ei näy luvusta päälle päin.
+   */
+  hinta_erista: boolean;
 }
 
 /**
@@ -36,6 +44,8 @@ export interface VarinHintaerittely {
   alv: number;
   /** Kokonaishinta €/kg. */
   kokonaishinta: number;
+  /** Hinta tulee eristä, jolloin erittelyä ei ole: kulut ovat jo luvussa. */
+  erahinnoiteltu: boolean;
 }
 
 /**
@@ -56,6 +66,23 @@ export function laskeVarinHintaerittely(
   const tullausarvo = ostohinta + toimituskulu;
   const pyorista = (arvo: number) => Math.round(arvo * 100) / 100;
 
+  // Erähinnoiteltu väri: keskihinta sisältää rahdin ja tullit jo valmiiksi,
+  // joten prosentteja ei sovelleta uudelleen. Erittely on tyhjä, koska
+  // todelliset kulut ovat erällä eikä niitä voi purkaa keskihinnasta.
+  if (vari.hinta_erista) {
+    return {
+      ostohinta,
+      toimituskulu: 0,
+      tullausarvo: ostohinta,
+      tullimaksuProsentti: 0,
+      alvProsentti: 0,
+      tulli: 0,
+      alv: 0,
+      kokonaishinta: pyorista(ostohinta),
+      erahinnoiteltu: true,
+    };
+  }
+
   if (vari.alkupera === "EU") {
     return {
       ostohinta,
@@ -66,6 +93,7 @@ export function laskeVarinHintaerittely(
       tulli: 0,
       alv: 0,
       kokonaishinta: pyorista(tullausarvo),
+      erahinnoiteltu: false,
     };
   }
 
@@ -83,6 +111,7 @@ export function laskeVarinHintaerittely(
     tulli: pyorista(tulli),
     alv: pyorista(alv),
     kokonaishinta: pyorista(tullausarvo + tulli + alv),
+    erahinnoiteltu: false,
   };
 }
 
