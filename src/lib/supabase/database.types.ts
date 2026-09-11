@@ -638,6 +638,14 @@ export interface Database {
           toinen_toteutunut_kulutus_g: number | null;
           kommentti: string | null;
           custom: boolean;
+          /** Päävärin €/kg lukitushetkellä. Taloustietoa: maalaaja ei saa lukea. */
+          vari_hinta_per_kg: number | null;
+          /** Pohjavärin tai lakan €/kg lukitushetkellä. Taloustietoa. */
+          toinen_vari_hinta_per_kg: number | null;
+          /** Rivin maalikustannus lukituilla hinnoilla. Taloustietoa. */
+          maalikustannus_eur: number | null;
+          /** Milloin hinta lukittiin. Taloustietoa. */
+          hinta_lukittu_at: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"]>;
@@ -718,6 +726,12 @@ export interface Database {
           /** Onko varaus jo purettu (työ valmistunut). */
           varaus_purettu: boolean;
           jarjestys: number;
+          /** Lisävärin €/kg lukitushetkellä. Taloustietoa: maalaaja ei saa lukea. */
+          vari_hinta_per_kg: number | null;
+          /** Lisävärin maalikustannus lukitulla hinnalla. Taloustietoa. */
+          maalikustannus_eur: number | null;
+          /** Milloin hinta lukittiin; null = yhä auki. Taloustietoa. */
+          hinta_lukittu_at: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["tyon_rivin_lisavarit"]["Row"]> & {
           rivi_id: string;
@@ -750,6 +764,12 @@ export interface Database {
           arvioitu_kulutus_g: number;
           toteutunut_kulutus_g: number | null;
           jarjestys: number;
+          /** Lisävärin €/kg lukitushetkellä. Taloustietoa: maalaaja ei saa lukea. */
+          vari_hinta_per_kg: number | null;
+          /** Lisävärin maalikustannus lukitulla hinnalla. Taloustietoa. */
+          maalikustannus_eur: number | null;
+          /** Milloin hinta lukittiin. Taloustietoa. */
+          hinta_lukittu_at: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["arkistoidut_rivin_lisavarit"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["arkistoidut_rivin_lisavarit"]["Row"]>;
@@ -786,6 +806,14 @@ export interface Database {
           kommentti: string | null;
           /** Kulutus ja hinta säädetty käsin, eivät seuraa kategorian oletuksia. */
           custom: boolean;
+          /** Päävärin €/kg lukitushetkellä. Taloustietoa: maalaaja ei saa lukea. */
+          vari_hinta_per_kg: number | null;
+          /** Pohjavärin tai lakan €/kg lukitushetkellä. Taloustietoa. */
+          toinen_vari_hinta_per_kg: number | null;
+          /** Rivin maalikustannus lukituilla hinnoilla. Taloustietoa. */
+          maalikustannus_eur: number | null;
+          /** Milloin hinta lukittiin; null = rivi on yhä auki. Taloustietoa. */
+          hinta_lukittu_at: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["tyon_rivit"]["Row"]> & {
           tyo_id: string;

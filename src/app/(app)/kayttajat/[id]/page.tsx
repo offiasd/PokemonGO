@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { muotoileEuro, TYON_TILAN_NIMI } from "@/lib/vakiot";
 import type { Database, ToinenVariRooli, TyonTila } from "@/lib/supabase/database.types";
+import { TYON_RIVI_SARAKKEET } from "@/lib/supabase/sarakkeet";
 
 import { Summat } from "../../tyot/summat";
 
@@ -59,7 +60,7 @@ export default async function KayttajanTyotSivu({
   const tyoIdt = tyot.map((t) => t.id);
   const [rivitVastaus, osatVastaus, varitVastaus] = await Promise.all([
     tyoIdt.length > 0
-      ? supabase.from("tyon_rivit").select("*").in("tyo_id", tyoIdt)
+      ? supabase.from("tyon_rivit").select(TYON_RIVI_SARAKKEET).in("tyo_id", tyoIdt)
       : Promise.resolve({ data: [] }),
     supabase.from("osat").select("id, nimi"),
     supabase.from("varit").select("id, nimi"),

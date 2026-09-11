@@ -18,15 +18,14 @@ import {
   muotoileKesto,
   odotusPaivat,
 } from "@/lib/vakiot";
-import type { Database, ToinenVariRooli, TyoVaihe } from "@/lib/supabase/database.types";
+import type { ToinenVariRooli, TyoVaihe } from "@/lib/supabase/database.types";
+import { TYON_RIVI_SARAKKEET, type TyonRivi } from "@/lib/supabase/sarakkeet";
 
 import { AloitaTyo } from "./aloita-tyo";
 import { MerkitseValmiiksi } from "./merkitse-valmiiksi";
 import { Summat } from "./summat";
 import { PeruTyo } from "./peru-tyo";
 import { ValmiinTyonToiminnot } from "./valmiin-tyon-toiminnot";
-
-type TyonRiviRow = Database["public"]["Tables"]["tyon_rivit"]["Row"];
 
 const ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
   pohjavari: "Pohjaväri",
@@ -49,8 +48,8 @@ export default async function TyotSivu() {
 
   const [rivitVastaus, osatVastaus, varitVastaus, tyovaiheetVastaus] = await Promise.all([
     tyoIdt.length > 0
-      ? supabase.from("tyon_rivit").select("*").in("tyo_id", tyoIdt)
-      : Promise.resolve({ data: [] as TyonRiviRow[] }),
+      ? supabase.from("tyon_rivit").select(TYON_RIVI_SARAKKEET).in("tyo_id", tyoIdt)
+      : Promise.resolve({ data: [] as TyonRivi[] }),
     supabase.from("osat").select("id, nimi, ajoneuvotyyppi"),
     supabase.from("varit").select("id, nimi"),
     supabase
@@ -86,7 +85,7 @@ export default async function TyotSivu() {
       vaihe: TyoVaihe;
       arvioitu_kesto_min: number;
     }[];
-  const rivinTyoaikaMin = (rivi: TyonRiviRow) =>
+  const rivinTyoaikaMin = (rivi: TyonRivi) =>
     laskeTyoaikaMin(osanVaiheet(rivi.osa_id), rivi.toinen_vari_id ? 2 : 1) * rivi.kappalemaara;
 
   const profiiliNimi = (id: string | null) =>
@@ -170,7 +169,7 @@ export default async function TyotSivu() {
   const saaKasitella = (tyo: { tila: string; aloitti_id: string | null }) =>
     onAdmin || (tyo.tila === "vaiheessa" && tyo.aloitti_id === kayttaja.id);
 
-  function riviteksti(rivi: TyonRiviRow) {
+  function riviteksti(rivi: TyonRivi) {
     let teksti = `${rivinNimi(rivi)} - ${variNimi(rivi.vari_id)}`;
     if (rivi.toinen_vari_id && rivi.toinen_vari_rooli) {
       teksti += ` + ${ROOLIN_NIMI[rivi.toinen_vari_rooli]}: ${variNimi(rivi.toinen_vari_id)}`;
