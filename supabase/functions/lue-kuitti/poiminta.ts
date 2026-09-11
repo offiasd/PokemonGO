@@ -205,7 +205,8 @@ export function numeroksi(arvo: unknown): number | null {
   if (typeof arvo === "number") return Number.isFinite(arvo) ? arvo : null;
   if (typeof arvo !== "string") return null;
 
-  let teksti = arvo.replace(/[\s €%]/g, "").trim();
+  // \s kattaa myös sitovan välin, jota kuiteissa käytetään tuhaterottimena.
+  let teksti = arvo.replace(/[\s€%]/g, "").trim();
   if (!teksti) return null;
 
   // Kuiteissa miinus on toisinaan luvun perässä ("12,00-").
@@ -481,7 +482,7 @@ function summana(luku: number, valuutta: string | null): string {
   // valuuttaa. Valuutta on kuitin oma: euromerkki USD-laskun perässä olisi
   // juuri se virhe jota vastaan valuutta ylipäätään tallennetaan.
   const merkki = valuutta === null || valuutta === "EUR" ? "€" : valuutta;
-  return `${luku.toFixed(2).replace(".", ",")} ${merkki}`;
+  return `${luku.toFixed(2).replace(".", ",")}\u00a0${merkki}`;
 }
 
 /**
