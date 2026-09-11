@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { muotoileEuro, peruutuksenSyynNimi, TOINEN_VARI_ROOLIN_NIMI } from "@/lib/vakiot";
+import { ARKISTOIDUN_RIVIN_SARAKKEET } from "@/lib/supabase/sarakkeet";
 
 import { Summat } from "../summat";
 
@@ -47,7 +48,7 @@ export default async function TyonHistoriaSivu() {
     await Promise.all([
       supabase.from("tyon_peruutukset").select("*").order("peruttu", { ascending: false }),
       supabase.from("arkistoidut_tyot").select("*").order("valmistunut", { ascending: false }),
-      supabase.from("arkistoidut_tyon_rivit").select("*"),
+      supabase.from("arkistoidut_tyon_rivit").select(ARKISTOIDUN_RIVIN_SARAKKEET),
       supabase.from("profiles").select("id, full_name"),
       supabase.from("osat").select("id, nimi"),
       supabase.from("varit").select("id, nimi"),

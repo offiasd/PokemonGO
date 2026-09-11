@@ -6,6 +6,7 @@ import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { osanKateprosentit } from "@/lib/hinnat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
+import { TYON_RIVI_SARAKKEET } from "@/lib/supabase/sarakkeet";
 
 import { laskeTyokustannusKerroksittain } from "../../../osat/kustannusarvio";
 import { TyonLomake, type KoriRivi } from "../../tyon-lomake";
@@ -43,7 +44,7 @@ export default async function MuokkaaTyotaSivu({
     tyovaiheetVastaus,
     tuntiveloitusVastaus,
   ] = await Promise.all([
-    supabase.from("tyon_rivit").select("*").eq("tyo_id", id),
+    supabase.from("tyon_rivit").select(TYON_RIVI_SARAKKEET).eq("tyo_id", id),
     supabase
       .from("osat")
       .select(

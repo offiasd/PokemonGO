@@ -12,6 +12,7 @@ import { JAKSOT, OLETUSJAKSO, jaksonAlku, jaksonNimi } from "@/lib/jaksot";
 import { JaksoValinta } from "./jakso-valinta";
 import { laskeTyoaikaMin, muotoileKesto, muotoileKilot } from "@/lib/vakiot";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
+import { TYON_RIVI_SARAKKEET } from "@/lib/supabase/sarakkeet";
 
 import { AloitaTyo } from "./tyot/aloita-tyo";
 
@@ -80,7 +81,7 @@ export async function MaalaajanEtusivu({
 
   const tyoIdt = tyot.map((t) => t.id);
   const { data: rivitData } = tyoIdt.length
-    ? await supabase.from("tyon_rivit").select("*").in("tyo_id", tyoIdt)
+    ? await supabase.from("tyon_rivit").select(TYON_RIVI_SARAKKEET).in("tyo_id", tyoIdt)
     : { data: [] };
   const rivit = rivitData ?? [];
 
