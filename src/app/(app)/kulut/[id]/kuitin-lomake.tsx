@@ -55,7 +55,7 @@ import { createClient } from "@/lib/supabase/client";
 import { lataaKuitinTiedosto } from "@/lib/kuvanpakkaus";
 import type { AlvErittelynRivi, Yksikko } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
-import { muotoileEuro, muotoileValuutta } from "@/lib/vakiot";
+import { muotoileEuro, muotoileMaara, muotoileValuutta, VALUUTAT } from "@/lib/vakiot";
 import {
   ehdotaLuokittelu,
   kayttotarkoituksenNimi,
@@ -74,6 +74,12 @@ interface RiviSyote {
   yksikko: Yksikko | null;
   /** Rivin summa kuitin omassa valuutassa. EUR-kuitilla suoraan euroja. */
   bruttoEur: number;
+  /**
+   * Kannan laskema euromäärä. Null kun sitä ei ole vielä laskettu tai kun
+   * riviä on muokattu: vanha euroluku muokatun valuuttasumman rinnalla
+   * näyttäisi oikealta olematta sitä.
+   */
+  bruttoEurLaskettu: number | null;
   verokanta: number | null;
   kayttotarkoitus: Kayttotarkoitus | null;
   kululuokkaId: string | null;
@@ -91,12 +97,13 @@ interface PoimittuKuitti {
   valuutta: string | null;
   paivays: string | null;
   maksupaiva: string | null;
-  loppusumma_eur: number | null;
+  /** Loppusumma laskun omassa valuutassa. Euromäärän laskee kanta. */
+  loppusumma_valuutassa: number | null;
   rivit: {
     teksti: string;
     maara: number | null;
     yksikko: Yksikko | null;
-    brutto_eur: number;
+    brutto_valuutassa: number;
     verokanta: number | null;
   }[];
   alv_erittely: AlvErittelynRivi[];
@@ -219,7 +226,22 @@ export function KuitinLomake({
   );
 
   const paivita = (avain: string, muutos: Partial<RiviSyote>) =>
-    setRivit((vanhat) => vanhat.map((r) => (r.avain === avain ? { ...r, ...muutos } : r)));
+    setRivit((vanhat) =>
+      vanhat.map((r) =>
+        r.avain === avain
+          ? {
+              ...r,
+              ...muutos,
+              // Valuuttasumman muutos vanhentaa kannan laskeman euromäärän:
+              // uusi luku saadaan vasta tallennuksesta.
+              bruttoEurLaskettu:
+                muutos.bruttoEur !== undefined && muutos.bruttoEur !== r.bruttoEur
+                  ? null
+                  : r.bruttoEurLaskettu,
+            }
+          : r
+      )
+    );
 
   /**
    * Rivin tekstin perusteella päätelty luokittelu.
@@ -336,7 +358,8 @@ export function KuitinLomake({
         if (poiminta.valuutta) setValuutta(poiminta.valuutta);
         if (poiminta.paivays) setPaivays(poiminta.paivays);
         setMaksupaiva(poiminta.maksupaiva ?? "");
-        if (poiminta.loppusumma_eur !== null) setLoppusumma(String(poiminta.loppusumma_eur));
+        if (poiminta.loppusumma_valuutassa !== null)
+          setLoppusumma(String(poiminta.loppusumma_valuutassa));
         setAlvErittely(poiminta.alv_erittely.length > 0 ? poiminta.alv_erittely : null);
         setRivit(
           poiminta.rivit.map((rivi, jarjestys) => ({
@@ -344,7 +367,8 @@ export function KuitinLomake({
             teksti: rivi.teksti,
             maara: rivi.maara,
             yksikko: rivi.yksikko,
-            bruttoEur: rivi.brutto_eur,
+            bruttoEur: rivi.brutto_valuutassa,
+            bruttoEurLaskettu: null,
             verokanta: rivi.verokanta,
             kayttotarkoitus: null,
             kululuokkaId: null,
@@ -437,6 +461,24 @@ export function KuitinLomake({
   const vierasValuutta = koodi !== "EUR";
   const summa = (arvo: number | null | undefined) => muotoileValuutta(arvo, koodi);
   const euromaaraTiedossa = !vierasValuutta || kuitti.kurssinLahde !== null;
+  // Kuitilla jo oleva muu koodi pidetään listalla: poiminta lukee minkä
+  // tahansa ISO-koodin, eikä valikko saa pudottaa sitä pois.
+  const valuuttavaihtoehdot: string[] = VALUUTAT.includes(koodi as (typeof VALUUTAT)[number])
+    ? [...VALUUTAT]
+    : [...VALUUTAT, koodi];
+  // Toteutunut kurssi lasketaan tallennetuista luvuista eikä syötekentästä:
+  // se kertoo mitä kuitille oikeasti tehtiin, pankkilisä mukaan luettuna.
+  const toteutunutKurssi =
+    euromaaraTiedossa && vierasValuutta && kuitti.loppusummaValuutassa > 0
+      ? kuitti.loppusummaEur / kuitti.loppusummaValuutassa
+      : null;
+  const kurssiTeksti =
+    toteutunutKurssi === null
+      ? null
+      : `${toteutunutKurssi.toLocaleString("fi-FI", {
+          minimumFractionDigits: 4,
+          maximumFractionDigits: 4,
+        })} € / ${koodi}`;
 
   const riviYhteenvedot = rivit.map((r) => ({
     brutto_eur: r.bruttoEur,
@@ -465,6 +507,7 @@ export function KuitinLomake({
         maara: null,
         yksikko: null,
         bruttoEur: 0,
+        bruttoEurLaskettu: null,
         verokanta: null,
         kayttotarkoitus: null,
         kululuokkaId: null,
@@ -559,8 +602,17 @@ export function KuitinLomake({
             onClick={() => setTiedotAuki(true)}
             className="grid min-w-0 flex-1 gap-0.5 text-left"
           >
-            <span className="truncate text-lg font-semibold">
-              {toimittaja.trim() || "Toimittaja puuttuu"}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-lg font-semibold">
+                {toimittaja.trim() || "Toimittaja puuttuu"}
+              </span>
+              {/* Valuuttamerkintä on nimen vieressä eikä lukujen seassa:
+                  sen pitää näkyä ennen kuin summaa ehtii lukea euroina. */}
+              {vierasValuutta && (
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium tracking-wide text-muted-foreground">
+                  {koodi}
+                </span>
+              )}
             </span>
             <span className="text-sm text-muted-foreground">
               {new Date(paivays).toLocaleDateString("fi-FI")} · {rivit.length}{" "}
@@ -589,9 +641,9 @@ export function KuitinLomake({
               >
                 {euromaaraTiedossa
                   ? `${muotoileEuro(kuitti.loppusummaEur)} · ${
-                      kuitti.kurssinLahde === "pankki" ? "pankin veloitus" : "laskettu kurssilla"
-                    }`
-                  : "Euromäärä vahvistamatta"}
+                      kuitti.kurssinLahde === "pankki" ? "pankin veloitus" : "laskettu kurssi"
+                    }${kurssiTeksti ? ` · ${kurssiTeksti}` : ""}`
+                  : "Euromäärä puuttuu"}
               </span>
             )}
             <span className="text-sm text-muted-foreground">
@@ -608,6 +660,30 @@ export function KuitinLomake({
             <Pencil className="size-4" />
           </Button>
         </div>
+
+        {/* Vieraan valuutan kuitilla euromäärä on oma tilansa: ilman sitä
+            kuitti ei kelpaa kirjanpitoon, vaikka rivit täsmäisivät. */}
+        {vierasValuutta && (
+          <p
+            className={cn(
+              "flex items-center gap-2 px-5 py-3 text-sm",
+              euromaaraTiedossa
+                ? "bg-tila-vihrea-pinta text-tila-vihrea-teksti"
+                : "bg-tila-keltainen-pinta text-tila-keltainen-teksti"
+            )}
+          >
+            {euromaaraTiedossa ? (
+              <CheckCircle2 className="size-4 shrink-0" />
+            ) : (
+              <AlertTriangle className="size-4 shrink-0" />
+            )}
+            {euromaaraTiedossa
+              ? `Valmis · euromäärä ${
+                  kuitti.kurssinLahde === "pankki" ? "pankilta" : "kurssista"
+                }`
+              : "Tarkistettava · valuuttamuunnos puuttuu"}
+          </p>
+        )}
 
         {/* Täsmäytys on kuitin tärkein tieto, joten se on omalla palkillaan
             eikä pikkutekstinä muiden lukujen seassa. */}
@@ -647,6 +723,9 @@ export function KuitinLomake({
           {rivit.map((rivi, jarjestys) => {
             const yksityinen = rivi.kayttotarkoitus === "yksityisotto";
             const selite = [
+              // Määrä yksikköineen on rivin tunnistetieto siinä missä
+              // luokittelukin: "3" ilman yksikköä ei kerro mitään.
+              muotoileMaara(rivi.maara, rivi.yksikko),
               rivi.kayttotarkoitus
                 ? kayttotarkoituksenNimi(rivi.kayttotarkoitus)
                 : "Luokittelematta",
@@ -696,8 +775,22 @@ export function KuitinLomake({
                       {selite}
                     </span>
                   </span>
-                  <span className="shrink-0 text-lg tabular-nums">
-                    {summa(rivi.bruttoEur)}
+                  {/* Kaksi lukua vieraalla valuutalla: kuitilla lukeva summa
+                      ja siitä johdettu euromäärä. Puuttuva euromäärä on viiva
+                      eikä nolla - väärä luku on pahempi kuin puuttuva. */}
+                  <span className="grid shrink-0 justify-items-end">
+                    {vierasValuutta && (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {summa(rivi.bruttoEur)}
+                      </span>
+                    )}
+                    <span className="text-lg tabular-nums">
+                      {!vierasValuutta
+                        ? summa(rivi.bruttoEur)
+                        : rivi.bruttoEurLaskettu === null
+                          ? "-"
+                          : muotoileEuro(rivi.bruttoEurLaskettu)}
+                    </span>
                   </span>
                 </button>
 
@@ -926,17 +1019,24 @@ export function KuitinLomake({
             <div className="grid gap-4 sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)]">
               <div className="grid gap-2">
                 <Label htmlFor="valuutta">Valuutta</Label>
-                <Input
-                  id="valuutta"
-                  value={valuutta}
-                  maxLength={3}
-                  onChange={(e) => setValuutta(e.target.value.toUpperCase())}
-                  placeholder="EUR"
-                />
+                {/* Valikko eikä vapaa teksti: kirjoitusvirhe valuuttakoodissa
+                    ohjaisi muunnoksen väärään suuntaan hiljaa. */}
+                <Select value={koodi} onValueChange={setValuutta}>
+                  <SelectTrigger id="valuutta" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {valuuttavaihtoehdot.map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {v}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {vierasValuutta && (
                 <div className="grid gap-2">
-                  <Label htmlFor="todellinen_eur">Todellinen veloitus tililtä €</Label>
+                  <Label htmlFor="todellinen_eur">Todellinen veloitus tililtä (€)</Label>
                   <Input
                     id="todellinen_eur"
                     type="number"
@@ -946,6 +1046,9 @@ export function KuitinLomake({
                     onChange={(e) => setTodellinenEur(e.target.value)}
                     placeholder="Näkyy tiliotteella"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Sisältää pankin valuuttalisän. Voittaa lasketun kurssin.
+                  </p>
                 </div>
               )}
             </div>
@@ -962,9 +1065,9 @@ export function KuitinLomake({
                   placeholder="Vain jos veloitus ei ole vielä tiedossa"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Todellinen veloitus voittaa kurssin: se sisältää pankin valuuttalisän. Ilman
-                  kumpaakaan euromäärää ei lasketa lainkaan - arvattu kurssi olisi väärä luku joka
-                  näyttäisi oikealta.
+                  Toissijainen: käytetään vain kun veloitus ei vielä näy tilillä. Ilman kumpaakaan
+                  euromäärää ei lasketa lainkaan - arvattu kurssi olisi väärä luku joka näyttäisi
+                  oikealta.
                 </p>
               </div>
             )}

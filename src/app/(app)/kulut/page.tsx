@@ -7,7 +7,7 @@ import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { muotoileEuro, KUUKAUDEN_NIMI } from "@/lib/vakiot";
+import { euromaaraPuuttuu, muotoileEuro, KUUKAUDEN_NIMI } from "@/lib/vakiot";
 import {
   kuluinaYhteensa,
   laskePienhankinnat,
@@ -57,7 +57,7 @@ export default async function KulutSivu({
     // eikä valitusta kuukaudesta.
     supabase
       .from("kuitit")
-      .select("id, mitatoity_at")
+      .select("id, mitatoity_at, valuutta, kurssin_lahde")
       .gte("paivays", `${vuosi}-01-01`)
       .lt("paivays", `${vuosi + 1}-01-01`),
     supabase.from("kululuokat").select("id, nimi").eq("aktiivinen", true).order("jarjestys"),
@@ -66,14 +66,23 @@ export default async function KulutSivu({
   const kuititIlmanRiveja = kuititVastaus.data ?? [];
   // Mitätöity kuitti näkyy listassa mutta ei summissa: se on jo luovutettu ja
   // korjattu, joten sen rivit eivät kuulu kuluihin.
-  const vuodenIdt = (vuodenKuititVastaus.data ?? []).map((k) => k.id);
-  const voimassaolevatIdt = new Set(
-    (vuodenKuititVastaus.data ?? []).filter((k) => k.mitatoity_at === null).map((k) => k.id)
+  //
+  // Sama koskee vieraan valuutan kuittia, jonka euromäärää ei ole vahvistettu:
+  // sen euroluku on nolla, ja nolla summassa näyttäisi siltä että kuitti on
+  // huomioitu. Puuttuva kerrotaan erikseen, ei piiloteta summaan.
+  const vuodenKuitit = vuodenKuititVastaus.data ?? [];
+  const vuodenIdt = vuodenKuitit.map((k) => k.id);
+  const summiinIdt = new Set(
+    vuodenKuitit
+      .filter((k) => k.mitatoity_at === null && !euromaaraPuuttuu(k.valuutta, k.kurssin_lahde))
+      .map((k) => k.id)
   );
   const { data: vuodenRivit } = vuodenIdt.length
     ? await supabase
         .from("kuitin_rivit")
-        .select("kuitti_id, teksti, brutto_eur, verokanta, kayttotarkoitus, kululuokka_id, jarjestys")
+        .select(
+          "kuitti_id, teksti, brutto_eur, brutto_valuutassa, verokanta, kayttotarkoitus, kululuokka_id, jarjestys"
+        )
         .in("kuitti_id", vuodenIdt)
     : { data: [] };
 
@@ -102,36 +111,47 @@ export default async function KulutSivu({
   // Kaksi lukua: kirjanpidon kannalta merkitsevä on kuluina, mutta yhteensä
   // tarvitaan täsmäytykseen. Ero on yksityisottoja ja luokittelemattomia.
   const kaikkiRivit = (vuodenRivit ?? []).filter(
-    (r) => kuukaudenIdt.has(r.kuitti_id) && voimassaolevatIdt.has(r.kuitti_id)
+    (r) => kuukaudenIdt.has(r.kuitti_id) && summiinIdt.has(r.kuitti_id)
   );
   const kuluina = kuluinaYhteensa(kaikkiRivit);
   const yhteensa = riviteYhteensa(kaikkiRivit);
 
   const pienhankinnat = laskePienhankinnat(
-    (vuodenRivit ?? []).filter((r) => voimassaolevatIdt.has(r.kuitti_id))
+    (vuodenRivit ?? []).filter((r) => summiinIdt.has(r.kuitti_id))
   );
 
   // Puutteen syy kerrotaan rivillä eikä omassa laatikossaan: lista pysyy
   // aikajärjestyksessä, eikä sama kuitti näy kahdessa paikassa.
   const listalle: KuittiListalla[] = kuitit.map((kuitti) => {
     const luokittelematta = kuitti.kuitin_rivit.filter((r) => !r.kayttotarkoitus).length;
-    const tasmays = tarkistaTasmays(kuitti.loppusumma_eur, kuitti.kuitin_rivit);
+    // Täsmäytys tehdään kuitin omassa valuutassa: euromäärä voi vielä puuttua,
+    // mutta rivien pitää silti summautua kuitilla lukevaan loppusummaan.
+    const tasmays = tarkistaTasmays(
+      kuitti.loppusumma_valuutassa ?? kuitti.loppusumma_eur,
+      kuitti.kuitin_rivit.map((r) => ({ ...r, brutto_eur: r.brutto_valuutassa ?? r.brutto_eur }))
+    );
+    const puuttuu = euromaaraPuuttuu(kuitti.valuutta, kuitti.kurssin_lahde);
     // Mitätöityä ei enää tarvitse korjata: sen puutteet ovat historiaa.
     const puute =
       kuitti.mitatoity_at !== null
         ? null
-        : kuitti.kuitin_rivit.length === 0
-          ? "Ei rivejä"
-          : luokittelematta > 0
-            ? "Luokittelematta"
-            : !tasmays.tasmaa
-              ? "Ei täsmää loppusummaan"
-              : null;
+        : puuttuu
+          ? "Euromäärä puuttuu"
+          : kuitti.kuitin_rivit.length === 0
+            ? "Ei rivejä"
+            : luokittelematta > 0
+              ? "Luokittelematta"
+              : !tasmays.tasmaa
+                ? "Ei täsmää loppusummaan"
+                : null;
     return {
       id: kuitti.id,
       toimittaja: kuitti.toimittaja,
       paivays: kuitti.paivays,
       loppusummaEur: kuitti.loppusumma_eur,
+      valuutta: kuitti.valuutta,
+      loppusummaValuutassa: kuitti.loppusumma_valuutassa ?? kuitti.loppusumma_eur,
+      kurssinLahde: kuitti.kurssin_lahde,
       kuluinaEur: kuluinaYhteensa(kuitti.kuitin_rivit),
       onPdf: kuitti.tiedosto_tyyppi === "application/pdf",
       puute,
@@ -140,6 +160,9 @@ export default async function KulutSivu({
     };
   });
   const puutteellisia = listalle.filter((k) => k.puute !== null).length;
+  const vahvistamattomia = listalle.filter(
+    (k) => !k.mitatoity && euromaaraPuuttuu(k.valuutta, k.kurssinLahde)
+  ).length;
   const mitatoityja = listalle.filter((k) => k.mitatoity).length;
   const voimassaolevia = listalle.length - mitatoityja;
 
@@ -181,6 +204,17 @@ export default async function KulutSivu({
             <p className="flex items-center gap-2 rounded-lg bg-tila-keltainen-pinta px-4 py-3 text-sm text-tila-keltainen-teksti">
               <AlertTriangle className="size-4 shrink-0" />
               {puutteellisia} {puutteellisia === 1 ? "kuitti" : "kuittia"} vaatii huomiota
+            </p>
+          )}
+
+          {/* Puuttuva euromäärä kerrotaan omalla lauseellaan: kuukauden summa
+              on muuten oikea luku väärästä joukosta, eikä lukija tiedä sitä. */}
+          {vahvistamattomia > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {vahvistamattomia === 1
+                ? "Yksi vieraan valuutan kuitti ei ole summissa mukana"
+                : `${vahvistamattomia} vieraan valuutan kuittia ei ole summissa mukana`}
+              : euromäärä on vahvistamatta. Syötä tililtä luettu veloitus kuitin tietoihin.
             </p>
           )}
         </CardContent>

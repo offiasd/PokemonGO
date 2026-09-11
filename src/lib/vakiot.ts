@@ -9,6 +9,7 @@ import type {
   TyonTila,
   VariTyyppi,
   Varisavy,
+  Yksikko,
 } from "@/lib/supabase/database.types";
 
 export const TYO_VAIHEET: { arvo: TyoVaihe; nimi: string }[] = [
@@ -179,6 +180,72 @@ export function muotoileValuutta(
   } catch {
     return `${arvo.toLocaleString("fi-FI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${koodi}`;
   }
+}
+
+/**
+ * Onko kuitin euromäärä vielä vahvistamatta.
+ *
+ * Vieraan valuutan kuitti saa euromääränsä vasta kun tililtä luettu veloitus
+ * tai kurssi on syötetty. Siihen asti kannan euroluku on nolla: paikanpitäjä,
+ * ei summa. Sääntö on yhdessä paikassa, jotta listat, summat ja tarkistukset
+ * pitävät samaa kuittia puutteellisena.
+ */
+export function euromaaraPuuttuu(
+  valuutta: string | null | undefined,
+  kurssinLahde: string | null | undefined
+): boolean {
+  return (valuutta ?? "EUR").toUpperCase() !== "EUR" && !kurssinLahde;
+}
+
+/**
+ * Kuitin summa lukijalle.
+ *
+ * Euro kun se on tiedossa, muuten kuitilla lukeva summa omassa valuutassaan:
+ * "0,00 €" näyttäisi tyhjältä kuitilta.
+ */
+export function muotoileKuitinSumma(kuitti: {
+  loppusummaEur: number;
+  valuutta: string | null | undefined;
+  loppusummaValuutassa: number | null | undefined;
+  kurssinLahde: string | null | undefined;
+}): string {
+  if (!euromaaraPuuttuu(kuitti.valuutta, kuitti.kurssinLahde)) {
+    return muotoileEuro(kuitti.loppusummaEur);
+  }
+  return muotoileValuutta(kuitti.loppusummaValuutassa ?? 0, kuitti.valuutta ?? "EUR");
+}
+
+/**
+ * Valuutat, joita kuitilla voi valita.
+ *
+ * Lyhyt lista tarkoituksella: nämä ovat ne joissa laskuja oikeasti tulee, ja
+ * pitkä valikko tekisi väärän valinnan yhtä helpoksi kuin oikean. Kuitilla jo
+ * oleva muu koodi säilyy - poiminta osaa lukea minkä tahansa ISO-koodin.
+ */
+export const VALUUTAT = ["EUR", "USD", "SEK", "NOK", "GBP"] as const;
+
+/** Kansainvälinen pauna grammoina. Sama luku kaikkialla, ei likiarvo. */
+export const PAUNA_GRAMMOINA = 453.59237;
+
+/**
+ * Rivin määrä yksikköineen: "3 lb · 1361 g".
+ *
+ * Grammamuunnos näytetään paunoista, koska maalia ostetaan Yhdysvalloista
+ * paunoina mutta varastossa se on grammoja. Muunnos on lukijaa varten, ei
+ * tallennettava arvo: kuitilla lukee edelleen pauna.
+ */
+export function muotoileMaara(
+  maara: number | null | undefined,
+  yksikko: Yksikko | null | undefined
+): string | null {
+  if (maara === null || maara === undefined) return null;
+  const luku = maara.toLocaleString("fi-FI", { maximumFractionDigits: 3 });
+  if (!yksikko) return luku;
+  const osat = [`${luku} ${yksikko}`];
+  if (yksikko === "lb") {
+    osat.push(`${Math.round(maara * PAUNA_GRAMMOINA).toLocaleString("fi-FI")} g`);
+  }
+  return osat.join(" · ");
 }
 
 /**

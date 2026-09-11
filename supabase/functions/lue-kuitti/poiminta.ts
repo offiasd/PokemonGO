@@ -15,11 +15,10 @@ export interface PoimittuRivi {
   /** Määrän yksikkö kuitilta, esim. "lb". Null jos kuitissa ei lue sitä. */
   yksikko: string | null;
   /**
-   * Rivin loppuhinta kuitin omassa valuutassa. Nimi on historiallinen: EUR on
-   * yleisin tapaus, mutta USD-laskulla tämä on dollareita ja euromäärä
-   * johdetaan kannassa (ks. paivita_kuitin_eurot).
+   * Rivin loppuhinta kuitin omassa valuutassa. Euromäärä johdetaan tästä
+   * kannassa (ks. paivita_kuitin_eurot) - poiminta ei laske sitä.
    */
-  brutto_eur: number;
+  brutto_valuutassa: number;
   /** Luettu kuitista. Null jos kuitissa ei lue rivin kantaa. */
   verokanta: number | null;
 }
@@ -50,7 +49,7 @@ export interface KuittiPoiminta {
   paivays: string | null;
   /** Vain jos eri kuin laskupäivä. */
   maksupaiva: string | null;
-  loppusumma_eur: number | null;
+  loppusumma_valuutassa: number | null;
   rivit: PoimittuRivi[];
   alv_erittely: AlvErittelynRivi[];
 }
@@ -62,15 +61,16 @@ export interface KuittiPoiminta {
  * verokanta luetaan kuitista eikä päätellä tuotteesta, rivin teksti jätetään
  * sellaisenaan, ja monisivuinen tiedosto luetaan loppuun asti.
  */
-export const KEHOTE = `Luet suomalaisia ostokuitteja ja ostolaskuja kirjanpitoa varten.
+export const KEHOTE = `Luet ostokuitteja ja ostolaskuja kirjanpitoa varten. Osa on
+suomalaisia, osa ulkomaisia.
 
 Poimi kuitista:
 - toimittajan nimi sellaisena kuin se kuitissa lukee
 - laskun tai ostoksen päiväys
 - maksupäivä vain jos se on eri kuin laskun päiväys, muuten null
-- kuitin rivit: teksti, määrä, bruttohinta euroina ja rivin verokanta
+- kuitin rivit: teksti, määrä, bruttohinta laskun valuutassa ja rivin verokanta
 - ALV-erittelytaulukko kannoittain, jos kuitissa sellainen on
-- loppusumma
+- loppusumma laskun omassa valuutassa
 - tositenumero: kassakuitin kuittinumero tai laskun numero
 - tositetyyppi: kuitti tai lasku
 - valuutta: laskun valuutta ISO-koodina
@@ -101,11 +101,13 @@ Säännöt:
    null: keksitty numero on pahempi kuin puuttuva, koska sitä käytetään
    kaksoiskappaleiden tunnistukseen. Älä käytä numerona kassan, myyjän,
    asiakkaan, viitteen, tilausnumeron tai Y-tunnuksen arvoa.
-
 8. Valuutta luetaan kuitista: valuuttakoodi, symboli tai maakohtainen konteksti.
    Summat palautetaan aina siinä valuutassa kuin ne kuitissa ovat - älä muunna
    euroiksi. Suomalainen kuitti on EUR; amerikkalainen lasku on yleensä USD.
    Jos valuutasta ei ole mitään merkkiä, jätä tyhjäksi.
+9. Ulkomaisella laskulla ei yleensä ole Suomen ALV:tä. Jätä silloin
+   alv_erittely tyhjäksi ja rivien verokannat tyhjiksi - keksitty verokanta
+   veisi vähennyksen väärään suuntaan.
 
 Palauta tiedot kuitin_tiedot-työkalulla.`;
 
@@ -128,7 +130,7 @@ export const TYOKALU = {
         type: ["string", "null"],
         description: "Maksupäivä YYYY-MM-DD, vain jos eri kuin päiväys.",
       },
-      loppusumma_eur: {
+      loppusumma_valuutassa: {
         type: ["number", "null"],
         description:
           "Kuitin loppusumma verollisena, kuitin omassa valuutassa. Älä muunna euroiksi.",
@@ -160,7 +162,7 @@ export const TYOKALU = {
               enum: ["lb", "kg", "g", "l", "ml", "kpl", "pkt", null],
               description: "Määrän yksikkö kuitilta. Älä muunna yksikköä.",
             },
-            brutto_eur: {
+            brutto_valuutassa: {
               type: "number",
               description: "Rivin loppuhinta verollisena, kuitin omassa valuutassa.",
             },
@@ -169,7 +171,7 @@ export const TYOKALU = {
               description: "Rivin verokanta prosentteina kuitilta luettuna, esim. 25.5.",
             },
           },
-          required: ["teksti", "brutto_eur"],
+          required: ["teksti", "brutto_valuutassa"],
         },
       },
       alv_erittely: {
@@ -323,7 +325,7 @@ export function jasennaPoiminta(raaka: unknown): KuittiPoiminta {
       teksti: teksti(rivi.teksti) ?? "",
       maara: numeroksi(rivi.maara),
       yksikko: yksikoksi(rivi.yksikko),
-      brutto_eur: sentteina(numeroksi(rivi.brutto_eur) ?? 0),
+      brutto_valuutassa: sentteina(numeroksi(rivi.brutto_valuutassa) ?? 0),
       verokanta: numeroksi(rivi.verokanta),
     }))
     // Tekstitön rivi ei ole tunnistettavissa eikä opittavissa, joten se on
@@ -351,7 +353,7 @@ export function jasennaPoiminta(raaka: unknown): KuittiPoiminta {
     })
     .filter((e): e is AlvErittelynRivi => e !== null);
 
-  const loppusumma = numeroksi(olio.loppusumma_eur);
+  const loppusumma = numeroksi(olio.loppusumma_valuutassa);
   const paivays = paivaykseksi(olio.paivays);
   const maksupaiva = paivaykseksi(olio.maksupaiva);
 
@@ -371,7 +373,7 @@ export function jasennaPoiminta(raaka: unknown): KuittiPoiminta {
     paivays,
     // Maksupäivä tallennetaan vain jos se on aidosti eri kuin laskun päiväys.
     maksupaiva: maksupaiva && maksupaiva !== paivays ? maksupaiva : null,
-    loppusumma_eur: loppusumma === null ? null : sentteina(loppusumma),
+    loppusumma_valuutassa: loppusumma === null ? null : sentteina(loppusumma),
     rivit,
     alv_erittely: alvErittely,
   });
@@ -379,7 +381,7 @@ export function jasennaPoiminta(raaka: unknown): KuittiPoiminta {
 
 /** Rivien summa. */
 export function riviteYhteensa(rivit: PoimittuRivi[]): number {
-  return sentteina(rivit.reduce((summa, rivi) => summa + rivi.brutto_eur, 0));
+  return sentteina(rivit.reduce((summa, rivi) => summa + rivi.brutto_valuutassa, 0));
 }
 
 export interface Rivitasmays {
@@ -391,7 +393,7 @@ export interface Rivitasmays {
 /** Tarkistus 1: rivien summa = loppusumma. */
 export function tarkistaRivisumma(poiminta: KuittiPoiminta): Rivitasmays {
   const summa = riviteYhteensa(poiminta.rivit);
-  const loppusumma = poiminta.loppusumma_eur ?? 0;
+  const loppusumma = poiminta.loppusumma_valuutassa ?? 0;
   const erotus = sentteina(summa - loppusumma);
   return { tasmaa: Math.abs(erotus) <= 0.01, riviteYhteensa: summa, erotus };
 }
@@ -413,8 +415,8 @@ export interface Alvtasmays {
 }
 
 /** Bruttohinnan sisältämä vero annetulla kannalla. */
-export function rivinVero(bruttoEur: number, verokanta: number): number {
-  return (bruttoEur * verokanta) / (100 + verokanta);
+export function rivinVero(brutto: number, verokanta: number): number {
+  return (brutto * verokanta) / (100 + verokanta);
 }
 
 /**
@@ -434,7 +436,7 @@ export function tarkistaAlvErittely(poiminta: KuittiPoiminta): Alvtasmays {
     if (rivi.verokanta === null) continue;
     const nyt = riveilla.get(rivi.verokanta) ?? { vero: 0, maara: 0 };
     riveilla.set(rivi.verokanta, {
-      vero: nyt.vero + rivinVero(rivi.brutto_eur, rivi.verokanta),
+      vero: nyt.vero + rivinVero(rivi.brutto_valuutassa, rivi.verokanta),
       maara: nyt.maara + 1,
     });
   }
@@ -474,10 +476,12 @@ export interface PoiminnanArvio {
   alv: Alvtasmays;
 }
 
-function euroina(luku: number): string {
-  // Suomalainen kirjoitusasu: pilkku desimaalierottimena ja sitova väli
-  // ennen euromerkkiä.
-  return `${luku.toFixed(2).replace(".", ",")} €`;
+function summana(luku: number, valuutta: string | null): string {
+  // Suomalainen kirjoitusasu: pilkku desimaalierottimena ja sitova väli ennen
+  // valuuttaa. Valuutta on kuitin oma: euromerkki USD-laskun perässä olisi
+  // juuri se virhe jota vastaan valuutta ylipäätään tallennetaan.
+  const merkki = valuutta === null || valuutta === "EUR" ? "€" : valuutta;
+  return `${luku.toFixed(2).replace(".", ",")} ${merkki}`;
 }
 
 /**
@@ -496,7 +500,7 @@ export function arvioiPoiminta(poiminta: KuittiPoiminta): PoiminnanArvio {
   if (poiminta.rivit.length === 0) {
     huomiot.push("Kuitilta ei löytynyt rivejä.");
   }
-  if (poiminta.loppusumma_eur === null) {
+  if (poiminta.loppusumma_valuutassa === null) {
     huomiot.push("Loppusummaa ei saatu luettua.");
   }
   if (poiminta.paivays === null) {
@@ -505,18 +509,19 @@ export function arvioiPoiminta(poiminta: KuittiPoiminta): PoiminnanArvio {
   if (poiminta.toimittaja === null) {
     huomiot.push("Toimittajaa ei saatu luettua.");
   }
-  if (poiminta.rivit.length > 0 && poiminta.loppusumma_eur !== null && !rivisumma.tasmaa) {
+  if (poiminta.rivit.length > 0 && poiminta.loppusumma_valuutassa !== null && !rivisumma.tasmaa) {
     huomiot.push(
-      `Rivien summa ${euroina(rivisumma.riviteYhteensa)} ei täsmää loppusummaan ${euroina(
-        poiminta.loppusumma_eur
-      )} (${euroina(rivisumma.erotus)} ero).`
+      `Rivien summa ${summana(rivisumma.riviteYhteensa, poiminta.valuutta)} ei täsmää ` +
+        `loppusummaan ${summana(poiminta.loppusumma_valuutassa, poiminta.valuutta)} ` +
+        `(${summana(rivisumma.erotus, poiminta.valuutta)} ero).`
     );
   }
   for (const poikkeama of alv.poikkeamat) {
     huomiot.push(
-      `ALV ${String(poikkeama.verokanta).replace(".", ",")} %: riveiltä ${euroina(
-        poikkeama.riveilla
-      )}, erittelyssä ${euroina(poikkeama.erittelyssa)}.`
+      `ALV ${String(poikkeama.verokanta).replace(".", ",")} %: riveiltä ${summana(
+        poikkeama.riveilla,
+        poiminta.valuutta
+      )}, erittelyssä ${summana(poikkeama.erittelyssa, poiminta.valuutta)}.`
     );
   }
 

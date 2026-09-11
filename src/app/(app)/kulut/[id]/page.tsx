@@ -116,6 +116,9 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
                 toimittaja={kuitti.toimittaja}
                 paivays={kuitti.paivays}
                 loppusummaEur={kuitti.loppusumma_eur}
+                valuutta={kuitti.valuutta}
+                loppusummaValuutassa={kuitti.loppusumma_valuutassa ?? kuitti.loppusumma_eur}
+                kurssinLahde={kuitti.kurssin_lahde}
                 luovutettuAt={kuitti.luovutettu_at}
                 mitatoityAt={kuitti.mitatoity_at}
                 mitatointiSyy={kuitti.mitatointi_syy}
@@ -150,6 +153,12 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
               maara: r.maara,
               yksikko: r.yksikko,
               bruttoEur: r.brutto_valuutassa ?? r.brutto_eur,
+              // Euromäärä on olemassa vasta kun muunnos on tehty. Ilman sitä
+              // brutto_eur on nolla, eikä nollaa saa näyttää euromääränä.
+              bruttoEurLaskettu:
+                kuitti.valuutta !== "EUR" && kuitti.kurssin_lahde === null
+                  ? null
+                  : r.brutto_eur,
               verokanta: r.verokanta,
               kayttotarkoitus: r.kayttotarkoitus,
               kululuokkaId: r.kululuokka_id,

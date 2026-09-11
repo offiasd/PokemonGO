@@ -29,7 +29,9 @@ export default async function KuittieraSivu({ params }: { params: Promise<{ id: 
 
   const { data: kuitit } = await supabase
     .from("kuitit")
-    .select("id, toimittaja, paivays, loppusumma_eur, tila, poiminnan_tila, poiminnan_virhe")
+    .select(
+      "id, toimittaja, paivays, loppusumma_eur, loppusumma_valuutassa, valuutta, kurssin_lahde, tila, poiminnan_tila, poiminnan_virhe"
+    )
     .eq("era_id", id)
     .order("created_at");
 
@@ -38,6 +40,9 @@ export default async function KuittieraSivu({ params }: { params: Promise<{ id: 
     toimittaja: k.toimittaja,
     paivays: k.paivays,
     loppusummaEur: k.loppusumma_eur,
+    valuutta: k.valuutta,
+    loppusummaValuutassa: k.loppusumma_valuutassa ?? k.loppusumma_eur,
+    kurssinLahde: k.kurssin_lahde,
     tila: k.tila,
     poiminnanTila: k.poiminnan_tila,
     poiminnanVirhe: k.poiminnan_virhe,

@@ -250,7 +250,10 @@ export async function tallennaKuitti(
           maara: rivi.maara,
           yksikko: rivi.yksikko,
           brutto_valuutassa: rivi.bruttoEur,
-          brutto_eur: rivi.bruttoEur,
+          // Euromäärä kirjoitetaan vain euromääräiselle kuitille. Vieraalla
+          // valuutalla sen laskee paivita_kuitin_eurot - siihen asti nolla,
+          // ei valuutassa oleva luku.
+          brutto_eur: euroina ? rivi.bruttoEur : 0,
           verokanta: rivi.verokanta,
           kayttotarkoitus: rivi.kayttotarkoitus,
           kululuokka_id: rivi.kululuokkaId,

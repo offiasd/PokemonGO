@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { muotoileEuro } from "@/lib/vakiot";
+import { muotoileKuitinSumma } from "@/lib/vakiot";
 
 import { mitatoiKuitti, poistaKuitti } from "../actions";
 
@@ -41,6 +41,9 @@ export function KuitinPoisto({
   toimittaja,
   paivays,
   loppusummaEur,
+  valuutta,
+  loppusummaValuutassa,
+  kurssinLahde,
   luovutettuAt,
   mitatoityAt,
   mitatointiSyy,
@@ -49,6 +52,10 @@ export function KuitinPoisto({
   toimittaja: string | null;
   paivays: string;
   loppusummaEur: number;
+  /** Valuutta ja siinä luettu summa: vahvistamaton euromäärä on nolla. */
+  valuutta: string;
+  loppusummaValuutassa: number;
+  kurssinLahde: string | null;
   /** Milloin kuitti lähti kirjanpitäjälle. Sen jälkeen vain mitätöinti. */
   luovutettuAt: string | null;
   mitatoityAt: string | null;
@@ -65,7 +72,8 @@ export function KuitinPoisto({
     <div className="grid gap-1 rounded-md border p-3 text-sm">
       <span className="font-medium">{toimittaja ?? "Toimittaja puuttuu"}</span>
       <span className="text-muted-foreground">
-        {new Date(paivays).toLocaleDateString("fi-FI")} &middot; {muotoileEuro(loppusummaEur)}
+        {new Date(paivays).toLocaleDateString("fi-FI")} &middot;{" "}
+        {muotoileKuitinSumma({ loppusummaEur, valuutta, loppusummaValuutassa, kurssinLahde })}
       </span>
     </div>
   );

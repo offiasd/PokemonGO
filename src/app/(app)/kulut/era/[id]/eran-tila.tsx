@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { ToimittajanKuvake } from "@/components/toimittajan-kuvake";
 import { cn } from "@/lib/utils";
-import { muotoileEuro, muotoilePaivaLyhyt } from "@/lib/vakiot";
+import { muotoileKuitinSumma, muotoilePaivaLyhyt } from "@/lib/vakiot";
 
 import { poistaKuittiEra } from "../../actions";
 
@@ -26,6 +26,11 @@ export interface EranKuitti {
   toimittaja: string | null;
   paivays: string;
   loppusummaEur: number;
+  /** Laskun valuutta ja siinä luettu summa: juuri luettu kuitti voi olla USD. */
+  valuutta: string;
+  loppusummaValuutassa: number;
+  /** Null kun euromäärä on vielä vahvistamatta. */
+  kurssinLahde: string | null;
   tila: "luonnos" | "tarkistettava" | "valmis";
   poiminnanTila: "ei_luettu" | "jonossa" | "luetaan" | "luettu" | "virhe";
   poiminnanVirhe: string | null;
@@ -161,7 +166,7 @@ export function EranTila({
               <span className="shrink-0 text-right text-sm text-muted-foreground">
                 {muotoilePaivaLyhyt(kuitti.paivays)}
                 <span className="block text-base font-medium tabular-nums text-foreground">
-                  {muotoileEuro(kuitti.loppusummaEur)}
+                  {muotoileKuitinSumma(kuitti)}
                 </span>
               </span>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
