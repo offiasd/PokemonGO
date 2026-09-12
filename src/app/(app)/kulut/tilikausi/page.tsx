@@ -6,26 +6,15 @@ import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { KUUKAUDEN_NIMI, muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
+import { KUUKAUDEN_NIMI, muotoileEuro } from "@/lib/vakiot";
 import { PIENHANKINNAN_RAJA_EUR, PIENHANKINTAKATTO_EUR } from "@/lib/kulut";
 import { haeTilikaudenAineisto } from "@/lib/tilikausi-haku";
 
 import { KulutValilehdet } from "../valilehdet";
 import { PoistolaskelmaKortti } from "./poistolaskelma-kortti";
+import { TilannekuvanRivit } from "./tilannekuvan-rivit";
 import { TilannekuvanOtto } from "./tilannekuvan-otto";
-
-function kilohinta(arvo: number): string {
-  return `${arvo.toLocaleString("fi-FI", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} €/kg`;
-}
 
 export default async function TilikausiSivu({
   searchParams,
@@ -122,81 +111,12 @@ export default async function TilikausiSivu({
               {kuva.muistiinpano && (
                 <p className="text-sm text-muted-foreground">{kuva.muistiinpano}</p>
               )}
-              {/* Viisi saraketta ja seitsemänkymmentä riviä: puhelimella
-                  jokainen väri on oma korttinsa, sm-koosta ylöspäin taulukko. */}
-              <div className="grid gap-2 sm:hidden">
-                {kuva.rivit.map((rivi, jarjestys) => (
-                  <div
-                    key={`${rivi.vari_nimi}-${jarjestys}`}
-                    className={cn(
-                      "grid gap-1 rounded-md border p-3 text-sm",
-                      rivi.saldo_g === 0 && "text-muted-foreground"
-                    )}
-                  >
-                    <p className="font-medium wrap-anywhere">
-                      {rivi.vari_nimi}
-                      {rivi.valmistaja ? ` · ${rivi.valmistaja}` : ""}
-                    </p>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-muted-foreground">Saldo</span>
-                      <span className="tabular-nums">{muotoileGrammat(rivi.saldo_g)}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-muted-foreground">Kilohinta</span>
-                      <span className="tabular-nums">{kilohinta(rivi.hinta_per_kg)}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-muted-foreground">Arvo</span>
-                      <span className="font-medium tabular-nums">
-                        {muotoileEuro(rivi.arvo_eur)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="hidden sm:block sm:overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Väri</TableHead>
-                      <TableHead>Valmistaja</TableHead>
-                      <TableHead className="text-right">Saldo</TableHead>
-                      <TableHead className="text-right">Kilohinta</TableHead>
-                      <TableHead className="text-right">Arvo</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {kuva.rivit.map((rivi, jarjestys) => (
-                      <TableRow
-                        key={`${rivi.vari_nimi}-${jarjestys}`}
-                        className={cn(rivi.saldo_g === 0 && "text-muted-foreground")}
-                      >
-                        <TableCell className="font-medium">{rivi.vari_nimi}</TableCell>
-                        <TableCell>{rivi.valmistaja ?? "-"}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {muotoileGrammat(rivi.saldo_g)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {kilohinta(rivi.hinta_per_kg)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {muotoileEuro(rivi.arvo_eur)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-3">
-                <span className="text-sm text-muted-foreground">
-                  {kuva.vareja} väriä
-                  {nollasaldoisia > 0 && ` · ${nollasaldoisia} ilman saldoa, arvo 0`}
-                </span>
-                <span className="text-lg font-semibold tabular-nums">
-                  {muotoileEuro(kuva.yhteensaEur)}
-                </span>
-              </div>
+              <TilannekuvanRivit
+                rivit={kuva.rivit}
+                vareja={kuva.vareja}
+                nollasaldoisia={nollasaldoisia}
+                yhteensaEur={kuva.yhteensaEur}
+              />
             </>
           )}
         </CardContent>
