@@ -26,6 +26,36 @@ export type Alkupera = "EU" | "USA" | "muu";
  */
 export type Yksikko = "lb" | "kg" | "g" | "l" | "ml" | "kpl" | "pkt";
 
+/**
+ * Kuitin rivi väriehdotuksineen.
+ *
+ * Ehdotus on tyhjä kun osumaa ei ole: arvaus päätyisi varastosaldoihin, ja
+ * väärä kilohinta vääristäisi kaikkien tulevien töiden katteen.
+ */
+export interface EhdotettuMaalirivi {
+  rivi_id: string;
+  teksti: string;
+  maara: number | null;
+  yksikko: Yksikko | null;
+  brutto_eur: number;
+  brutto_valuutassa: number | null;
+  ehdotus_vari_id: string | null;
+  ehdotus_nimi: string | null;
+  /** Mihin ehdotus perustuu. Null kun ehdotusta ei ole. */
+  peruste: "opittu" | "tuotekoodi" | "ral" | "nimi" | null;
+  /** Nimihaun osuvuus 0-1. Null muilla perusteilla. */
+  osuvuus: number | null;
+  on_rahti: boolean;
+}
+
+/** Hyväksytty rivi erän luontiin: mikä väri, montako grammaa, mihin hintaan. */
+export interface MaalieranKuittirivi {
+  rivi_id: string;
+  vari_id: string;
+  maara_g: number;
+  tavara_eur: number;
+}
+
 /** Yksi rivi maalierää kirjattaessa: väri, määrä ja laskun tavarahinta. */
 export interface MaalieranRiviSyote {
   vari_id: string;
@@ -181,6 +211,12 @@ export interface Database {
           todellinen_eur: number | null;
           /** Mistä euromäärä tulee: pankki, kurssi vai sama (EUR-kuitti). */
           kurssin_lahde: "pankki" | "kurssi" | "sama" | null;
+          /** Käsin merkitty maaliostokseksi. Tunnettu maalitoimittaja riittää muutenkin. */
+          on_maaliostos: boolean;
+          /** Kuitista luotu maalierä. Eri asia kuin era_id, joka on kuittien latauserä. */
+          maaliera_id: string | null;
+          /** Tunnistettu toimittaja. Kuitin oma toimittaja-teksti jää sellaisenaan. */
+          toimittaja_id: string | null;
           /** Kuitti- tai laskunumero sellaisenaan. Ensisijainen kaksoiskappaletunniste. */
           tositenumero: string | null;
           /** Normalisoitu tositenumero vertailua varten. Kanta täyttää triggerillä. */
@@ -414,6 +450,8 @@ export interface Database {
           kiiltotaso: Kiiltotaso | null;
           /** Vapaat hakusanat ja synonyymit. Mukana haussa, ei näy listassa. */
           hakusanat: string | null;
+          /** Valmistajan tuotekoodi, esim. PMS-2569. Paras tunniste kuittiriville. */
+          tuotekoodi: string | null;
           pohjavari_kuvaus: string | null;
           alkuperainen_hinta: number | null;
           alkuperainen_valuutta: string | null;
@@ -613,6 +651,35 @@ export interface Database {
        * täydennys on samalla erän rivi, joten saldo ja hankintahinta pysyvät
        * samassa tapahtumassa.
        */
+      /** Toimittajat ja niiden kirjoitusasut kuiteilla. */
+      toimittajat: {
+        Row: {
+          id: string;
+          nimi: string;
+          /** Muut nimet joilla sama toimittaja esiintyy kuiteilla. */
+          aliakset: string[];
+          alkupera: Alkupera | null;
+          /** Tältä toimittajalta tuleva kuitti ehdottaa varastotäydennystä. */
+          on_maalitoimittaja: boolean;
+          oletus_valuutta: string | null;
+          aktiivinen: boolean;
+          luotu: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["toimittajat"]["Row"]> & { nimi: string };
+        Update: Partial<Database["public"]["Tables"]["toimittajat"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      /** Muistetut väriosumat rivin tekstin perusteella. */
+      maalirivin_oppi: {
+        Row: {
+          teksti: string;
+          vari_id: string;
+          paivitetty: string;
+        };
+        Insert: { teksti: string; vari_id: string; paivitetty?: string };
+        Update: Partial<Database["public"]["Tables"]["maalirivin_oppi"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
       maalierat: {
         Row: {
           id: string;
@@ -1188,6 +1255,22 @@ export interface Database {
       ota_varastotilannekuva: {
         Args: { p_tilikausi_paattyi: string; p_muistiinpano?: string | null };
         /** Uuden tilannekuvan tunniste. */
+        Returns: string;
+      };
+      /** Ehdottaa kuitin riveille värit. Ilman osumaa ehdotusta ei anneta. */
+      ehdota_maalirivit: {
+        Args: { p_kuitti_id: string };
+        Returns: EhdotettuMaalirivi[];
+      };
+      /** Luo kuitista maalierän ja muistaa väriosumat. */
+      luo_maaliera_kuitista: {
+        Args: {
+          p_kuitti_id: string;
+          p_rivit: MaalieranKuittirivi[];
+          p_rahti_eur?: number;
+          p_muistiinpano?: string | null;
+        };
+        /** Uuden erän tunniste. */
         Returns: string;
       };
       /** Kirjaa maalierän riveineen ja päivittää värien keskihinnan. */

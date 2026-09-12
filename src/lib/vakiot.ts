@@ -228,6 +228,24 @@ export const VALUUTAT = ["EUR", "USD", "SEK", "NOK", "GBP"] as const;
 export const PAUNA_GRAMMOINA = 453.59237;
 
 /**
+ * Määrä grammoiksi yksikön mukaan.
+ *
+ * Null kun yksikköä ei ole tai se ei ole painoyksikkö: väärä yksikkö on
+ * kertaluokan virhe saldossa, joten sitä ei arvata. Yksi toteutus, jota sekä
+ * näyttö että varastotäydennys käyttävät - kaksi erkaantuisi.
+ */
+export function muunnaGrammoiksi(
+  maara: number | null | undefined,
+  yksikko: Yksikko | null | undefined
+): number | null {
+  if (maara === null || maara === undefined || !yksikko) return null;
+  if (yksikko === "lb") return Math.round(maara * PAUNA_GRAMMOINA * 100) / 100;
+  if (yksikko === "kg") return Math.round(maara * 1000 * 100) / 100;
+  if (yksikko === "g") return Math.round(maara * 100) / 100;
+  return null;
+}
+
+/**
  * Rivin määrä yksikköineen: "3 lb · 1361 g".
  *
  * Grammamuunnos näytetään paunoista, koska maalia ostetaan Yhdysvalloista
@@ -242,8 +260,9 @@ export function muotoileMaara(
   const luku = maara.toLocaleString("fi-FI", { maximumFractionDigits: 3 });
   if (!yksikko) return luku;
   const osat = [`${luku} ${yksikko}`];
-  if (yksikko === "lb") {
-    osat.push(`${Math.round(maara * PAUNA_GRAMMOINA).toLocaleString("fi-FI")} g`);
+  const grammat = muunnaGrammoiksi(maara, yksikko);
+  if (yksikko === "lb" && grammat !== null) {
+    osat.push(`${Math.round(grammat).toLocaleString("fi-FI")} g`);
   }
   return osat.join(" · ");
 }

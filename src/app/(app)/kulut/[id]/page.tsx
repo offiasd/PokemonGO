@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PackagePlus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { kaytettavatKayttotarkoitukset, opinAvain, type Kayttotarkoitus } from "@/lib/kulut";
 
@@ -63,6 +66,25 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
     .order("jarjestys");
   const rivit = rivitData ?? [];
 
+  // Maalikuitti tunnistetaan kolmella tavalla: tunnettu maalitoimittaja,
+  // Maalit ja lakat -kululuokka riveillä, tai käsin merkintä. Yksikin riittää,
+  // koska kaikki kolme kertovat samaa - tästä kuitista tuli maalia hyllyyn.
+  const [{ data: toimittaja }, { data: maaliluokka }] = await Promise.all([
+    kuitti.toimittaja_id
+      ? supabase
+          .from("toimittajat")
+          .select("on_maalitoimittaja")
+          .eq("id", kuitti.toimittaja_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from("kululuokat").select("id").ilike("nimi", "maalit ja lakat").maybeSingle(),
+  ]);
+
+  const onMaalikuitti =
+    kuitti.on_maaliostos ||
+    toimittaja?.on_maalitoimittaja === true ||
+    (maaliluokka !== null && rivit.some((r) => r.kululuokka_id === maaliluokka.id));
+
   // Kaksoiskappale-epäily haetaan kannasta, jotta sääntö on sama sekä tässä
   // että luovutuksen tarkistuksissa.
   const { data: epailyt } = await supabase.rpc("kuitin_kaksoiskappaleet", { p_kuitti_id: id });
@@ -78,6 +100,32 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
   return (
     <div className="grid gap-4">
       <KulutValilehdet kuittiId={kuitti.id} kausi={kuitti.paivays} />
+
+      {/* Varastotäydennys on ehdotus jonka admin hyväksyy, ei automaatti:
+          kuitilla lukee tuotenimi ja kannassa on väri, ja väärä osuma päätyisi
+          suoraan saldoihin ja kilohintoihin. */}
+      {onMaalikuitti && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-medium">
+                {kuitti.maaliera_id ? "Varastotäydennys tehty" : "Maaliostos"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {kuitti.maaliera_id
+                  ? "Kuitista on luotu erä, ja saldot on päivitetty."
+                  : "Kuitin rivit voi käydä läpi ja kirjata varastoon."}
+              </p>
+            </div>
+            <Button asChild variant={kuitti.maaliera_id ? "outline" : "default"}>
+              <Link href={kuitti.maaliera_id ? "/varit/erat" : `/kulut/${id}/taydennys`}>
+                <PackagePlus className="size-4" />
+                {kuitti.maaliera_id ? "Avaa erät" : "Luo varastotäydennys"}
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <KaksoiskappaleVaroitus
         kuitti={{
