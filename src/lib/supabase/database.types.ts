@@ -566,51 +566,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["tuntiveloitukset"]["Row"]>;
         Relationships: EiSuhteita;
       };
-      maalaustapahtumat: {
-        Row: {
-          id: string;
-          osa_id: string;
-          vari_id: string;
-          kappalemaara: number;
-          arvioitu_kulutus_g: number;
-          toteutunut_kulutus_g: number;
-          kayttaja_id: string | null;
-          luotu: string;
-          toinen_vari_id: string | null;
-          toinen_vari_rooli: ToinenVariRooli | null;
-          toinen_arvioitu_kulutus_g: number | null;
-          toinen_toteutunut_kulutus_g: number | null;
-        };
-        Insert: Partial<Database["public"]["Tables"]["maalaustapahtumat"]["Row"]> & {
-          osa_id: string;
-          vari_id: string;
-          kappalemaara: number;
-        };
-        Update: Partial<Database["public"]["Tables"]["maalaustapahtumat"]["Row"]>;
-        Relationships: [
-          {
-            foreignKeyName: "maalaustapahtumat_osa_id_fkey";
-            columns: ["osa_id"];
-            isOneToOne: false;
-            referencedRelation: "osat";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "maalaustapahtumat_vari_id_fkey";
-            columns: ["vari_id"];
-            isOneToOne: false;
-            referencedRelation: "varit";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "maalaustapahtumat_toinen_vari_id_fkey";
-            columns: ["toinen_vari_id"];
-            isOneToOne: false;
-            referencedRelation: "varit";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       varastotayennykset: {
         Row: {
           id: string;

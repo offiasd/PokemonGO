@@ -174,10 +174,11 @@ export function TaydennysLomake({
                   !r.mukana && !r.onRahti && "opacity-60"
                 )}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 font-medium">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <span className="flex min-w-0 flex-1 items-start gap-2 font-medium">
                     {!r.onRahti && (
                       <Checkbox
+                        className="mt-0.5 shrink-0"
                         checked={r.mukana}
                         onCheckedChange={(arvo) =>
                           paivita(r.rivi.rivi_id, { mukana: arvo === true })
@@ -185,9 +186,12 @@ export function TaydennysLomake({
                         aria-label={`Ota rivi ${r.rivi.teksti} mukaan`}
                       />
                     )}
-                    {r.rivi.teksti}
+                    {/* Tuotekoodit ovat pitkiä katkeamattomia merkkijonoja.
+                        wrap-anywhere eikä break-words: vain edellinen katkaisee
+                        sanan myös silloin kun laatikon leveys lasketaan siitä. */}
+                    <span className="min-w-0 wrap-anywhere">{r.rivi.teksti}</span>
                   </span>
-                  <span className="tabular-nums">{muotoileEuro(r.rivi.brutto_eur)}</span>
+                  <span className="shrink-0 tabular-nums">{muotoileEuro(r.rivi.brutto_eur)}</span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -209,7 +213,7 @@ export function TaydennysLomake({
                         value={r.variId}
                         onChange={(e) => paivita(r.rivi.rivi_id, { variId: e.target.value })}
                         disabled={!r.mukana}
-                        className="h-9 min-w-48 flex-1 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm"
+                        className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs sm:w-auto sm:min-w-48 sm:flex-1 md:text-sm"
                         aria-label={`Väri riville ${r.rivi.teksti}`}
                       >
                         <option value="">Valitse väri</option>
@@ -221,7 +225,7 @@ export function TaydennysLomake({
                         ))}
                       </select>
 
-                      <span className="flex items-center gap-1 text-sm">
+                      <span className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
                         {r.rivi.maara ?? "?"}
                         <select
                           value={r.yksikko}
@@ -323,7 +327,28 @@ export function TaydennysLomake({
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            <div className="overflow-x-auto">
+            {/* Viisi saraketta ei mahdu kapeimmalle puhelimelle, joten siellä
+                jokainen väri on oma korttinsa. sm-koosta ylöspäin taulukko. */}
+            <div className="grid gap-3 sm:hidden">
+              {esikatselu.rivit.map((rivi, jarjestys) => (
+                <div
+                  key={`${rivi.vari_id}-${jarjestys}`}
+                  className="grid gap-1 rounded-md border p-3 text-sm"
+                >
+                  <p className="font-medium wrap-anywhere">{rivi.nimi}</p>
+                  <Lukupari nimi="Määrä" arvo={muotoileGrammat(rivi.maara_g)} />
+                  <Lukupari nimi="Erän kilohinta" arvo={kilohinta(rivi.hankintahinta_per_kg)} />
+                  <Lukupari nimi="Keskihinta ennen" arvo={kilohinta(rivi.keskihinta_ennen_per_kg)} />
+                  <Lukupari
+                    nimi="Keskihinta jälkeen"
+                    arvo={kilohinta(rivi.keskihinta_jalkeen_per_kg)}
+                    korosta
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden sm:block sm:overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -363,6 +388,24 @@ export function TaydennysLomake({
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+/** Nimi vasemmalle, luku oikealle. Luvut tabular-nums, jotta ne eivät hypi. */
+function Lukupari({
+  nimi,
+  arvo,
+  korosta,
+}: {
+  nimi: string;
+  arvo: string;
+  korosta?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-muted-foreground">{nimi}</span>
+      <span className={cn("tabular-nums", korosta ? "font-semibold" : "font-medium")}>{arvo}</span>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
 import type { MaalieranEsikatselu } from "@/lib/supabase/database.types";
 
@@ -195,7 +196,7 @@ export function EraLomake({ varit }: { varit: ValittavaVari[] }) {
           {rivit.map((rivi) => (
             <div
               key={rivi.avain}
-              className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_7rem_7rem_auto] sm:items-end"
+              className="grid grid-cols-1 gap-2 border-t pt-3 first:border-t-0 first:pt-0 sm:grid-cols-[minmax(0,1fr)_6rem_6rem_auto] sm:items-end sm:border-t-0 sm:pt-0"
             >
               <div className="grid gap-1.5">
                 <Label htmlFor={`vari-${rivi.avain}`}>Väri</Label>
@@ -203,7 +204,7 @@ export function EraLomake({ varit }: { varit: ValittavaVari[] }) {
                   id={`vari-${rivi.avain}`}
                   value={rivi.variId}
                   onChange={(e) => paivita(rivi.avain, { variId: e.target.value })}
-                  className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm"
+                  className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm"
                 >
                   <option value="">Valitse väri</option>
                   {varit.map((v) => (
@@ -357,10 +358,40 @@ export function EraLomake({ varit }: { varit: ValittavaVari[] }) {
   );
 }
 
+/**
+ * Erän tulos: kuusi lukua riviä kohti.
+ *
+ * Kuusi saraketta ei mahdu 320 pikselin näytölle edes vaakavieritettynä
+ * luettavasti, joten puhelimella jokainen rivi on oma korttinsa ja sm-koosta
+ * ylöspäin taulukko kuten ennenkin. Sama data, eri muoto.
+ */
 function Tulostaulukko({ esikatselu }: { esikatselu: MaalieranEsikatselu }) {
   return (
     <div className="grid gap-3">
-      <div className="overflow-x-auto">
+      <div className="grid gap-3 sm:hidden">
+        {esikatselu.rivit.map((rivi, jarjestys) => (
+          <div
+            key={`${rivi.vari_id}-${jarjestys}`}
+            className="grid gap-1 rounded-md border p-3 text-sm"
+          >
+            <p className="font-medium wrap-anywhere">{rivi.nimi}</p>
+            <Lukupari nimi="Määrä" arvo={muotoileGrammat(rivi.maara_g)} />
+            <Lukupari nimi="Kulut" arvo={muotoileEuro(rivi.kulut_eur)} />
+            <Lukupari nimi="Erän kilohinta" arvo={muotoileKilohinta(rivi.hankintahinta_per_kg)} />
+            <Lukupari
+              nimi="Keskihinta ennen"
+              arvo={muotoileKilohinta(rivi.keskihinta_ennen_per_kg)}
+            />
+            <Lukupari
+              nimi="Keskihinta jälkeen"
+              arvo={muotoileKilohinta(rivi.keskihinta_jalkeen_per_kg)}
+              korosta
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden sm:block sm:overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -396,11 +427,30 @@ function Tulostaulukko({ esikatselu }: { esikatselu: MaalieranEsikatselu }) {
           </TableBody>
         </Table>
       </div>
+
       <p className="text-sm text-muted-foreground">
         Tulli {muotoileEuro(esikatselu.tulli_eur)} · tuonti-ALV{" "}
         {muotoileEuro(esikatselu.tuonti_alv_eur)}
         {esikatselu.tullit_arvioitu ? " (arvio)" : ""}
       </p>
+    </div>
+  );
+}
+
+/** Nimi vasemmalle, luku oikealle. Luvut tabular-nums, jotta ne eivät hypi. */
+function Lukupari({
+  nimi,
+  arvo,
+  korosta,
+}: {
+  nimi: string;
+  arvo: string;
+  korosta?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-muted-foreground">{nimi}</span>
+      <span className={cn("tabular-nums", korosta ? "font-semibold" : "font-medium")}>{arvo}</span>
     </div>
   );
 }

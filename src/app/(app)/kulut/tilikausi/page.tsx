@@ -53,7 +53,7 @@ export default async function TilikausiSivu({
       <Card>
         <CardContent className="grid gap-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0 flex-1">
               <h1 className="text-xl font-semibold">Tilikausi {vuosi}</h1>
               <p className="text-sm text-muted-foreground">
                 Apuaineisto kirjanpitäjälle. Sovellus ei tee tilinpäätöstä eikä veroilmoitusta.
@@ -87,7 +87,7 @@ export default async function TilikausiSivu({
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
+            <div className="min-w-0 flex-1">
               <CardTitle className="text-base">Varaston arvo 31.12.{vuosi}</CardTitle>
               <CardDescription>
                 {kuva
@@ -113,7 +113,40 @@ export default async function TilikausiSivu({
               {kuva.muistiinpano && (
                 <p className="text-sm text-muted-foreground">{kuva.muistiinpano}</p>
               )}
-              <div className="overflow-x-auto">
+              {/* Viisi saraketta ja seitsemänkymmentä riviä: puhelimella
+                  jokainen väri on oma korttinsa, sm-koosta ylöspäin taulukko. */}
+              <div className="grid gap-2 sm:hidden">
+                {kuva.rivit.map((rivi, jarjestys) => (
+                  <div
+                    key={`${rivi.vari_nimi}-${jarjestys}`}
+                    className={cn(
+                      "grid gap-1 rounded-md border p-3 text-sm",
+                      rivi.saldo_g === 0 && "text-muted-foreground"
+                    )}
+                  >
+                    <p className="font-medium wrap-anywhere">
+                      {rivi.vari_nimi}
+                      {rivi.valmistaja ? ` · ${rivi.valmistaja}` : ""}
+                    </p>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-muted-foreground">Saldo</span>
+                      <span className="tabular-nums">{muotoileGrammat(rivi.saldo_g)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-muted-foreground">Kilohinta</span>
+                      <span className="tabular-nums">{kilohinta(rivi.hinta_per_kg)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-muted-foreground">Arvo</span>
+                      <span className="font-medium tabular-nums">
+                        {muotoileEuro(rivi.arvo_eur)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden sm:block sm:overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

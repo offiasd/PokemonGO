@@ -46,7 +46,7 @@ export default async function EratSivu() {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold">Maalierät</h1>
           <p className="text-sm text-muted-foreground">
             Erän kulut jaetaan riveille, ja värin hinta on varaston liukuva keskihinta.
@@ -87,8 +87,8 @@ export default async function EratSivu() {
           <Card key={era.id}>
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="grid gap-1">
-                  <CardTitle className="flex items-center gap-2 text-base">
+                <div className="grid min-w-0 flex-1 gap-1">
+                  <CardTitle className="flex flex-wrap items-center gap-2 text-base wrap-anywhere">
                     {era.toimittaja ?? "Toimittaja puuttuu"}
                     {era.tila === "kesken" && (
                       <Badge variant="outline" className="text-tila-keltainen-teksti">
@@ -118,9 +118,13 @@ export default async function EratSivu() {
               {eranRivit.map((rivi) => (
                 <div
                   key={`${rivi.era_id}-${rivi.vari_id}-${rivi.maara_g}`}
-                  className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-2 text-sm first:border-t-0 first:pt-0"
+                  className="grid gap-1 border-t pt-2 text-sm first:border-t-0 first:pt-0 sm:flex sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-2"
                 >
-                  <span className="font-medium">{nimet.get(rivi.vari_id) ?? "Poistettu väri"}</span>
+                  {/* Värien nimet ovat pitkiä katkeamattomia merkkijonoja, ja
+                      luvut omalla rivillään pysyvät luettavina puhelimellakin. */}
+                  <span className="min-w-0 font-medium wrap-anywhere">
+                    {nimet.get(rivi.vari_id) ?? "Poistettu väri"}
+                  </span>
                   <span className="text-muted-foreground tabular-nums">
                     {muotoileGrammat(rivi.maara_g)} · {muotoileEuro(rivi.tavara_eur ?? 0)} tavaraa ·{" "}
                     <span className="font-medium text-foreground">

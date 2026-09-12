@@ -106,8 +106,8 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
           suoraan saldoihin ja kilohintoihin. */}
       {onMaalikuitti && (
         <Card>
-          <CardContent className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+          <CardContent className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1">
               <p className="font-medium">
                 {kuitti.maaliera_id ? "Varastotäydennys tehty" : "Maaliostos"}
               </p>
