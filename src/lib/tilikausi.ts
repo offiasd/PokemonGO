@@ -47,6 +47,37 @@ export interface Yksityisotto {
   bruttoEur: number;
 }
 
+export interface KalustoRivi {
+  nimi: string;
+  hankittu: string;
+  /** Hankintameno ALV 0 %. */
+  hankintamenoEur: number;
+  luovutettu: string | null;
+  luovutushintaEur: number | null;
+}
+
+/**
+ * Tilikauden poistolaskelma.
+ *
+ * Kaikki luvut tulevat kannasta valmiina. Sovellus ei laske poistoa
+ * uudelleen missään: enimmäismäärä on kannan laskema, ja kirjanpitäjän
+ * ilmoittama todellinen poisto kirjataan erikseen.
+ */
+export interface Poistolaskelma {
+  tilikausiPaattyi: string;
+  menojaannosAlussaEur: number;
+  hankinnatEur: number;
+  luovutushinnatEur: number;
+  poistopohjaEur: number;
+  /** Enimmäismäärä, ei poisto: EVL 54 § sitoo poiston kirjanpitoon. */
+  poistoEnintaanEur: number;
+  /** Kirjanpitäjän ilmoittama todellinen poisto. Null = enimmäismäärä käytössä. */
+  poistoToteutunutEur: number | null;
+  kertapoisto: boolean;
+  menojaannosLopussaEur: number;
+  muistiinpano: string | null;
+}
+
 export interface TilikaudenAineisto {
   vuosi: number;
   /** Null kun tilannekuvaa ei ole otettu. Elävää saldoa ei näytetä tilalla. */
@@ -59,6 +90,10 @@ export interface TilikaudenAineisto {
   yksityisotot: Yksityisotto[];
   yksityisototYhteensaEur: number;
   kuitteja: number;
+  /** Kalusto tilikauden päättyessä: hankittu viimeistään 31.12. */
+  kalusto: KalustoRivi[];
+  /** Null kun tilikaudelle ei ole laskettu poistolaskelmaa. */
+  poistolaskelma: Poistolaskelma | null;
 }
 
 /** Tilikauden vientimuodot. Kuittikuvat ovat kuukausipaketeissa, eivät täällä. */
@@ -131,6 +166,46 @@ export function tilikaudenTaulukot(aineisto: TilikaudenAineisto): Map<string, st
   }
   myynti.push(["Yhteensä", "", csvLuku(aineisto.myyntiYhteensaEur), ""].join(";"));
   taulukot.set(`tilikausi_${v}_myynti.csv`, TAVUJARJESTYSMERKKI + myynti.join("\r\n"));
+
+  const kalusto = [
+    ["Nimi", "Hankittu", "Hankintameno (ALV 0 %)", "Luovutettu", "Luovutushinta"].join(";"),
+  ];
+  for (const k of aineisto.kalusto) {
+    kalusto.push(
+      [
+        csvKentta(k.nimi),
+        csvKentta(k.hankittu),
+        csvLuku(k.hankintamenoEur),
+        csvKentta(k.luovutettu),
+        k.luovutushintaEur === null ? "" : csvLuku(k.luovutushintaEur),
+      ].join(";")
+    );
+  }
+  taulukot.set(`tilikausi_${v}_kalusto.csv`, TAVUJARJESTYSMERKKI + kalusto.join("\r\n"));
+
+  // Poistolaskelma rivi riviltä, jotta kirjanpitäjä näkee mistä luku tulee.
+  if (aineisto.poistolaskelma) {
+    const p = aineisto.poistolaskelma;
+    const poisto = [["Erä", "Summa"].join(";")];
+    poisto.push(["Menojäännös tilikauden alussa", csvLuku(p.menojaannosAlussaEur)].join(";"));
+    poisto.push(["Tilikauden hankinnat", csvLuku(p.hankinnatEur)].join(";"));
+    poisto.push(["Tilikauden luovutushinnat", csvLuku(-p.luovutushinnatEur)].join(";"));
+    poisto.push(["Poistopohja", csvLuku(p.poistopohjaEur)].join(";"));
+    poisto.push(
+      [
+        p.kertapoisto
+          ? "Poiston enimmäismäärä (kertapoisto, jäännös enintään 1 200 €)"
+          : "Poiston enimmäismäärä (25 %)",
+        csvLuku(p.poistoEnintaanEur),
+      ].join(";")
+    );
+    poisto.push([
+      "Toteutunut poisto (kirjanpitäjältä)",
+      p.poistoToteutunutEur === null ? "" : csvLuku(p.poistoToteutunutEur),
+    ].join(";"));
+    poisto.push(["Menojäännös tilikauden lopussa", csvLuku(p.menojaannosLopussaEur)].join(";"));
+    taulukot.set(`tilikausi_${v}_poistolaskelma.csv`, TAVUJARJESTYSMERKKI + poisto.join("\r\n"));
+  }
 
   const otot = [["Päiväys", "Toimittaja", "Kuvaus", "Summa"].join(";")];
   for (const y of aineisto.yksityisotot) {

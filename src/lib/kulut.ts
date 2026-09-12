@@ -231,10 +231,14 @@ export function tarkistaTasmays(loppusummaEur: number, rivit: KuitinRivi[]): Tas
  * luetellaan erikseen eikä pelkkä rivin teksti riitä tunnistamaan ostosta.
  */
 export interface YlisuuriHankinta {
+  /** Kuitin rivin tunniste, jotta rivin voi siirtaa kalustorekisteriin. */
+  riviId: string | null;
   teksti: string;
   nettoEur: number;
   paivays: string | null;
   toimittaja: string | null;
+  /** Rivi on jo kalustorekisterissa, eli hankinta on kasitelty. */
+  siirretty: boolean;
 }
 
 export interface Pienhankinta {
@@ -244,6 +248,17 @@ export interface Pienhankinta {
   osuus: number;
   /** Ostokset, jotka ylittävät 1 200 euron rajan eivätkä siis ole pienhankintoja. */
   ylisuuret: YlisuuriHankinta[];
+  /**
+   * Katon alle mahtuvat hankinnat, suurin ensin.
+   *
+   * Kun 3 600 euron katto ylittyy, ylimenevä osa aktivoidaan kalustoksi. Laki
+   * ei määrää mitkä hankinnat siirretään, joten valinta on käyttäjän - tämä
+   * lista on se aineisto josta hän valitsee. Suurin ensin, koska katon saa
+   * mahtumaan pienimmällä määrällä siirtoja siitä päästä.
+   */
+  katonAlaiset: YlisuuriHankinta[];
+  /** Paljonko katto on ylittynyt. Nolla kun ollaan katon alla. */
+  ylitysEur: number;
 }
 
 /**
@@ -251,9 +266,15 @@ export interface Pienhankinta {
  *
  * Yli 1 200 euron ostos ei ole pienhankinta vaan poistettavaa kalustoa, joten
  * se jää katon ulkopuolelle ja nostetaan erikseen esiin.
+ *
+ * Kalustorekisteriin siirretty rivi ei enää kuluta kattoa: sen hankintameno
+ * vähennetään menojäännöspoistoina, ei kerralla. Siirretty yli 1 200 euron
+ * rivi jää silti listalle, jotta raportista näkee että se on käsitelty eikä
+ * unohdettu.
  */
 export function laskePienhankinnat(
   rivit: {
+    id?: string;
     teksti: string;
     brutto_eur: number;
     verokanta: number | null;
@@ -261,26 +282,33 @@ export function laskePienhankinnat(
     /** Kuitin päiväys ja toimittaja, jos ne ovat kutsujalla tiedossa. */
     paivays?: string | null;
     toimittaja?: string | null;
-  }[]
+  }[],
+  /** Kalustorekisterissä jo olevien kuittirivien tunnisteet. */
+  kalustoonSiirretyt: ReadonlySet<string> = new Set()
 ): Pienhankinta {
   const yrityksen = rivit.filter(
     (r) => r.kayttotarkoitus && KULUKSI_LASKETTAVAT.includes(r.kayttotarkoitus)
   );
-  const netot = yrityksen.map((r) => ({
+  const netot: YlisuuriHankinta[] = yrityksen.map((r) => ({
+    riviId: r.id ?? null,
     teksti: r.teksti,
     nettoEur: nettohinta(r.brutto_eur, r.verokanta),
     paivays: r.paivays ?? null,
     toimittaja: r.toimittaja ?? null,
+    siirretty: r.id !== undefined && kalustoonSiirretyt.has(r.id),
   }));
   const ylisuuret = netot.filter((n) => n.nettoEur > PIENHANKINNAN_RAJA_EUR);
-  const kaytetty = netot
-    .filter((n) => n.nettoEur <= PIENHANKINNAN_RAJA_EUR)
-    .reduce((s, n) => s + n.nettoEur, 0);
+  const katonAlaiset = netot
+    .filter((n) => n.nettoEur <= PIENHANKINNAN_RAJA_EUR && !n.siirretty)
+    .sort((a, b) => b.nettoEur - a.nettoEur);
+  const kaytetty = katonAlaiset.reduce((s, n) => s + n.nettoEur, 0);
   const pyoristetty = Math.round(kaytetty * 100) / 100;
   return {
     kaytettyEur: pyoristetty,
     osuus: Math.min(1, pyoristetty / PIENHANKINTAKATTO_EUR),
     ylisuuret,
+    katonAlaiset,
+    ylitysEur: Math.max(0, Math.round((pyoristetty - PIENHANKINTAKATTO_EUR) * 100) / 100),
   };
 }
 

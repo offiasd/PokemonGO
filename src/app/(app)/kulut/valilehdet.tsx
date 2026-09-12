@@ -70,6 +70,7 @@ export function KulutValilehdet({
         pathname.startsWith("/kulut/") &&
         pathname !== "/kulut/luovutus" &&
         pathname !== "/kulut/tilikausi" &&
+        pathname !== "/kulut/kalusto" &&
         !pathname.startsWith("/kulut/era/"),
     },
     {

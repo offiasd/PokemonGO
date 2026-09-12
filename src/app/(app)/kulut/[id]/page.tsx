@@ -7,9 +7,17 @@ import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { kaytettavatKayttotarkoitukset, opinAvain, type Kayttotarkoitus } from "@/lib/kulut";
+import {
+  kaytettavatKayttotarkoitukset,
+  nettohinta,
+  opinAvain,
+  KULUKSI_LASKETTAVAT,
+  PIENHANKINNAN_RAJA_EUR,
+  type Kayttotarkoitus,
+} from "@/lib/kulut";
 
 import { KulutValilehdet } from "../valilehdet";
+import { KalustoonSiirto, type SiirrettavaRivi } from "./kalustoon-siirto";
 import { KaksoiskappaleVaroitus, type Epailty } from "./kaksoiskappale-varoitus";
 import { KuitinLiitteet, type LiiteNakyma } from "./kuitin-liitteet";
 import { KuitinLomake } from "./kuitin-lomake";
@@ -85,6 +93,30 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
     toimittaja?.on_maalitoimittaja === true ||
     (maaliluokka !== null && rivit.some((r) => r.kululuokka_id === maaliluokka.id));
 
+  // Yli 1 200 euron rivit ovat kalustoa, eivät pienhankintoja. Nettohinta on
+  // sama laskenta kuin pienhankintojen katossa: kuitilla lukeva summa on
+  // brutto, ja hankintameno on aina ALV 0 %.
+  const { data: kalustoRivit } = await supabase
+    .from("kalusto")
+    .select("kuitin_rivi_id")
+    .eq("kuitti_id", id);
+  const siirretytIdt = new Set(
+    (kalustoRivit ?? []).map((k) => k.kuitin_rivi_id).filter((r): r is string => r !== null)
+  );
+  const kalustoonSiirrettavat: SiirrettavaRivi[] = rivit
+    .filter(
+      (r) =>
+        r.kayttotarkoitus !== null &&
+        KULUKSI_LASKETTAVAT.includes(r.kayttotarkoitus as Kayttotarkoitus) &&
+        nettohinta(r.brutto_eur, r.verokanta) > PIENHANKINNAN_RAJA_EUR
+    )
+    .map((r) => ({
+      id: r.id,
+      teksti: r.teksti,
+      nettoEur: nettohinta(r.brutto_eur, r.verokanta),
+      siirretty: siirretytIdt.has(r.id),
+    }));
+
   // Kaksoiskappale-epäily haetaan kannasta, jotta sääntö on sama sekä tässä
   // että luovutuksen tarkistuksissa.
   const { data: epailyt } = await supabase.rpc("kuitin_kaksoiskappaleet", { p_kuitti_id: id });
@@ -126,6 +158,8 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
           </CardContent>
         </Card>
       )}
+
+      <KalustoonSiirto rivit={kalustoonSiirrettavat} />
 
       <KaksoiskappaleVaroitus
         kuitti={{

@@ -28,7 +28,8 @@ export async function haeTilikaudenAineisto(
   const alku = `${vuosi}-01-01`;
   const loppu = `${vuosi + 1}-01-01`;
 
-  const [kuititVastaus, luokatVastaus, tyotVastaus, kuvaVastaus] = await Promise.all([
+  const [kuititVastaus, luokatVastaus, tyotVastaus, kuvaVastaus, kalustoVastaus, poistoVastaus] =
+    await Promise.all([
     // Mitätöity kuitti on jo oikaistu, joten se ei kuulu tilikauden lukuihin.
     supabase
       .from("kuitit")
@@ -48,6 +49,18 @@ export async function haeTilikaudenAineisto(
       .select("*")
       .eq("tilikausi_paattyi", `${vuosi}-12-31`)
       .maybeSingle(),
+    // Kalusto tilikauden päättyessä: kaikki mitä on hankittu viimeistään 31.12.
+    // Luovutettukin kuuluu mukaan, koska luovutushinta vaikuttaa poistopohjaan.
+    supabase
+      .from("kalusto")
+      .select("nimi, hankittu, hankintameno_eur, luovutettu, luovutushinta_eur, kuitin_rivi_id")
+      .lte("hankittu", `${vuosi}-12-31`)
+      .order("hankittu"),
+    supabase
+      .from("poistolaskelmat")
+      .select("*")
+      .eq("tilikausi_paattyi", `${vuosi}-12-31`)
+      .maybeSingle(),
   ]);
 
   const kuitit = kuititVastaus.data ?? [];
@@ -56,7 +69,7 @@ export async function haeTilikaudenAineisto(
   const { data: rivit } = kuitit.length
     ? await supabase
         .from("kuitin_rivit")
-        .select("kuitti_id, teksti, brutto_eur, verokanta, kayttotarkoitus, kululuokka_id")
+        .select("id, kuitti_id, teksti, brutto_eur, verokanta, kayttotarkoitus, kululuokka_id")
         .in(
           "kuitti_id",
           kuitit.map((k) => k.id)
@@ -71,7 +84,12 @@ export async function haeTilikaudenAineisto(
     toimittaja: kuittiTiedot.get(r.kuitti_id)?.toimittaja ?? null,
   }));
 
-  const pienhankinnat = laskePienhankinnat(rivitTiedoin);
+  // Kalustoon siirretty rivi ei kuluta kattoa: se vähennetään poistoina.
+  const kalustoRivit = kalustoVastaus.data ?? [];
+  const kalustoonSiirretyt = new Set(
+    kalustoRivit.map((k) => k.kuitin_rivi_id).filter((id): id is string => id !== null)
+  );
+  const pienhankinnat = laskePienhankinnat(rivitTiedoin, kalustoonSiirretyt);
 
   const luokanNimi = new Map((luokatVastaus.data ?? []).map((l) => [l.id, l.nimi]));
   const summat = new Map<string, number>();
@@ -145,9 +163,32 @@ export async function haeTilikaudenAineisto(
     };
   }
 
+  const laskelma = poistoVastaus.data;
+
   return {
     vuosi,
     tilannekuva,
+    kalusto: kalustoRivit.map((k) => ({
+      nimi: k.nimi,
+      hankittu: k.hankittu,
+      hankintamenoEur: k.hankintameno_eur,
+      luovutettu: k.luovutettu,
+      luovutushintaEur: k.luovutushinta_eur,
+    })),
+    poistolaskelma: laskelma
+      ? {
+          tilikausiPaattyi: laskelma.tilikausi_paattyi,
+          menojaannosAlussaEur: laskelma.menojaannos_alussa_eur,
+          hankinnatEur: laskelma.hankinnat_eur,
+          luovutushinnatEur: laskelma.luovutushinnat_eur,
+          poistopohjaEur: laskelma.poistopohja_eur,
+          poistoEnintaanEur: laskelma.poisto_enintaan_eur,
+          poistoToteutunutEur: laskelma.poisto_toteutunut_eur,
+          kertapoisto: laskelma.kertapoisto,
+          menojaannosLopussaEur: laskelma.menojaannos_lopussa_eur,
+          muistiinpano: laskelma.muistiinpano,
+        }
+      : null,
     pienhankinnat,
     kululuokittain,
     kulutYhteensaEur: pyorista(kulutYhteensa),

@@ -81,7 +81,7 @@ export default async function KulutSivu({
     ? await supabase
         .from("kuitin_rivit")
         .select(
-          "kuitti_id, teksti, brutto_eur, brutto_valuutassa, verokanta, kayttotarkoitus, kululuokka_id, jarjestys"
+          "id, kuitti_id, teksti, brutto_eur, brutto_valuutassa, verokanta, kayttotarkoitus, kululuokka_id, jarjestys"
         )
         .in("kuitti_id", vuodenIdt)
     : { data: [] };
@@ -130,8 +130,19 @@ export default async function KulutSivu({
   const kuluina = kuluinaYhteensa(kaikkiRivit);
   const yhteensa = riviteYhteensa(kaikkiRivit);
 
+  // Kalustorekisteriin siirretty rivi ei enää kuluta kattoa: sen hankintameno
+  // vähennetään menojäännöspoistoina usean vuoden yli, ei kerralla.
+  const { data: siirretytRivit } = await supabase
+    .from("kalusto")
+    .select("kuitin_rivi_id")
+    .not("kuitin_rivi_id", "is", null);
+  const kalustoonSiirretyt = new Set(
+    (siirretytRivit ?? []).map((k) => k.kuitin_rivi_id).filter((id): id is string => id !== null)
+  );
+
   const pienhankinnat = laskePienhankinnat(
-    (vuodenRivit ?? []).filter((r) => summiinIdt.has(r.kuitti_id))
+    (vuodenRivit ?? []).filter((r) => summiinIdt.has(r.kuitti_id)),
+    kalustoonSiirretyt
   );
 
   // Puutteen syy kerrotaan rivillä eikä omassa laatikossaan: lista pysyy

@@ -162,6 +162,48 @@ async function teePdf(aineisto: TilikaudenAineisto): Promise<Uint8Array> {
     }
   }
 
+  // --- Kalusto ja poistot ---
+  p.otsikko("Kalusto");
+  if (aineisto.kalusto.length === 0) {
+    p.teksti("Ei kalustoa.", 10, false, true);
+  } else {
+    p.teksti("Hankintamenot ALV 0 %.", 9, false, true);
+    for (const k of aineisto.kalusto) {
+      p.rivi(
+        `${k.hankittu} ${k.nimi}${k.luovutettu ? ` - luovutettu ${k.luovutettu}` : ""}`,
+        muotoileEuro(k.hankintamenoEur)
+      );
+    }
+  }
+
+  p.otsikko("Menojäännöspoisto");
+  if (!aineisto.poistolaskelma) {
+    p.teksti("Tilikaudelle ei ole laskettu poistolaskelmaa.", 10, false, true);
+  } else {
+    const poisto = aineisto.poistolaskelma;
+    p.rivi("Menojäännös tilikauden alussa", muotoileEuro(poisto.menojaannosAlussaEur));
+    p.rivi("Tilikauden hankinnat", muotoileEuro(poisto.hankinnatEur));
+    p.rivi("Tilikauden luovutushinnat", `-${muotoileEuro(poisto.luovutushinnatEur)}`);
+    p.rivi("Poistopohja", muotoileEuro(poisto.poistopohjaEur), true);
+    p.rivi(
+      poisto.kertapoisto
+        ? "Poiston enimmäismäärä (kertapoisto, jäännös enintään 1 200 EUR)"
+        : "Poiston enimmäismäärä (25 %)",
+      muotoileEuro(poisto.poistoEnintaanEur)
+    );
+    if (poisto.poistoToteutunutEur !== null) {
+      p.rivi("Toteutunut poisto (kirjanpidosta)", muotoileEuro(poisto.poistoToteutunutEur));
+    }
+    p.rivi("Menojäännös tilikauden lopussa", muotoileEuro(poisto.menojaannosLopussaEur), true);
+    p.teksti(
+      "Enimmäismäärä on yläraja, ei poisto. Verotuksessa ei voi vähentää enempää kuin",
+      9,
+      false,
+      true
+    );
+    p.teksti("kirjanpidossa on vähennetty (EVL 54 §).", 9, false, true);
+  }
+
   // --- Kululuokat ---
   p.otsikko("Kulut kululuokittain");
   for (const luokka of aineisto.kululuokittain) {

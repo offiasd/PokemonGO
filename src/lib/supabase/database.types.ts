@@ -667,6 +667,70 @@ export interface Database {
        * Luvut ovat kopioita: saldon voisi laskea historiasta, mutta hintaa ei
        * saisi mistään - ostohinta_per_kg on liukuva keskihinta.
        */
+      kalusto: {
+        Row: {
+          id: string;
+          nimi: string;
+          kuvaus: string | null;
+          hankittu: string;
+          /** Hankintameno ALV 0 %, ei kuitilla lukeva bruttosumma. */
+          hankintameno_eur: number;
+          kuitti_id: string | null;
+          /** Kuitin rivi josta siirretty. Katto jättää siirretyn rivin laskematta. */
+          kuitin_rivi_id: string | null;
+          luovutettu: string | null;
+          /** Luovutushinta ALV 0 %. Vähennetään luovutusvuoden poistopohjasta. */
+          luovutushinta_eur: number | null;
+          muistiinpano: string | null;
+          luotu: string;
+          luoja_id: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["kalusto"]["Row"]> & {
+          nimi: string;
+          hankittu: string;
+          hankintameno_eur: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["kalusto"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "kalusto_kuitti_id_fkey";
+            columns: ["kuitti_id"];
+            isOneToOne: false;
+            referencedRelation: "kuitit";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "kalusto_kuitin_rivi_id_fkey";
+            columns: ["kuitin_rivi_id"];
+            isOneToOne: true;
+            referencedRelation: "kuitin_rivit";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      poistolaskelmat: {
+        Row: {
+          id: string;
+          tilikausi_paattyi: string;
+          menojaannos_alussa_eur: number;
+          hankinnat_eur: number;
+          luovutushinnat_eur: number;
+          poistopohja_eur: number;
+          /** Enimmäismäärä, ei poisto: EVL 54 § sitoo poiston kirjanpitoon. */
+          poisto_enintaan_eur: number;
+          /** Kirjanpitäjän ilmoittama todellinen poisto. Null = enimmäismäärä. */
+          poisto_toteutunut_eur: number | null;
+          kertapoisto: boolean;
+          menojaannos_lopussa_eur: number;
+          laskettu: string;
+          muistiinpano: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["poistolaskelmat"]["Row"]> & {
+          tilikausi_paattyi: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["poistolaskelmat"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
       varastotilannekuvat: {
         Row: {
           id: string;
@@ -1148,6 +1212,25 @@ export interface Database {
       };
     };
     Functions: {
+      /** Laskee poistoketjun ensimmäisestä hankintavuodesta annettuun tilikauteen. */
+      laske_poistolaskelmat: {
+        Args: { p_tilikausi_paattyi: string };
+        Returns: undefined;
+      };
+      /** Kirjaa kirjanpitäjän ilmoittaman poiston ja laskee ketjun uudelleen. */
+      kirjaa_toteutunut_poisto: {
+        Args: {
+          p_tilikausi_paattyi: string;
+          p_poisto_eur: number | null;
+          p_muistiinpano?: string | null;
+        };
+        Returns: undefined;
+      };
+      /** Siirtää kuitin rivin kalustoon. Brutosta puretaan vero rivin kannalla. */
+      siirra_rivi_kalustoon: {
+        Args: { p_rivi_id: string; p_nimi?: string | null; p_hankittu?: string | null };
+        Returns: string;
+      };
       haku: {
         Args: { p_kysely: string; p_raja?: number };
         Returns: {

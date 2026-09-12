@@ -20,6 +20,7 @@ import { PIENHANKINNAN_RAJA_EUR, PIENHANKINTAKATTO_EUR } from "@/lib/kulut";
 import { haeTilikaudenAineisto } from "@/lib/tilikausi-haku";
 
 import { KulutValilehdet } from "../valilehdet";
+import { PoistolaskelmaKortti } from "./poistolaskelma-kortti";
 import { TilannekuvanOtto } from "./tilannekuvan-otto";
 
 function kilohinta(arvo: number): string {
@@ -45,6 +46,14 @@ export default async function TilikausiSivu({
   const aineisto = await haeTilikaudenAineisto(supabase, vuosi);
   const kuva = aineisto.tilannekuva;
   const nollasaldoisia = kuva?.rivit.filter((r) => r.saldo_g === 0).length ?? 0;
+
+  // Toteutuneen poiston muutos siirtää seuraavan vuoden alkusaldoa, joten se
+  // kerrotaan ennen muutosta eikä vasta sen jälkeen.
+  const { data: seuraavaLaskelma } = await supabase
+    .from("poistolaskelmat")
+    .select("id")
+    .eq("tilikausi_paattyi", `${vuosi + 1}-12-31`)
+    .maybeSingle();
 
   return (
     <div className="grid gap-4">
@@ -230,10 +239,10 @@ export default async function TilikausiSivu({
             <div className="grid gap-2">
               {aineisto.pienhankinnat.ylisuuret.map((hankinta, jarjestys) => (
                 <div
-                  key={`${hankinta.teksti}-${jarjestys}`}
-                  className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-2 text-sm first:border-t-0 first:pt-0"
+                  key={`${hankinta.riviId ?? hankinta.teksti}-${jarjestys}`}
+                  className="grid gap-0.5 border-t pt-2 text-sm first:border-t-0 first:pt-0 sm:flex sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-2"
                 >
-                  <span>
+                  <span className="min-w-0 wrap-anywhere">
                     <span className="text-muted-foreground">
                       {hankinta.paivays
                         ? new Date(hankinta.paivays).toLocaleDateString("fi-FI")
@@ -242,8 +251,14 @@ export default async function TilikausiSivu({
                     </span>
                     {hankinta.teksti}
                   </span>
-                  <span className="font-medium tabular-nums">
+                  <span className="shrink-0 font-medium tabular-nums">
                     {muotoileEuro(hankinta.nettoEur)} (netto)
+                    {/* Siirretty on käsitelty, mutta jää listalle: raportista
+                        pitää nähdä että hankinta on hoidettu, ei että se on
+                        kadonnut. */}
+                    {hankinta.siirretty && (
+                      <span className="ml-1 font-normal text-muted-foreground">· kalustossa</span>
+                    )}
                   </span>
                 </div>
               ))}
@@ -251,6 +266,14 @@ export default async function TilikausiSivu({
           )}
         </CardContent>
       </Card>
+
+      {/* Poistolaskelma: yli 1 200 euron hankinnat ovat juuri se pohja josta
+          menojäännöspoisto lasketaan, joten laskelma seuraa niitä. */}
+      <PoistolaskelmaKortti
+        vuosi={vuosi}
+        laskelma={aineisto.poistolaskelma}
+        seuraavaOlemassa={seuraavaLaskelma !== null}
+      />
 
       {/* Kululuokat */}
       <Card>
