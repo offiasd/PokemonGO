@@ -640,6 +640,51 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["maalierat"]["Row"]>;
         Relationships: EiSuhteita;
       };
+      /**
+       * Varaston arvo tilikauden päättyessä. Yksi tilannekuva per tilikausi.
+       * Luvut ovat kopioita: saldon voisi laskea historiasta, mutta hintaa ei
+       * saisi mistään - ostohinta_per_kg on liukuva keskihinta.
+       */
+      varastotilannekuvat: {
+        Row: {
+          id: string;
+          tilikausi_paattyi: string;
+          otettu: string;
+          ottaja_id: string | null;
+          /** Rivien summa. Nollasaldoiset eivät kasvata tätä. */
+          yhteensa_eur: number | null;
+          /** Kopioitujen värien määrä, myös nollasaldoiset. */
+          vareja: number | null;
+          muistiinpano: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["varastotilannekuvat"]["Row"]> & {
+          tilikausi_paattyi: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["varastotilannekuvat"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      varastotilannekuvan_rivit: {
+        Row: {
+          id: string;
+          tilannekuva_id: string;
+          /** Kulkuyhteys värin sivulle. Raportti ei nojaa tähän. */
+          vari_id: string | null;
+          vari_nimi: string;
+          valmistaja: string | null;
+          saldo_g: number;
+          hinta_per_kg: number;
+          arvo_eur: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["varastotilannekuvan_rivit"]["Row"]> & {
+          tilannekuva_id: string;
+          vari_nimi: string;
+          saldo_g: number;
+          hinta_per_kg: number;
+          arvo_eur: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["varastotilannekuvan_rivit"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
       vari_kategoriat: {
         Row: {
           id: string;
@@ -1135,6 +1180,15 @@ export interface Database {
       paivita_kuitin_eurot: {
         Args: { p_kuitti_id: string };
         Returns: undefined;
+      };
+      /**
+       * Kopioi aktiivisten värien saldot ja kilohinnat tilikauden
+       * tilannekuvaksi. Uudelleenotto korvaa saman tilikauden vanhan kuvan.
+       */
+      ota_varastotilannekuva: {
+        Args: { p_tilikausi_paattyi: string; p_muistiinpano?: string | null };
+        /** Uuden tilannekuvan tunniste. */
+        Returns: string;
       };
       /** Kirjaa maalierän riveineen ja päivittää värien keskihinnan. */
       luo_maaliera: {

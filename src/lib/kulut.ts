@@ -224,13 +224,26 @@ export function tarkistaTasmays(loppusummaEur: number, rivit: KuitinRivi[]): Tas
   return { tasmaa: Math.abs(erotus) <= 0.01, riviteYhteensa: summa, erotus };
 }
 
+/**
+ * Yli 1 200 euron ostos: ei pienhankinta vaan poistopohjaa.
+ *
+ * Päivä ja toimittaja kulkevat mukana, koska tilikauden raportissa nämä
+ * luetellaan erikseen eikä pelkkä rivin teksti riitä tunnistamaan ostosta.
+ */
+export interface YlisuuriHankinta {
+  teksti: string;
+  nettoEur: number;
+  paivays: string | null;
+  toimittaja: string | null;
+}
+
 export interface Pienhankinta {
   /** Verottomien pienhankintojen summa vuodelta. */
   kaytettyEur: number;
   /** Kuinka lähellä 3 600 euron kattoa ollaan, 0-1. */
   osuus: number;
   /** Ostokset, jotka ylittävät 1 200 euron rajan eivätkä siis ole pienhankintoja. */
-  ylisuuret: { teksti: string; nettoEur: number }[];
+  ylisuuret: YlisuuriHankinta[];
 }
 
 /**
@@ -240,7 +253,15 @@ export interface Pienhankinta {
  * se jää katon ulkopuolelle ja nostetaan erikseen esiin.
  */
 export function laskePienhankinnat(
-  rivit: { teksti: string; brutto_eur: number; verokanta: number | null; kayttotarkoitus: Kayttotarkoitus | null }[]
+  rivit: {
+    teksti: string;
+    brutto_eur: number;
+    verokanta: number | null;
+    kayttotarkoitus: Kayttotarkoitus | null;
+    /** Kuitin päiväys ja toimittaja, jos ne ovat kutsujalla tiedossa. */
+    paivays?: string | null;
+    toimittaja?: string | null;
+  }[]
 ): Pienhankinta {
   const yrityksen = rivit.filter(
     (r) => r.kayttotarkoitus && KULUKSI_LASKETTAVAT.includes(r.kayttotarkoitus)
@@ -248,6 +269,8 @@ export function laskePienhankinnat(
   const netot = yrityksen.map((r) => ({
     teksti: r.teksti,
     nettoEur: nettohinta(r.brutto_eur, r.verokanta),
+    paivays: r.paivays ?? null,
+    toimittaja: r.toimittaja ?? null,
   }));
   const ylisuuret = netot.filter((n) => n.nettoEur > PIENHANKINNAN_RAJA_EUR);
   const kaytetty = netot

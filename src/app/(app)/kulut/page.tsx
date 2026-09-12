@@ -86,6 +86,20 @@ export default async function KulutSivu({
         .in("kuitti_id", vuodenIdt)
     : { data: [] };
 
+  // Tammikuussa muistutetaan, jos juuri päättyneeltä tilikaudelta ei otettu
+  // varastotilannekuvaa. Sitä ei saa jälkikäteen: saldot ovat jo muuttuneet
+  // vuoden ensimmäisistä töistä, eikä liukuva keskihinta kerro mikä se oli
+  // joulukuussa.
+  const edellinenTilikausi = nyt.getUTCFullYear() - 1;
+  const { data: edellinenTilannekuva } =
+    nyt.getUTCMonth() === 0
+      ? await supabase
+          .from("varastotilannekuvat")
+          .select("id")
+          .eq("tilikausi_paattyi", `${edellinenTilikausi}-12-31`)
+          .maybeSingle()
+      : { data: { id: "" } };
+
   // Kuukausiautomaatin kokoama mutta vielä lähettämätön kausi. Ilmoitus on
   // sovelluksessa eikä sähköpostissa, ja se näkyy riippumatta siitä mitä
   // kuukautta selataan: paketti odottaa vaikka katsoisi toista kuuta.
@@ -204,6 +218,20 @@ export default async function KulutSivu({
             <p className="flex items-center gap-2 rounded-lg bg-tila-keltainen-pinta px-4 py-3 text-sm text-tila-keltainen-teksti">
               <AlertTriangle className="size-4 shrink-0" />
               {puutteellisia} {puutteellisia === 1 ? "kuitti" : "kuittia"} vaatii huomiota
+            </p>
+          )}
+
+          {edellinenTilannekuva === null && (
+            <p className="flex items-start gap-2 rounded-lg bg-tila-keltainen-pinta px-4 py-3 text-sm text-tila-keltainen-teksti">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Tilikaudelta {edellinenTilikausi} ei ole varastotilannekuvaa. Sitä ei saa enää
+                tarkasti jälkikäteen, mutta ota se silti - myöhäinen on parempi kuin puuttuva.{" "}
+                <Link href={`/kulut/tilikausi?vuosi=${edellinenTilikausi}`} className="underline">
+                  Avaa tilikausinäkymä
+                </Link>
+                .
+              </span>
             </p>
           )}
 

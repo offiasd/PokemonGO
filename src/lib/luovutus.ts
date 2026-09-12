@@ -178,12 +178,15 @@ export function ryhmittele(kuitit: VientiKuitti[], ryhmittely: Ryhmittely): Ryhm
 }
 
 /** Suomalainen desimaalipilkku: Excel lukee luvun luvuksi eikä tekstiksi. */
-function luku(arvo: number | null): string {
+/** Desimaaliluku suomalaisittain. Viety, jotta tilikausiraportti kirjoittaa
+ * lukunsa samassa muodossa kuin kuukausipaketti. */
+export function csvLuku(arvo: number | null): string {
   if (arvo === null) return "";
   return arvo.toFixed(2).replace(".", ",");
 }
 
-function kentta(arvo: string | null): string {
+/** Kenttä erottimineen ja lainauksineen. Viety samasta syystä kuin csvLuku. */
+export function csvKentta(arvo: string | null): string {
   const teksti = (arvo ?? "").replace(/\r?\n/g, " ").trim();
   // Puolipiste on erotin, joten sen ja lainausmerkin sisältävä kenttä
   // lainataan. Excel odottaa kaksinkertaistettua lainausmerkkiä.
@@ -191,7 +194,7 @@ function kentta(arvo: string | null): string {
 }
 
 /** Tavujärjestysmerkki. Ilman sitä suomalainen Excel lukee ääkköset väärin. */
-const TAVUJARJESTYSMERKKI = "\ufeff";
+export const TAVUJARJESTYSMERKKI = "\ufeff";
 
 const RIVITASON_OTSIKOT = [
   "Ryhmä",
@@ -245,21 +248,21 @@ export function csvSisalto(kuitit: VientiKuitti[], asetukset: Vientiasetukset): 
         for (const rivi of kuitti.rivit) {
           rivit.push(
             [
-              kentta(ryhma.otsikko),
+              csvKentta(ryhma.otsikko),
               kuitti.paivays,
               kuitti.maksupaiva ?? "",
-              kentta(kuitti.toimittaja),
-              kentta(kuitti.tositenumero),
-              kentta(rivi.teksti),
+              csvKentta(kuitti.toimittaja),
+              csvKentta(kuitti.tositenumero),
+              csvKentta(rivi.teksti),
               rivi.maara === null ? "" : String(rivi.maara).replace(".", ","),
-              luku(rivi.brutto_eur),
+              csvLuku(rivi.brutto_eur),
               rivi.verokanta === null ? "" : String(rivi.verokanta).replace(".", ","),
-              kentta(rivi.kayttotarkoitus ? kayttotarkoituksenNimi(rivi.kayttotarkoitus) : ""),
-              kentta(rivi.kululuokka),
-              kentta(rivi.muistiinpano),
-              kentta(kuitti.muistiinpano),
-              luku(kuitti.loppusumma_eur),
-              kentta(kuitti.tiedosto_polku ? kuvanTiedostonimi(kuitti) : ""),
+              csvKentta(rivi.kayttotarkoitus ? kayttotarkoituksenNimi(rivi.kayttotarkoitus) : ""),
+              csvKentta(rivi.kululuokka),
+              csvKentta(rivi.muistiinpano),
+              csvKentta(kuitti.muistiinpano),
+              csvLuku(kuitti.loppusumma_eur),
+              csvKentta(kuitti.tiedosto_polku ? kuvanTiedostonimi(kuitti) : ""),
             ].join(";")
           );
         }
@@ -271,16 +274,16 @@ export function csvSisalto(kuitit: VientiKuitti[], asetukset: Vientiasetukset): 
       for (const kuitti of ryhma.kuitit) {
         rivit.push(
           [
-            kentta(ryhma.otsikko),
+            csvKentta(ryhma.otsikko),
             kuitti.paivays,
             kuitti.maksupaiva ?? "",
-            kentta(kuitti.toimittaja),
-            kentta(kuitti.tositenumero),
-            luku(kuitti.loppusumma_eur),
-            luku(kuitinKuluina(kuitti)),
+            csvKentta(kuitti.toimittaja),
+            csvKentta(kuitti.tositenumero),
+            csvLuku(kuitti.loppusumma_eur),
+            csvLuku(kuitinKuluina(kuitti)),
             String(kuitti.rivit.length),
-            kentta(kuitti.muistiinpano),
-            kentta(kuitti.tiedosto_polku ? kuvanTiedostonimi(kuitti) : ""),
+            csvKentta(kuitti.muistiinpano),
+            csvKentta(kuitti.tiedosto_polku ? kuvanTiedostonimi(kuitti) : ""),
           ].join(";")
         );
       }

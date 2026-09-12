@@ -9,12 +9,16 @@ import { cn } from "@/lib/utils";
 import { muistaKuitti, useViimeisinKuitti } from "./viimeisin-kuitti";
 
 /**
- * Kulut-osion kolme näkymää.
+ * Kulut-osion neljä näkymää.
  *
  * Kuukausi, Kuitti ja Paketti ovat saman aineiston kolme tasoa: kuukausi
  * listaa, kuitti tarkentaa yhteen, paketti luovuttaa kaikki. Palkki on joka
  * näkymässä sama, jotta siirtyminen on yksi painallus eikä paluu listan
  * kautta.
+ *
+ * Tilikausi on neljäs ja harvinaisin: koko vuoden kooste kirjanpitäjälle.
+ * Se on välilehti eikä oma navigointikohtansa, koska sitä käytetään kerran
+ * vuodessa - mutta samasta aineistosta.
  *
  * Kuitti-välilehti muistaa viimeksi avatun kuitin selaimessa. Ilman muistia
  * välilehti olisi tyhjä aina kun listalta ei juuri tultu, ja kolmesta
@@ -65,12 +69,18 @@ export function KulutValilehdet({
       aktiivinen:
         pathname.startsWith("/kulut/") &&
         pathname !== "/kulut/luovutus" &&
+        pathname !== "/kulut/tilikausi" &&
         !pathname.startsWith("/kulut/era/"),
     },
     {
       nimi: "Paketti",
       osoite: `/kulut/luovutus${kysely}`,
       aktiivinen: pathname === "/kulut/luovutus",
+    },
+    {
+      nimi: "Tilikausi",
+      osoite: "/kulut/tilikausi",
+      aktiivinen: pathname === "/kulut/tilikausi",
     },
   ];
 
