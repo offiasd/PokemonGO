@@ -66,6 +66,32 @@ laske hintaa uudelleen.
 muistiinpanot elävät erillään. Säilytysaika 6 vuotta sen
 kalenterivuoden lopusta jona tilikausi päättyi (kirjanpitolaki 2:10 §).
 
+## Mobiili on ensisijainen näkymä
+
+Sovellusta käytetään puhelimella. **Tarkista jokainen
+käyttöliittymämuutos 320 pikselin leveydellä** ennen kuin ilmoitat
+olevasi valmis — sitä ei tarvitse erikseen pyytää.
+
+Vaatimus: ei vaakavieritystä, ei näytön yli vuotavaa sisältöä, ei
+päällekkäin meneviä elementtejä.
+
+Tarkistuslista:
+
+- Jokaisella flex-lapsella joka voi sisältää pitkää tekstiä on
+  `min-width: 0`. Ilman sitä se ei kutistu sisältöään pienemmäksi,
+  vaikka `overflow: hidden` olisi asetettu. Tämä on ylivoimaisesti
+  yleisin syy ylivuotoon
+- Pitkät tekstit katkaistaan. Tuotenimet kuten
+  `PPS-11720 High Performance SC Clear` ja toimittajanimet ovat pitkiä
+- Enintään kaksi saraketta rinnakkain. Kolmen sarakkeen taulukko ei
+  mahdu puhelimeen — käytä korttiasettelua
+- Ei kiinteitä pikselileveyksiä sisältöelementeille
+- Luvut `tabular-nums`, jotta sarakkeet eivät hypi
+- Pudotusvalikon sisältö ei saa olla valikkoa leveämpi
+
+Kun muutat olemassa olevaa näkymää, tarkista myös ettei muutos riko
+sen vieressä olevia.
+
 ## Työtapa
 
 - **Lue toimeksiantotiedosto kokonaan** ennen kuin muutat mitään.

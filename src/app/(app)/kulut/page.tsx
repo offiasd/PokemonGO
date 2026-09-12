@@ -327,16 +327,28 @@ export default async function KulutSivu({
             <CardDescription>Oma seuranta, ei kirjanpidon jaottelu.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
+            {/* Puhelimella kaksi saraketta ja palkki omalla rivillään: kolmen
+                sarakkeen rivissä kiinteä 8rem nimisarake söi 240 pikselin
+                leveydeltä puolet, ja palkille jäi parikymmentä pikseliä - eli
+                juuri se osa joka kertoo suhteet. Kiinteä leveys on siksi vasta
+                sm-koosta ylöspäin, jossa tilaa on. */}
             {jakauma.map(([nimi, summa]) => (
-              <div key={nimi} className="grid grid-cols-[8rem_minmax(0,1fr)_auto] items-center gap-2">
-                <span className="truncate text-xs text-muted-foreground">{nimi}</span>
-                <div className="h-2 rounded-full bg-talous-neutraali">
+              <div
+                key={nimi}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:gap-2"
+              >
+                <span className="col-start-1 row-start-1 truncate text-xs text-muted-foreground">
+                  {nimi}
+                </span>
+                <div className="col-span-2 col-start-1 row-start-2 h-2 rounded-full bg-talous-neutraali sm:col-span-1 sm:col-start-2 sm:row-start-1">
                   <div
                     className="h-full rounded-full bg-talous-meno"
                     style={{ width: `${suurinLuokka > 0 ? (summa / suurinLuokka) * 100 : 0}%` }}
                   />
                 </div>
-                <span className="text-sm tabular-nums">{muotoileEuro(summa)}</span>
+                <span className="col-start-2 row-start-1 justify-self-end text-sm tabular-nums sm:col-start-3">
+                  {muotoileEuro(summa)}
+                </span>
               </div>
             ))}
           </CardContent>
