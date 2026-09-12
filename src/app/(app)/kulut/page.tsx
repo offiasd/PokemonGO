@@ -196,21 +196,23 @@ export default async function KulutSivu({
 
       <Card>
         <CardContent className="grid gap-4">
+          {/* Rivit rivittyvät eivätkä katkea: kuukauden nimi ja kuukauden
+              summa ovat molemmat lukuja joita tullaan katsomaan, eikä
+              "Marraskuu 20..." kerro kumpaakaan. Leveällä ruudulla ne ovat
+              samalla rivillä vastakkain kuten ennenkin. */}
           <div className="grid gap-0.5">
-            <div className="flex min-w-0 items-baseline justify-between gap-3">
-              <h1 className="truncate text-xl font-semibold">
+            <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3">
+              <h1 className="text-xl font-semibold">
                 {KUUKAUDEN_NIMI[kuukausi]} {vuosi}
               </h1>
-              <p className="shrink-0 text-xl font-semibold tabular-nums">
-                {muotoileEuro(kuluina)}
-              </p>
+              <p className="text-xl font-semibold tabular-nums">{muotoileEuro(kuluina)}</p>
             </div>
-            <div className="flex min-w-0 items-baseline justify-between gap-3 text-sm text-muted-foreground">
-              <p className="truncate">
+            <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 text-sm text-muted-foreground">
+              <p>
                 {voimassaolevia} {voimassaolevia === 1 ? "kuitti" : "kuittia"}
                 {mitatoityja > 0 && ` · ${mitatoityja} mitätöity`}
               </p>
-              <p className="shrink-0">kuluina · yhteensä {muotoileEuro(yhteensa)}</p>
+              <p>kuluina · yhteensä {muotoileEuro(yhteensa)}</p>
             </div>
           </div>
 

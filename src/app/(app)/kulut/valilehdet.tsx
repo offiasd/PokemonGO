@@ -84,16 +84,23 @@ export function KulutValilehdet({
     },
   ];
 
+  // min-w-0 ja truncate ovat tässä välttämättömiä, eivät varmuuden vuoksi:
+  // flex-1 ei kutista lasta sen sisällön minimileveyden alle, joten neljä
+  // välilehteä vaati 342 pikseliä. Se on enemmän kuin puhelimen ruudulla on
+  // tilaa, ja koska leveys tuli tästä palkista, kaikki sivun kortit venyivät
+  // sen mittaisiksi ja valuivat oikeasta reunasta yli - sisältö näytti
+  // vasemmalle työnnetyltä eikä keskitetyltä. Kapealla ruudulla myös tiiviimpi
+  // välistys ja pienempi teksti, jotta nimet mahtuvat katkaisematta.
   const tyyli = (aktiivinen: boolean) =>
     cn(
-      "flex-1 rounded-xl border px-4 py-2.5 text-center text-sm transition-colors",
+      "min-w-0 truncate rounded-xl border px-2 py-2.5 text-center text-xs transition-colors sm:px-4 sm:text-sm",
       aktiivinen
         ? "border-border bg-card font-medium text-foreground shadow-xs"
         : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted"
     );
 
   return (
-    <nav aria-label="Kulut" className="flex items-stretch gap-2">
+    <nav aria-label="Kulut" className="grid grid-cols-4 items-stretch gap-1.5 sm:gap-2">
       {valilehdet.map((valilehti) =>
         valilehti.osoite ? (
           <Link
