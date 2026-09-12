@@ -8,11 +8,11 @@ import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 /**
  * Kalustorekisterin toiminnot.
  *
- * Jokainen kirjoitus laskee poistoketjun uudelleen kannassa. Ketju on
- * vuosittainen - tämän vuoden loppusaldo on ensi vuoden alkusaldo - joten
- * yhden hankinnan lisäys muuttaa kaikkia sitä seuraavia vuosia. Laskenta on
- * kannassa eikä täällä: sama luku kahdessa paikassa erkaantuisi ennemmin tai
- * myöhemmin.
+ * Poistoketju lasketaan kannan triggerissä, ei täällä. Ketju on vuosittainen
+ * - tämän vuoden loppusaldo on ensi vuoden alkusaldo - joten yhden hankinnan
+ * muutos siirtää kaikkia sitä seuraavia vuosia. Trigger takaa ettei laskelma
+ * voi jäädä jälkeen riippumatta siitä mitä kautta kalustoa muutetaan, eikä
+ * kutsujan tarvitse muistaa ajaa laskentaa.
  */
 
 function paivita(): void {
@@ -20,11 +20,6 @@ function paivita(): void {
   revalidatePath("/kulut/tilikausi");
   // Pienhankintojen katto muuttuu kun rivi siirtyy kalustoon.
   revalidatePath("/kulut");
-}
-
-/** Vuosi jonka ketju lasketaan uudelleen, päättymispäivänä. */
-function tilikaudenLoppu(paivays: string): string {
-  return `${paivays.slice(0, 4)}-12-31`;
 }
 
 export async function lisaaKalusto(tiedot: {
@@ -46,10 +41,72 @@ export async function lisaaKalusto(tiedot: {
   });
   if (error) throw new Error(error.message);
 
-  const { error: laskuVirhe } = await supabase.rpc("laske_poistolaskelmat", {
-    p_tilikausi_paattyi: tilikaudenLoppu(tiedot.hankittu),
-  });
-  if (laskuVirhe) throw new Error(laskuVirhe.message);
+  paivita();
+}
+
+/**
+ * Kalustorivin muokkaus.
+ *
+ * Hankintameno on ALV 0 %. Lomake kertoo sen kentän vieressä, koska se on
+ * helppo syöttää bruttona: yritys ei ole ALV-rekisterissä, joten laskulla
+ * lukeva summa sisältää veron eikä sitä näe missään muualla.
+ */
+export async function muokkaaKalusto(
+  id: string,
+  tiedot: {
+    nimi: string;
+    kuvaus: string | null;
+    hankittu: string;
+    hankintamenoEur: number;
+    muistiinpano: string | null;
+  }
+): Promise<void> {
+  await vaaditaanAdmin();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("kalusto")
+    .update({
+      nimi: tiedot.nimi,
+      kuvaus: tiedot.kuvaus,
+      hankittu: tiedot.hankittu,
+      hankintameno_eur: tiedot.hankintamenoEur,
+      muistiinpano: tiedot.muistiinpano,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  paivita();
+}
+
+/**
+ * Kalustorivin poisto.
+ *
+ * Kalustorivi on laskennan apuväline, ei tosite: sillä ei ole
+ * säilytysvelvollisuutta, joten poisto saa olla lopullinen. Kuitilta tullut
+ * rivi vie mukanaan vain kalustomerkinnän - kuitti ja sen rivi säilyvät, ja
+ * rivin voi siirtää kalustoon uudelleen.
+ */
+export async function poistaKalusto(id: string): Promise<void> {
+  await vaaditaanAdmin();
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("kalusto").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+
+  paivita();
+}
+
+/** Luovutuksen peruminen: rivi palaa käytössä oleviin. */
+export async function peruLuovutus(id: string): Promise<void> {
+  await vaaditaanAdmin();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("kalusto")
+    .update({ luovutettu: null, luovutushinta_eur: null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 
   paivita();
 }
@@ -74,6 +131,13 @@ export async function siirraRiviKalustoon(riviId: string, nimi: string | null): 
   paivita();
 }
 
+/**
+ * Luovutus, eli myynti tai muu luovutus.
+ *
+ * Luovutus ei ole poisto: myyty työkalu pysyy rekisterissä, ja sen
+ * luovutushinta vähennetään luovutusvuoden menojäännöksestä (EVL 30 §).
+ * Poistettu rivi taas katoaa laskennasta kokonaan.
+ */
 export async function kirjaaLuovutus(
   kalustoId: string,
   luovutettu: string,
@@ -87,11 +151,6 @@ export async function kirjaaLuovutus(
     .update({ luovutettu, luovutushinta_eur: luovutushintaEur })
     .eq("id", kalustoId);
   if (error) throw new Error(error.message);
-
-  const { error: laskuVirhe } = await supabase.rpc("laske_poistolaskelmat", {
-    p_tilikausi_paattyi: tilikaudenLoppu(luovutettu),
-  });
-  if (laskuVirhe) throw new Error(laskuVirhe.message);
 
   paivita();
 }

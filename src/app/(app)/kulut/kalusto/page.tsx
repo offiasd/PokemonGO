@@ -31,10 +31,23 @@ export default async function KalustoSivu({
   const [{ data: kalusto }, aineisto] = await Promise.all([
     supabase
       .from("kalusto")
-      .select("id, nimi, kuvaus, hankittu, hankintameno_eur, luovutettu, luovutushinta_eur")
+      .select(
+        "id, nimi, kuvaus, hankittu, hankintameno_eur, muistiinpano, luovutettu, luovutushinta_eur, kuitin_rivi_id"
+      )
       .order("hankittu", { ascending: false }),
     haeTilikaudenAineisto(supabase, vuosi),
   ]);
+
+  // Kuitilta siirretyn rivin alkuperäinen bruttosumma näytetään muokkauksessa
+  // vertailuksi: hankintameno on veroton, ja ero on helppo tarkistaa vain jos
+  // molemmat luvut ovat näkyvissä.
+  const riviIdt = (kalusto ?? [])
+    .map((k) => k.kuitin_rivi_id)
+    .filter((id): id is string => id !== null);
+  const { data: kuittirivit } = riviIdt.length
+    ? await supabase.from("kuitin_rivit").select("id, brutto_eur").in("id", riviIdt)
+    : { data: [] };
+  const brutot = new Map((kuittirivit ?? []).map((r) => [r.id, r.brutto_eur]));
 
   const rivit: KalustoListalla[] = (kalusto ?? []).map((k) => ({
     id: k.id,
@@ -42,8 +55,10 @@ export default async function KalustoSivu({
     kuvaus: k.kuvaus,
     hankittu: k.hankittu,
     hankintamenoEur: k.hankintameno_eur,
+    muistiinpano: k.muistiinpano,
     luovutettu: k.luovutettu,
     luovutushintaEur: k.luovutushinta_eur,
+    kuitinBruttoEur: k.kuitin_rivi_id ? (brutot.get(k.kuitin_rivi_id) ?? null) : null,
   }));
 
   const kaytossa = rivit.filter((k) => k.luovutettu === null);
