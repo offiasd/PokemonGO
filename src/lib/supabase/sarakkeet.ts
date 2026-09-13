@@ -31,7 +31,3 @@ type Hintasarakkeet =
 
 export type TyonRivi = Omit<Database["public"]["Tables"]["tyon_rivit"]["Row"], Hintasarakkeet>;
 
-export type ArkistoituTyonRivi = Omit<
-  Database["public"]["Tables"]["arkistoidut_tyon_rivit"]["Row"],
-  Hintasarakkeet
->;

@@ -122,9 +122,6 @@ export function varinVaatiiPohjavarin(tyyppi: MaaliTyyppi): boolean {
   return tyyppi === "candy";
 }
 
-export function tyoVaiheenNimi(vaihe: TyoVaihe): string {
-  return TYO_VAIHEET.find((v) => v.arvo === vaihe)?.nimi ?? vaihe;
-}
 
 /**
  * Ajoneuvotyypin näyttönimi. Tyypit ovat adminin hallinnoimaa dataa, joten
@@ -310,9 +307,6 @@ export const KIILTOTASOT: { arvo: Kiiltotaso; nimi: string }[] = [
   { arvo: "matta", nimi: "Matta" },
 ];
 
-export function kiiltotasonNimi(taso: Kiiltotaso): string {
-  return KIILTOTASOT.find((t) => t.arvo === taso)?.nimi ?? taso;
-}
 
 export const VARISAVYT: { arvo: Varisavy; nimi: string }[] = [
   { arvo: "punainen", nimi: "Punainen" },

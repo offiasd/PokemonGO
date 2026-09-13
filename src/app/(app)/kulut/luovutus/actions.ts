@@ -4,33 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
-import type { LuovutuksenTarkistukset, Vientiasetukset } from "@/lib/luovutus";
+import type { Vientiasetukset } from "@/lib/luovutus";
 
 import type { KuittiTulos } from "../actions";
 
 function virheteksti(virhe: unknown, oletus: string): string {
   return virhe instanceof Error && virhe.message ? virhe.message : oletus;
-}
-
-/**
- * Kauden tarkistukset ja kokoaminen.
- *
- * Kokoaminen tallentaa tuloksen kantaan, jotta kuukausiautomaatin kokoama
- * tila ja käyttöliittymässä nähty ovat sama asia. Lähetettyä kautta ei koota
- * uudelleen - sen luvut ovat sitä mitä kirjanpitäjälle lähti.
- */
-export async function kokoaLuovutus(
-  kausi: string
-): Promise<{ ok: true; tarkistukset: LuovutuksenTarkistukset } | { ok: false; virhe: string }> {
-  try {
-    await vaaditaanAdmin();
-    const supabase = await createClient();
-    const { data, error } = await supabase.rpc("kokoa_luovutus", { p_kausi: kausi });
-    if (error) return { ok: false, virhe: error.message };
-    return { ok: true, tarkistukset: data as LuovutuksenTarkistukset };
-  } catch (virhe) {
-    return { ok: false, virhe: virheteksti(virhe, "Kokoaminen epäonnistui.") };
-  }
 }
 
 /**

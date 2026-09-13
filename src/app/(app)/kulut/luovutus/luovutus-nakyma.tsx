@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { muotoileEuro } from "@/lib/vakiot";
 import {
   paketinKuvaus,
+  OLETUSASETUKSET,
   RYHMITTELYT,
   TARKKUUDET,
   VIENTIMUODOT,
@@ -128,12 +129,9 @@ export function LuovutusNakyma({
   }[];
 }) {
   const router = useRouter();
-  const [asetukset, setAsetukset] = useState<Vientiasetukset>({
-    muodot: ["pdf", "csv", "zip"],
-    ryhmittely: "kuukausi",
-    tarkkuus: "rivitaso",
-    yksityisototMukaan: true,
-  });
+  // Oletukset tulevat vakiosta eivätkä tästä: samat arvot kahdessa paikassa
+  // muuttuisivat ennemmin tai myöhemmin vain toisessa.
+  const [asetukset, setAsetukset] = useState<Vientiasetukset>(OLETUSASETUKSET);
   const [kaynnissa, aloita] = useTransition();
   const [lataa, setLataa] = useState(false);
   const [puutteetAuki, setPuutteetAuki] = useState(false);
