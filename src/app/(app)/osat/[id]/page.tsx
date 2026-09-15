@@ -32,6 +32,7 @@ import {
 } from "../kustannusarvio";
 import { PoistaPalautaOsa } from "./poista-palauta-osa";
 import { OsanHinnoittelu } from "./osan-hinnoittelu";
+import { OsanLisatyot } from "./osan-lisatyot";
 
 // Pesu ja maalinpoisto ovat aina valinnaisia lisätöitä - maalaaja päättää
 // tarvitseeko kyseinen osa niitä, joten niiden kesto ei kuulu osan
@@ -76,6 +77,10 @@ export default async function OsaSivu({
   // värin ostohintaa eikä tuntiveloituksia. Maalaaja näkee asiakkaalle
   // asetetun kiinteän kategoriahinnan, ei laskettua suositusta.
   const naytaHinnat = kayttaja.role === "admin";
+
+  // Lisätyöt voimassa olevine arvoineen. Periytymissääntö on kannassa, jotta
+  // osan sivu ja työn sivu näkevät täsmälleen samat luvut.
+  const { data: lisatyot } = await supabase.rpc("osan_lisatyot", { p_osa_id: id });
 
   const varitHinnoin = naytaHinnat
     ? await Promise.all(
@@ -252,6 +257,8 @@ export default async function OsaSivu({
           )}
         </CardContent>
       </Card>
+
+      <OsanLisatyot osaId={osa.id} rivit={lisatyot ?? []} />
 
       <Card>
         <CardHeader>
