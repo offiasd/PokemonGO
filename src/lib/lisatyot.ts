@@ -69,7 +69,8 @@ export type VaroituksenLaji =
   | "mattalakka"
   | "saldo"
   | "lakkausarvot_puuttuvat"
-  | "perusvari_nollaan";
+  | "perusvari_nollaan"
+  | "automaattivari_puuttuu";
 
 export interface Varoitus {
   laji: VaroituksenLaji;
@@ -205,9 +206,19 @@ export function laskeLisatyot(
   // --- Automaattinen pohjaväri ---
   // Pohja tulee vain sen lisätyön verran: candy-logo kopassa on kolme grammaa
   // pohjaa, ei kolmeakymmentä.
+  const pohjaaTarvitsevat = rivit.filter((r) => vari(r.variId)?.vaatii_pohjavarin === true);
+  if (pohjaaTarvitsevat.length > 0 && !vari(automaattiset.pohjavariId ?? "")) {
+    // Ilman pohjaväriä riviä ei synny, jolloin pohjan grammat eivät varaudu
+    // varastosta. Varoitus, ei este: työ on silti tehtävä.
+    varoitukset.push({
+      laji: "automaattivari_puuttuu",
+      viesti:
+        "Lisätyön väri vaatii pohjavärin, mutta pohjaväriä ei ole valittu. Pohjan maali jää varaamatta.",
+    });
+  }
   if (automaattiset.pohjavariId) {
     const pohja = vari(automaattiset.pohjavariId);
-    const tarvitsevat = rivit.filter((r) => vari(r.variId)?.vaatii_pohjavarin === true);
+    const tarvitsevat = pohjaaTarvitsevat;
     const kulutus = pyorista(tarvitsevat.reduce((s, r) => s + r.kulutusG, 0));
     if (pohja && kulutus > 0) {
       rivit.push({
@@ -231,6 +242,14 @@ export function laskeLisatyot(
   // useita.
   const lakattavat = rivit.filter((r) => vari(r.variId)?.vaatii_lakkauksen === true);
   let lakkauslisaEur = 0;
+
+  if (lakattavat.length > 0 && !automaattiset.perusrivinLakkaus && !vari(automaattiset.lakkaId ?? "")) {
+    varoitukset.push({
+      laji: "automaattivari_puuttuu",
+      viesti:
+        "Lisätyön väri vaatii lakkauksen, mutta lakkaa ei ole valittu. Lakan maali jää varaamatta.",
+    });
+  }
 
   if (lakattavat.length > 0 && !automaattiset.perusrivinLakkaus && automaattiset.lakkaId) {
     const lakka = vari(automaattiset.lakkaId);

@@ -48,14 +48,24 @@ import {
   valitseKate,
   type Kateprosentit,
 } from "@/lib/hinnat";
+import {
+  laskeLisatyot,
+  type LisatyonPerusta,
+  type LisatyoValinta,
+  type VarinTiedot,
+} from "@/lib/lisatyot";
+import type { OsienLisatyo } from "@/lib/supabase/database.types";
 
 import { aloitaTyo, paivitaTyo } from "./actions";
+import { LisatyotRivilla } from "./lisatyot-rivilla";
 
 interface Osa {
   id: string;
   nimi: string;
   lisatiedot: string | null;
   lakkaus_kulutus_g: number | null;
+  /** Osan oma lakkauslisä. Käytetään vain jos kategorialla ei ole lakattua hintaa. */
+  lakkaus_lisahinta: number | null;
   tyokustannusKerroksittain: number[];
   /** Kate-% erikseen EU- ja ei-EU-väreille. */
   kateprosentit: Kateprosentit;
@@ -71,6 +81,8 @@ interface Vari {
   saldo_g: number;
   varattu_g: number;
   vaatii_lakkauksen: boolean;
+  vaatii_pohjavarin: boolean;
+  kiiltotaso: string | null;
   kokonaishinta: number;
 }
 
@@ -116,6 +128,26 @@ export interface KoriRivi {
   /** Custom-työn selite, esim. "50/50 vanteet". */
   kommentti: string | null;
   lisavarit: KoriLisavari[];
+  /** Rivin lisätyöt lukittuine kulutuksineen ja hintoineen. */
+  lisatyot: KoriLisatyo[];
+}
+
+/**
+ * Lisätyö korissa.
+ *
+ * Kulutus ja hinta ovat valmiiksi laskettuja: ne lukitaan riville
+ * kulutushetkellä eikä niitä lasketa uudelleen tallennuksessa.
+ */
+export interface KoriLisatyo {
+  lisatyoId: string | null;
+  nimi: string;
+  variId: string;
+  variNimi: string;
+  maara: number;
+  osuusProsentti: number | null;
+  kulutusG: number;
+  hintaEur: number;
+  automaattinen: "pohjavari" | "lakka" | null;
 }
 
 /** Lisäväririvi lomakkeella: väri valitaan ja kulutus kirjoitetaan itse. */
@@ -144,6 +176,7 @@ export function TyonLomake({
   varit,
   kategoriahinnat,
   variKategoriat,
+  osienLisatyot,
   oletusPohjavariId,
   oletusLakkaId,
   oletusKateprosentit,
@@ -154,6 +187,8 @@ export function TyonLomake({
   varit: Vari[];
   kategoriahinnat: Kategoriahinta[];
   variKategoriat: VariKategoria[];
+  /** Kaikkien osien rastitut lisätyöt. Vain nämä tarjotaan rivillä. */
+  osienLisatyot: OsienLisatyo[];
   /** Asetuksissa valittu esitäyttö candyn pohjavärille. */
   oletusPohjavariId: string | null;
   /** Asetuksissa valittu esitäyttö illusionin ja metallicin lakalle. */
@@ -219,6 +254,14 @@ export function TyonLomake({
   const [hintaSyote, setHintaSyote] = useState<string | null>(null);
   const [lisavarit, setLisavarit] = useState<LisavariSyote[]>([]);
   const seuraavaLisavariAvain = useRef(0);
+
+  // Lisätyöt: monivärisyys, tekstit ja logot omana rakenteenaan. null
+  // automaattisessa värissä tarkoittaa "asetusten oletus", merkkijono
+  // käyttäjän omaa valintaa - sama kuvio kuin toinenVariSyote-kentässä.
+  const [lisatyot, setLisatyot] = useState<LisatyoValinta[]>([]);
+  const [lisatyonPohjaSyote, setLisatyonPohjaSyote] = useState<string | null>(null);
+  const [lisatyonLakkaSyote, setLisatyonLakkaSyote] = useState<string | null>(null);
+  const seuraavaLisatyoAvain = useRef(0);
 
   const onMuu = osaId === MUU_OSA;
   const valittuOsa = useMemo(() => osat.find((o) => o.id === osaId), [osat, osaId]);
@@ -312,6 +355,112 @@ export function TyonLomake({
   const toinenArvioituKulutusG = kulutusKasin
     ? numeroTaiOletus(toinenKulutusSyote ?? "", oletusToinenKulutusG)
     : oletusToinenKulutusG;
+
+  // ---- Lisätyöt ----
+  // Valikossa ovat vain tälle osalle rastitut lisätyöt. "Muu"-rivillä niitä ei
+  // ole lainkaan: kertakohdetta ei ole osaluettelossa eikä sille siten voi
+  // olla määriteltyjä lisätöitä.
+  const osanLisatyot = useMemo<LisatyonPerusta[]>(
+    () =>
+      onMuu || !osaId
+        ? []
+        : osienLisatyot
+            .filter((l) => l.osa_id === osaId)
+            .map((l) => ({
+              lisatyo_id: l.lisatyo_id,
+              nimi: l.nimi,
+              on_jako: l.on_jako,
+              lisakulutus_g: l.lisakulutus_g,
+              hinta_eur: l.hinta_eur,
+            })),
+    [osienLisatyot, osaId, onMuu]
+  );
+
+  // Laskenta tarvitsee värin saldon ja lakkaus- sekä pohjavärivaatimukset,
+  // mutta ei hintoja: lisätyön hinta tulee ajasta, ei maalista.
+  const varienTiedot = useMemo<VarinTiedot[]>(
+    () =>
+      varit.map((v) => ({
+        id: v.id,
+        nimi: v.nimi,
+        vaatii_pohjavarin: v.vaatii_pohjavarin,
+        vaatii_lakkauksen: v.vaatii_lakkauksen,
+        kiiltotaso: v.kiiltotaso,
+        saldo_g: v.saldo_g,
+        varattu_g: v.varattu_g,
+      })),
+    [varit]
+  );
+
+  // Ilman suodatusta tarjottaisiin kaikkia värejä, joista suurin osa on
+  // pohjaksi tai lakaksi väärin. Sama kategoriarajaus kuin rivin omalla
+  // pohjavärillä ja lakalla.
+  const lisatyonPohjaVaihtoehdot = useMemo(
+    () => varienTiedot.filter((v) => variKategoriaKartta.get(v.id)?.has("pohjavari")),
+    [varienTiedot, variKategoriaKartta]
+  );
+  const lisatyonLakkaVaihtoehdot = useMemo(
+    () => varienTiedot.filter((v) => variKategoriaKartta.get(v.id)?.has("transparent")),
+    [varienTiedot, variKategoriaKartta]
+  );
+
+  // Esitäyttö kelpaa vain jos väri on yhä suodatetussa valikossa: poistettu tai
+  // toiseen kategoriaan siirretty oletus jättää valinnan tyhjäksi.
+  const lisatyonPohjavariId =
+    lisatyonPohjaSyote ??
+    (oletusPohjavariId && lisatyonPohjaVaihtoehdot.some((v) => v.id === oletusPohjavariId)
+      ? oletusPohjavariId
+      : null);
+  const lisatyonLakkaId =
+    lisatyonLakkaSyote ??
+    (oletusLakkaId && lisatyonLakkaVaihtoehdot.some((v) => v.id === oletusLakkaId)
+      ? oletusLakkaId
+      : null);
+
+  const lisatoidenTulos = useMemo(
+    () =>
+      laskeLisatyot(
+        lisatyot,
+        osanLisatyot,
+        varienTiedot,
+        variId,
+        arvioituKulutusG,
+        {
+          lakkaus_kulutus_g: valittuOsa?.lakkaus_kulutus_g ?? null,
+          lakkaus_lisahinta: valittuOsa?.lakkaus_lisahinta ?? null,
+          kategoriaHinta: valittuKategoriahinta?.hinta ?? null,
+          kategoriaHintaLakattu: valittuKategoriahinta?.hinta_lakattu ?? null,
+        },
+        {
+          pohjavariId: lisatyonPohjavariId,
+          lakkaId: lisatyonLakkaId,
+          // Rivi lakataan jo joko kategorian pakosta (candy, illusion) tai
+          // erikseen valittuna. Silloin lisätyö ei tuo toista lakkausta eikä
+          // lakkauslisää veloiteta kahdesti.
+          perusrivinLakkaus: toinenVariAktiivinen && toinenVariRooli === "lakka",
+        }
+      ),
+    [
+      lisatyot,
+      osanLisatyot,
+      varienTiedot,
+      variId,
+      arvioituKulutusG,
+      valittuOsa,
+      valittuKategoriahinta,
+      lisatyonPohjavariId,
+      lisatyonLakkaId,
+      toinenVariAktiivinen,
+      toinenVariRooli,
+    ]
+  );
+
+  // Jaot siirtävät grammoja perusväriltä, eivät lisää niitä: riville
+  // tallennetaan jäännös, jolloin osan kokonaiskulutus pysyy samana.
+  const perusvarinKulutusG =
+    lisatoidenTulos.perusvarinOsuus < 100
+      ? lisatoidenTulos.perusvarinKulutusG
+      : arvioituKulutusG;
 
   // Hinnoittelujärjestys on sama kuin osan omalla sivulla: adminin kategorialle
   // asettama kiinteä hinta ensin, sitten osan manuaalinen hinta, ja vasta jos
@@ -415,6 +564,14 @@ export function TyonLomake({
       ? null
       : Math.round(numeroTaiOletus(hintaSyote ?? "", laskettuHintaEur ?? 0) * 100) / 100;
 
+  // Asiakashinta = osan perushinta + lisätöiden hinnat + mahdollinen
+  // lakkauslisä. Riville tallentuu tämä summa, ja lisätyörivit säilyttävät
+  // oman hintansa erittelynä - niitä ei lasketa myyntiin toiseen kertaan.
+  const riviHintaEur =
+    yksikkohintaEur === null
+      ? null
+      : Math.round((yksikkohintaEur + lisatoidenTulos.hinnatYhteensaEur) * 100) / 100;
+
   // Koskematon kenttä näyttää esitäytön ja seuraa kategorian tai värin vaihtoa;
   // kirjoitettu arvo jää voimaan.
   const kentanArvo = (syote: string | null, oletus: number) =>
@@ -444,6 +601,9 @@ export function TyonLomake({
     setLakkausValittu(false);
     setToinenVariSyote(null);
     tyhjennaCustom();
+    // Toisen osan lisätyöt ovat eri lisätöitä: valinnat eivät saa jäädä
+    // roikkumaan, koska ne viittaisivat lisätyöhön jota uudella osalla ei ole.
+    tyhjennaLisatyot();
   }
 
   function vaihdaKategoria(v: string) {
@@ -463,6 +623,38 @@ export function TyonLomake({
     setLisavarit([]);
   }
 
+  /**
+   * Lisätyöt nollautuvat rivin mukana samoin kuin custom-valinnat.
+   *
+   * Myös automaattisten värien vaihdot: ne ovat työkohtaisia poikkeuksia
+   * yhdelle riville, eivät uusi oletus seuraavalle osalle.
+   */
+  function tyhjennaLisatyot() {
+    setLisatyot([]);
+    setLisatyonPohjaSyote(null);
+    setLisatyonLakkaSyote(null);
+  }
+
+  function lisaaLisatyo(lisatyoId: string) {
+    setLisatyot((vanhat) => [
+      ...vanhat,
+      {
+        avain: String(seuraavaLisatyoAvain.current++),
+        lisatyoId,
+        // Oletukseksi ei perusväriä: lisätyön koko idea on toinen väri.
+        variId: "",
+        maara: 1,
+        osuusProsentti: 50,
+      },
+    ]);
+  }
+
+  function muutaLisatyo(avain: string, muutos: Partial<Omit<LisatyoValinta, "avain">>) {
+    setLisatyot((vanhat) =>
+      vanhat.map((l) => (l.avain === avain ? { ...l, ...muutos } : l))
+    );
+  }
+
   function tyhjennaRivilomake() {
     setOsaId("");
     setOmaKuvaus("");
@@ -471,6 +663,7 @@ export function TyonLomake({
     setLakkausValittu(false);
     setToinenVariSyote(null);
     tyhjennaCustom();
+    tyhjennaLisatyot();
   }
 
   function lisaaLisavari() {
@@ -491,7 +684,7 @@ export function TyonLomake({
       toast.error("Valitse osa, kategoria ja väri.");
       return;
     }
-    if (yksikkohintaEur === null) {
+    if (riviHintaEur === null) {
       toast.error("Anna hinta asiakkaalle - sitä ei voi laskea näillä tiedoilla.");
       return;
     }
@@ -533,6 +726,13 @@ export function TyonLomake({
       toast.error("Sama väri on rivillä kahdesti - valitse eri värit.");
       return;
     }
+    // Ilman väriä lisätyö ei varaisi maalia varastosta eikä sen kulutus
+    // päätyisi mihinkään. Saldo ja lakkausarvot sen sijaan ovat varoituksia,
+    // eivät esteitä - työ on silti tehtävä.
+    if (lisatyot.some((l) => !l.variId)) {
+      toast.error("Valitse jokaiselle lisätyölle väri.");
+      return;
+    }
 
     const rivi: KoriRivi = {
       avain: String(seuraavaAvain.current++),
@@ -541,14 +741,25 @@ export function TyonLomake({
       osaNimi: onMuu ? omaKuvaus.trim() : (valittuOsa?.nimi ?? ""),
       variId: valittuVari.id,
       variNimi: valittuVari.nimi,
-      arvioituKulutusG,
-      yksikkohintaEur,
+      arvioituKulutusG: perusvarinKulutusG,
+      yksikkohintaEur: riviHintaEur,
       toinenVariId: toinenVariAktiivinen ? toinenVariId : null,
       toinenVariNimi: toinenVariAktiivinen ? (valittuToinenVari?.nimi ?? null) : null,
       toinenVariRooli: toinenVariAktiivinen ? (toinenVariRooli ?? null) : null,
       toinenArvioituKulutusG: toinenVariAktiivinen ? toinenArvioituKulutusG : null,
       custom,
       kommentti: custom ? kommentti.trim() || null : null,
+      lisatyot: lisatoidenTulos.rivit.map((r) => ({
+        lisatyoId: r.lisatyoId,
+        nimi: r.nimi,
+        variId: r.variId,
+        variNimi: r.variNimi,
+        maara: r.maara,
+        osuusProsentti: r.osuusProsentti,
+        kulutusG: r.kulutusG,
+        hintaEur: r.hintaEur,
+        automaattinen: r.automaattinen,
+      })),
       lisavarit: kulutusKasin
         ? lisavarit.map((l) => ({
             variId: l.variId,
@@ -598,6 +809,15 @@ export function TyonLomake({
       lisavarit: r.lisavarit.map((l) => ({
         variId: l.variId,
         arvioituKulutusG: l.arvioituKulutusG,
+      })),
+      lisatyot: r.lisatyot.map((l) => ({
+        lisatyoId: l.lisatyoId,
+        variId: l.variId,
+        maara: l.maara,
+        osuusProsentti: l.osuusProsentti,
+        kulutusG: l.kulutusG,
+        hintaEur: l.hintaEur,
+        automaattinen: l.automaattinen,
       })),
     }));
 
@@ -787,6 +1007,31 @@ export function TyonLomake({
                 </SelectContent>
               </Select>
             </div>
+          )}
+
+          {/* Lisätyöt tulevat värin jälkeen: jaon osuus lasketaan perusvärin
+              kulutuksesta ja automaattinen lakkaus riippuu siitä, lakataanko
+              rivi jo muutenkin. */}
+          {kategoria && variId && (
+            <LisatyotRivilla
+              perustat={osanLisatyot}
+              varit={varienTiedot}
+              valinnat={lisatyot}
+              tulos={lisatoidenTulos}
+              pohjavariVaihtoehdot={lisatyonPohjaVaihtoehdot}
+              lakkaVaihtoehdot={lisatyonLakkaVaihtoehdot}
+              pohjavariId={lisatyonPohjavariId}
+              lakkaId={lisatyonLakkaId}
+              oletusPohjavariId={oletusPohjavariId}
+              oletusLakkaId={oletusLakkaId}
+              onLisaa={lisaaLisatyo}
+              onPoista={(avain) =>
+                setLisatyot((vanhat) => vanhat.filter((l) => l.avain !== avain))
+              }
+              onMuuta={muutaLisatyo}
+              onVaihdaPohjavari={setLisatyonPohjaSyote}
+              onVaihdaLakka={setLisatyonLakkaSyote}
+            />
           )}
 
           {/* Custom-työ: sama osa maalataan usealla värillä, kulutus jaetaan
@@ -1017,19 +1262,29 @@ export function TyonLomake({
             </div>
           )}
 
-          {kategoria && valittuVari && yksikkohintaEur !== null && (
+          {kategoria && valittuVari && riviHintaEur !== null && (
             <p className="text-sm break-words text-muted-foreground">
               {hintaKasin ? "Hinta: " : "Laskettu hinta: "}
-              <span className="font-medium text-foreground">{muotoileEuro(yksikkohintaEur)}</span>
-              {arvioituKulutusG > 0 && (
+              <span className="font-medium text-foreground">{muotoileEuro(riviHintaEur)}</span>
+              {lisatoidenTulos.hinnatYhteensaEur > 0 && yksikkohintaEur !== null && (
+                <>
+                  {" ("}
+                  {muotoileEuro(yksikkohintaEur)}
+                  {" + lisätyöt "}
+                  {muotoileEuro(lisatoidenTulos.hinnatYhteensaEur)}
+                  {")"}
+                </>
+              )}
+              {perusvarinKulutusG > 0 && (
                 <>
                   {" - maalia "}
                   {[
-                    arvioituKulutusG,
+                    perusvarinKulutusG,
                     ...(toinenVariAktiivinen && toinenArvioituKulutusG > 0
                       ? [toinenArvioituKulutusG]
                       : []),
                     ...(kulutusKasin ? lisavarit.map((l) => numeroTaiOletus(l.kulutus, 0)) : []),
+                    ...lisatoidenTulos.rivit.map((r) => r.kulutusG),
                   ]
                     .filter((g) => g > 0)
                     .join(" + ")}
@@ -1083,6 +1338,25 @@ export function TyonLomake({
                       .filter(Boolean)
                       .join(" + ")}
                   </span>
+                  {/* Lisätyöt omina riveinään: lakkauslisä ei saa piiloutua
+                      loppusummaan, vaan asiakkaan on nähtävä mistä maksaa. */}
+                  {r.lisatyot.map((l, i) => (
+                    <span
+                      key={`${r.avain}-${i}`}
+                      className="flex min-w-0 justify-between gap-2 text-xs text-muted-foreground"
+                    >
+                      <span className="min-w-0 truncate">
+                        {l.nimi}
+                        {l.maara > 1 && ` x${l.maara}`}
+                        {l.osuusProsentti !== null && ` ${l.osuusProsentti} %`}
+                        {" · "}
+                        {l.variNimi}
+                      </span>
+                      <span className="shrink-0 tabular-nums">
+                        {l.hintaEur > 0 ? muotoileEuro(l.hintaEur) : "sisältyy"}
+                      </span>
+                    </span>
+                  ))}
                   {r.kommentti && (
                     <span className="text-xs break-words text-muted-foreground italic">
                       {r.kommentti}
@@ -1123,6 +1397,19 @@ export function TyonLomake({
                             + {r.lisavarit.map((l) => l.variNimi).join(" + ")}
                           </span>
                         )}
+                        {r.lisatyot.map((l, i) => (
+                          <span
+                            key={`${r.avain}-${i}`}
+                            className="block text-xs text-muted-foreground"
+                          >
+                            {l.nimi}
+                            {l.maara > 1 && ` x${l.maara}`}
+                            {l.osuusProsentti !== null && ` ${l.osuusProsentti} %`}
+                            {" · "}
+                            {l.variNimi}
+                            {l.hintaEur > 0 && ` · ${muotoileEuro(l.hintaEur)}`}
+                          </span>
+                        ))}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {r.toinenVariNimi ?? "-"}

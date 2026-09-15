@@ -19,20 +19,21 @@ export default async function UusiTyoSivu() {
     varitVastaus,
     kategoriahintaVastaus,
     variKategoriaVastaus,
+    lisatyoVastaus,
     tyovaiheetVastaus,
     tuntiveloitusVastaus,
   ] = await Promise.all([
     supabase
       .from("osat")
       .select(
-        "id, nimi, lisatiedot, lakkaus_kulutus_g, kate_prosentti, kate_kiintea, manuaalinen_hinta"
+        "id, nimi, lisatiedot, lakkaus_kulutus_g, lakkaus_lisahinta, kate_prosentti, kate_kiintea, manuaalinen_hinta"
       )
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase
       .from("varit")
       .select(
-        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, vaatii_lakkauksen"
+        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, vaatii_lakkauksen, vaatii_pohjavarin, kiiltotaso"
       )
       .eq("aktiivinen", true)
       .order("nimi"),
@@ -42,6 +43,9 @@ export default async function UusiTyoSivu() {
         "osa_id, maali_tyyppi, hinta, hinta_lakattu, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"
       ),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
+    // Osien rastitut lisätyöt yhdellä kutsulla: periytymissääntö pysyy
+    // kannassa eikä lomake kysy samaa 34 kertaa erikseen.
+    supabase.rpc("osien_lisatyot"),
     supabase
       .from("osa_tyovaiheet")
       .select("osa_id, vaihe, arvioitu_kesto_min")
@@ -97,6 +101,7 @@ export default async function UusiTyoSivu() {
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
+            osienLisatyot={lisatyoVastaus.data ?? []}
             oletusKateprosentit={{
               eu: asetukset.kate_prosentti_oletus,
               eiEu: asetukset.kate_prosentti_ei_eu_oletus,

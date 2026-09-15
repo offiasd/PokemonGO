@@ -35,6 +35,20 @@ export interface TyonRiviSyote {
   kommentti?: string | null;
   /** Rivin kolmas ja sitä seuraavat värit, kukin omalla kulutuksellaan. */
   lisavarit?: { variId: string; arvioituKulutusG: number }[];
+  /**
+   * Rivin lisätyöt: tekstit, logot ja värijaot sekä sovelluksen itse lisäämä
+   * pohjaväri ja lakkaus. Kulutus ja hinta ovat valmiiksi laskettuja ja
+   * lukittuvat riville sellaisinaan - kanta ei laske niitä uudelleen.
+   */
+  lisatyot?: {
+    lisatyoId: string | null;
+    variId: string;
+    maara: number;
+    osuusProsentti: number | null;
+    kulutusG: number;
+    hintaEur: number;
+    automaattinen: "pohjavari" | "lakka" | null;
+  }[];
 }
 
 /**
@@ -60,6 +74,15 @@ function riviPayload(rivit: TyonRiviSyote[]) {
     lisavarit: (r.lisavarit ?? []).map((l) => ({
       vari_id: l.variId,
       arvioitu_kulutus_g: l.arvioituKulutusG,
+    })),
+    lisatyot: (r.lisatyot ?? []).map((l) => ({
+      lisatyo_id: l.lisatyoId,
+      vari_id: l.variId,
+      maara: l.maara,
+      osuus_prosentti: l.osuusProsentti,
+      kulutus_g: l.kulutusG,
+      hinta_eur: l.hintaEur,
+      automaattinen: l.automaattinen,
     })),
   }));
 }

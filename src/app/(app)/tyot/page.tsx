@@ -71,6 +71,20 @@ export default async function TyotSivu() {
           .order("jarjestys")
       : { data: [] };
   const lisavarit = lisavaritData ?? [];
+
+  // Rivin hinta sisältää lisätyöt, joten ne on eriteltävä: pelkkä loppusumma
+  // ei kertoisi mistä logon tai lakkauslisän euro tuli. Ajat ja kustannukset
+  // jätetään hakematta - ne eivät ole maalaajan luettavissa.
+  const { data: lisatyotData } =
+    rivit.length > 0
+      ? await supabase
+          .from("tyon_rivin_lisatyot")
+          .select("tyon_rivi_id, lisatyo_id, vari_id, maara, osuus_prosentti, automaattinen")
+          .in("tyon_rivi_id", rivit.map((r) => r.id))
+          .order("jarjestys")
+      : { data: [] };
+  const rivinLisatyot = lisatyotData ?? [];
+  const { data: lisatyonNimet } = await supabase.rpc("lisatoiden_nimet");
   const osat = osatVastaus.data ?? [];
   const varit = varitVastaus.data ?? [];
   const tyovaiheet = tyovaiheetVastaus.data ?? [];
@@ -179,6 +193,23 @@ export default async function TyotSivu() {
     const lisat = lisavarit.filter((l) => l.rivi_id === rivi.id);
     if (lisat.length > 0) {
       teksti += ` + ${lisat.map((l) => variNimi(l.vari_id)).join(" + ")}`;
+    }
+    // Lisätyöt nimineen ja väreineen. Automaattinen pohjaväri ja lakka
+    // merkitään erikseen, jotta käyttäjä erottaa mitä sovellus päätteli.
+    for (const lt of rivinLisatyot.filter((l) => l.tyon_rivi_id === rivi.id)) {
+      const nimi = lt.lisatyo_id
+        ? (lisatyonNimet?.find((n) => n.id === lt.lisatyo_id)?.nimi ?? "Lisätyö")
+        : lt.automaattinen === "lakka"
+          ? "Lakkaus"
+          : "Pohjaväri";
+      const maare =
+        lt.osuus_prosentti !== null
+          ? ` ${lt.osuus_prosentti} %`
+          : lt.maara > 1
+            ? ` x${lt.maara}`
+            : "";
+      const vari = lt.vari_id ? `: ${variNimi(lt.vari_id)}` : "";
+      teksti += ` + ${nimi}${maare}${vari}${lt.automaattinen ? " (automaattinen)" : ""}`;
     }
     if (rivi.kommentti) {
       teksti += ` (${rivi.kommentti})`;

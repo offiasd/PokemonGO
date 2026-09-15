@@ -148,6 +148,33 @@ export interface OsanLisatyo {
   hinta_eur: number;
 }
 
+/**
+ * Yhden osan rastittu lisätyö työn lomaketta varten.
+ *
+ * Sama periytymissääntö kuin OsanLisatyo-rivillä, mutta vain valituista ja
+ * kaikista osista kerralla: lomake tarvitsee 34 osan lisätyöt yhdellä
+ * kutsulla. Ajat eivät tule mukaan - hinta riittää, ja minuutit yhdessä
+ * hinnan kanssa paljastaisivat tuntiveloituksen.
+ */
+export interface OsienLisatyo {
+  osa_id: string;
+  lisatyo_id: string;
+  nimi: string;
+  ryhma: string | null;
+  on_jako: boolean;
+  jarjestys: number;
+  lisakulutus_g: number;
+  hinta_eur: number;
+}
+
+/** Lisätyön nimi erittelyä varten. Ei aikoja eikä hintoja. */
+export interface LisatyonNimi {
+  id: string;
+  nimi: string;
+  ryhma: string | null;
+  on_jako: boolean;
+}
+
 /** Katalogirivi hintoineen ja käyttömäärineen. */
 export interface LisatyoLuettelossa {
   id: string;
@@ -1127,6 +1154,43 @@ export interface Database {
           },
         ];
       };
+      arkistoidut_rivin_lisatyot: {
+        Row: {
+          id: string;
+          rivi_id: string;
+          lisatyo_id: string | null;
+          vari_id: string | null;
+          maara: number;
+          osuus_prosentti: number | null;
+          /** Teippausaika lukitushetkellä. Ei maalaajan luettavissa: hinta
+           * jaettuna ajalla olisi tuntiveloitus. */
+          teippaus_min: number | null;
+          /** Maalausaika lukitushetkellä. Ks. teippaus_min. */
+          maalaus_min: number | null;
+          kulutus_g: number | null;
+          /** Asiakashinta. Sisältyy jo työrivin yksikkohinta_eur-summaan. */
+          hinta_eur: number | null;
+          /** Värin €/kg lukitushetkellä. Taloustietoa. */
+          vari_hinta_per_kg: number | null;
+          /** Lisätyön maalikustannus lukitulla hinnalla. Taloustietoa. */
+          maalikustannus_eur: number | null;
+          /** Milloin hinta lukittiin. Taloustietoa. */
+          hinta_lukittu_at: string | null;
+          automaattinen: AutomaattinenLisatyo | null;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["arkistoidut_rivin_lisatyot"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["arkistoidut_rivin_lisatyot"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "arkistoidut_rivin_lisatyot_rivi_id_fkey";
+            columns: ["rivi_id"];
+            isOneToOne: false;
+            referencedRelation: "arkistoidut_tyon_rivit";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tyon_rivit: {
         Row: {
           id: string;
@@ -1351,6 +1415,16 @@ export interface Database {
       osan_lisatyot: {
         Args: { p_osa_id: string };
         Returns: OsanLisatyo[];
+      };
+      /** Kaikkien osien rastitut lisätyöt yhdellä kutsulla. */
+      osien_lisatyot: {
+        Args: Record<string, never>;
+        Returns: OsienLisatyo[];
+      };
+      /** Lisätöiden nimet, myös käytöstä poistettujen. Kelpaa maalaajalle. */
+      lisatoiden_nimet: {
+        Args: Record<string, never>;
+        Returns: LisatyonNimi[];
       };
       /** Katalogi hintoineen ja käyttömäärineen. */
       lisatyoluettelo: {

@@ -41,6 +41,7 @@ export default async function MuokkaaTyotaSivu({
     varitVastaus,
     kategoriahintaVastaus,
     variKategoriaVastaus,
+    lisatyoVastaus,
     tyovaiheetVastaus,
     tuntiveloitusVastaus,
   ] = await Promise.all([
@@ -48,14 +49,14 @@ export default async function MuokkaaTyotaSivu({
     supabase
       .from("osat")
       .select(
-        "id, nimi, lisatiedot, lakkaus_kulutus_g, kate_prosentti, kate_kiintea, manuaalinen_hinta"
+        "id, nimi, lisatiedot, lakkaus_kulutus_g, lakkaus_lisahinta, kate_prosentti, kate_kiintea, manuaalinen_hinta"
       )
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase
       .from("varit")
       .select(
-        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, vaatii_lakkauksen"
+        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, vaatii_lakkauksen, vaatii_pohjavarin, kiiltotaso"
       )
       .eq("aktiivinen", true)
       .order("nimi"),
@@ -65,6 +66,9 @@ export default async function MuokkaaTyotaSivu({
         "osa_id, maali_tyyppi, hinta, hinta_lakattu, arvioitu_kulutus_g, toinen_arvioitu_kulutus_g"
       ),
     supabase.from("vari_kategoriat").select("vari_id, maali_tyyppi"),
+    // Osien rastitut lisätyöt yhdellä kutsulla: periytymissääntö pysyy
+    // kannassa eikä lomake kysy samaa 34 kertaa erikseen.
+    supabase.rpc("osien_lisatyot"),
     supabase
       .from("osa_tyovaiheet")
       .select("osa_id, vaihe, arvioitu_kesto_min")
@@ -128,6 +132,23 @@ export default async function MuokkaaTyotaSivu({
     .in("rivi_id", (rivitVastaus.data ?? []).map((r) => r.id))
     .order("jarjestys");
 
+  // Lisätyöt lukittuine arvoineen. Ajat jätetään hakematta: ne eivät ole
+  // maalaajan luettavissa, ja lomake tarvitsee vain kulutuksen ja hinnan.
+  // Nimi tulee katalogista, automaattiselta riviltä lisatyo_id on null.
+  const { data: rivinLisatyot } = await supabase
+    .from("tyon_rivin_lisatyot")
+    .select("tyon_rivi_id, lisatyo_id, vari_id, maara, osuus_prosentti, kulutus_g, hinta_eur, automaattinen")
+    .in("tyon_rivi_id", (rivitVastaus.data ?? []).map((r) => r.id))
+    .order("jarjestys");
+
+  // Nimi tulee jo haetusta katalogista: rivillä on vain lisatyo_id.
+  const lisatyonNimi = (lisatyoId: string | null, automaattinen: string | null) =>
+    lisatyoId
+      ? (lisatyoVastaus.data?.find((l) => l.lisatyo_id === lisatyoId)?.nimi ?? "Lisätyö")
+      : automaattinen === "lakka"
+        ? "Lakkaus (koko osa)"
+        : "Pohjaväri";
+
   const alkuRivit: KoriRivi[] = (rivitVastaus.data ?? []).map((rivi, i) => ({
     avain: String(i),
     osaId: rivi.osa_id,
@@ -149,6 +170,19 @@ export default async function MuokkaaTyotaSivu({
         variId: l.vari_id,
         variNimi: varinNimi(l.vari_id) ?? "Tuntematon väri",
         arvioituKulutusG: l.arvioitu_kulutus_g,
+      })),
+    lisatyot: (rivinLisatyot ?? [])
+      .filter((l) => l.tyon_rivi_id === rivi.id)
+      .map((l) => ({
+        lisatyoId: l.lisatyo_id,
+        nimi: lisatyonNimi(l.lisatyo_id, l.automaattinen),
+        variId: l.vari_id ?? "",
+        variNimi: varinNimi(l.vari_id) ?? "Tuntematon väri",
+        maara: l.maara,
+        osuusProsentti: l.osuus_prosentti,
+        kulutusG: l.kulutus_g ?? 0,
+        hintaEur: l.hinta_eur ?? 0,
+        automaattinen: l.automaattinen,
       })),
   }));
 
@@ -172,6 +206,7 @@ export default async function MuokkaaTyotaSivu({
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
+            osienLisatyot={lisatyoVastaus.data ?? []}
             oletusKateprosentit={{
               eu: asetukset.kate_prosentti_oletus,
               eiEu: asetukset.kate_prosentti_ei_eu_oletus,
