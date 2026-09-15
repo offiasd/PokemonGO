@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Brush, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { ilikeHakuehto } from "@/lib/supabase/hakuehto";
@@ -166,12 +166,20 @@ export default async function OsatSivu({
           </p>
         </div>
         {kayttaja.role === "admin" && (
-          <Button asChild>
-            <Link href="/osat/uusi">
-              <Plus className="size-4" />
-              Lisää osa
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/osat/lisatyot">
+                <Brush className="size-4" />
+                Lisätyöt
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/osat/uusi">
+                <Plus className="size-4" />
+                Lisää osa
+              </Link>
+            </Button>
+          </div>
         )}
       </div>
 

@@ -122,6 +122,46 @@ export type MaaliTyyppi =
   | "pohjavari"
   | "muu";
 export type ToinenVariRooli = "pohjavari" | "lakka";
+
+/** Sovelluksen itse lisäämä lisätyörivi: pohjaväri tai koko osan lakkaus. */
+export type AutomaattinenLisatyo = "pohjavari" | "lakka";
+
+/**
+ * Osan lisätyö voimassa olevine arvoineen.
+ *
+ * valittu = lisätyö on mahdollinen tälle osalle. *_oma erottaa osan oman
+ * arvon katalogista peritystä, jotta poikkeukset näkyvät yhdellä silmäyksellä.
+ */
+export interface OsanLisatyo {
+  lisatyo_id: string;
+  nimi: string;
+  ryhma: string | null;
+  on_jako: boolean;
+  jarjestys: number;
+  valittu: boolean;
+  teippaus_min: number;
+  maalaus_min: number;
+  lisakulutus_g: number;
+  teippaus_oma: boolean;
+  maalaus_oma: boolean;
+  lisakulutus_oma: boolean;
+  hinta_eur: number;
+}
+
+/** Katalogirivi hintoineen ja käyttömäärineen. */
+export interface LisatyoLuettelossa {
+  id: string;
+  nimi: string;
+  ryhma: string | null;
+  teippaus_min: number;
+  maalaus_min: number;
+  lisakulutus_g: number;
+  on_jako: boolean;
+  aktiivinen: boolean;
+  jarjestys: number;
+  hinta_eur: number;
+  osia: number;
+}
 // Silmämääräinen värisävy suodatusta varten - ei koske lakkoja (transparent),
 // koska ne ovat kirkkaita eikä niillä ole omaa sävyä.
 /**
@@ -667,6 +707,91 @@ export interface Database {
        * Luvut ovat kopioita: saldon voisi laskea historiasta, mutta hintaa ei
        * saisi mistään - ostohinta_per_kg on liukuva keskihinta.
        */
+      lisatyot: {
+        Row: {
+          id: string;
+          nimi: string;
+          ryhma: string | null;
+          teippaus_min: number;
+          maalaus_min: number;
+          lisakulutus_g: number;
+          /** Jaettu pinta: kulutus jakautuu osan kulutuksesta, ei lisäydy päälle. */
+          on_jako: boolean;
+          aktiivinen: boolean;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["lisatyot"]["Row"]> & { nimi: string };
+        Update: Partial<Database["public"]["Tables"]["lisatyot"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
+      osa_lisatyot: {
+        Row: {
+          id: string;
+          osa_id: string;
+          lisatyo_id: string;
+          /** Null = arvo periytyy katalogista. */
+          teippaus_min: number | null;
+          maalaus_min: number | null;
+          lisakulutus_g: number | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["osa_lisatyot"]["Row"]> & {
+          osa_id: string;
+          lisatyo_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["osa_lisatyot"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "osa_lisatyot_osa_id_fkey";
+            columns: ["osa_id"];
+            isOneToOne: false;
+            referencedRelation: "osat";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "osa_lisatyot_lisatyo_id_fkey";
+            columns: ["lisatyo_id"];
+            isOneToOne: false;
+            referencedRelation: "lisatyot";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tyon_rivin_lisatyot: {
+        Row: {
+          id: string;
+          tyon_rivi_id: string;
+          lisatyo_id: string | null;
+          vari_id: string | null;
+          maara: number;
+          /** Vain jaoille. Perusvärin osuus on jäännös. */
+          osuus_prosentti: number | null;
+          teippaus_min: number | null;
+          maalaus_min: number | null;
+          kulutus_g: number | null;
+          /** Asiakashinta. Näkyy myös maalaajalle, kuten yksikkohinta_eur. */
+          hinta_eur: number | null;
+          vari_hinta_per_kg: number | null;
+          maalikustannus_eur: number | null;
+          hinta_lukittu_at: string | null;
+          /** pohjavari tai lakka kun sovellus lisäsi rivin itse. */
+          automaattinen: AutomaattinenLisatyo | null;
+          varaus_purettu: boolean;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["tyon_rivin_lisatyot"]["Row"]> & {
+          tyon_rivi_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["tyon_rivin_lisatyot"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "tyon_rivin_lisatyot_tyon_rivi_id_fkey";
+            columns: ["tyon_rivi_id"];
+            isOneToOne: false;
+            referencedRelation: "tyon_rivit";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       kalusto: {
         Row: {
           id: string;
@@ -1212,6 +1337,26 @@ export interface Database {
       };
     };
     Functions: {
+      /** Lisätyön asiakashinta teippaus- ja maalausajasta. */
+      lisatyon_hinta: {
+        Args: { p_teippaus_min: number; p_maalaus_min: number };
+        Returns: number;
+      };
+      /** Työvaiheen tuntiveloitus: vaiheen oma hinta, muuten yleinen. */
+      vaiheen_tuntiveloitus: {
+        Args: { p_vaihe: string };
+        Returns: number;
+      };
+      /** Osan lisätyöt voimassa olevine arvoineen ja periytymismerkintöineen. */
+      osan_lisatyot: {
+        Args: { p_osa_id: string };
+        Returns: OsanLisatyo[];
+      };
+      /** Katalogi hintoineen ja käyttömäärineen. */
+      lisatyoluettelo: {
+        Args: Record<string, never>;
+        Returns: LisatyoLuettelossa[];
+      };
       /** Laskee poistoketjun ensimmäisestä hankintavuodesta annettuun tilikauteen. */
       laske_poistolaskelmat: {
         Args: { p_tilikausi_paattyi: string };
