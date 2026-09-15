@@ -275,15 +275,16 @@ export function LisatyotRivilla({
           loppuu ja mitkä grammat sovellus lisäsi itse. */}
       {tulos.varienKulutus.length > 1 && (
         <div className="grid gap-1 border-t pt-2">
+          {/* Merkintä omalle rivilleen: värinimen perässä se leikkautuisi pois
+              320 pikselin leveydellä, ja juuri se erottaa sovelluksen
+              päättelemät grammat käyttäjän valitsemista. */}
           {tulos.varienKulutus.map((k) => (
-            <div key={k.variId} className="flex min-w-0 justify-between gap-2 text-xs">
-              <span className="min-w-0 truncate">
-                {k.variNimi}
-                {k.automaattinen && (
-                  <span className="text-muted-foreground"> · automaattinen</span>
-                )}
-              </span>
-              <span className="shrink-0 tabular-nums">{muotoileGrammat(k.kulutusG)}</span>
+            <div key={k.variId} className="grid min-w-0 gap-0.5 text-xs">
+              <div className="flex min-w-0 justify-between gap-2">
+                <span className="min-w-0 truncate">{k.variNimi}</span>
+                <span className="shrink-0 tabular-nums">{muotoileGrammat(k.kulutusG)}</span>
+              </div>
+              {k.automaattinen && <span className="text-muted-foreground">automaattinen</span>}
             </div>
           ))}
         </div>
