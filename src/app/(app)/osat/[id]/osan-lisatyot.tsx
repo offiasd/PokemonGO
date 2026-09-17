@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { muotoileEuro } from "@/lib/vakiot";
+import { muotoileEuro, tyovaiheenNimi } from "@/lib/vakiot";
 import type { OsanLisatyo } from "@/lib/supabase/database.types";
 
 import { asetaOsanLisatyo, paivitaOsanLisatyonArvot } from "./lisatyo-actions";
@@ -32,6 +32,10 @@ function luku(arvo: string): number | null {
  * osan oma arvo annetaan vain kun se poikkeaa. Tyhjä kenttä palauttaa
  * periytymisen, jolloin katalogin muutokset alkavat taas näkyä.
  */
+
+// Käyttöliittymän nimi vaiheelle jonka arvo kannassa on yhä 'teippaus'.
+const SUOJAUS = tyovaiheenNimi("teippaus");
+
 export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisatyo[] }) {
   const router = useRouter();
   const [kesken, aja] = useTransition();
@@ -122,7 +126,7 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
               </div>
 
               <p className="text-sm text-muted-foreground tabular-nums">
-                teippaus {rivi.teippaus_min} min{rivi.teippaus_oma ? " (oma)" : ""} · maalaus{" "}
+                {SUOJAUS.toLowerCase()} {rivi.teippaus_min} min{rivi.teippaus_oma ? " (oma)" : ""} · maalaus{" "}
                 {rivi.maalaus_min} min{rivi.maalaus_oma ? " (oma)" : ""}
                 {!rivi.on_jako && (
                   <>
@@ -176,7 +180,7 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                      <Label htmlFor={`teippaus-${rivi.lisatyo_id}`}>Teippaus min</Label>
+                      <Label htmlFor={`teippaus-${rivi.lisatyo_id}`}>{SUOJAUS} min</Label>
                       <Input
                         id={`teippaus-${rivi.lisatyo_id}`}
                         type="number"

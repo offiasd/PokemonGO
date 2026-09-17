@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { tyovaiheenNimi } from "@/lib/vakiot";
 
 import { lisaaLisatyo } from "./actions";
 
@@ -17,6 +18,10 @@ function luku(arvo: string): number {
   const n = Number(arvo.replace(",", "."));
   return Number.isFinite(n) ? n : 0;
 }
+
+
+// Käyttöliittymän nimi vaiheelle jonka arvo kannassa on yhä 'teippaus'.
+const SUOJAUS = tyovaiheenNimi("teippaus");
 
 /**
  * Uuden lisätyön lisäys katalogiin.
@@ -62,7 +67,7 @@ export function LisatyonLisays({ seuraavaJarjestys }: { seuraavaJarjestys: numbe
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label htmlFor="uusi_teippaus">Teippaus min</Label>
+            <Label htmlFor="uusi_teippaus">{SUOJAUS} min</Label>
             <Input
               id="uusi_teippaus"
               type="number"

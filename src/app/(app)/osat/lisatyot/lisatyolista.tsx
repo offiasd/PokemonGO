@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { muotoileEuro } from "@/lib/vakiot";
+import { muotoileEuro, tyovaiheenNimi } from "@/lib/vakiot";
 import type { LisatyoLuettelossa } from "@/lib/supabase/database.types";
 
 import { asetaLisatyonTila, muokkaaLisatyo, poistaLisatyo } from "./actions";
@@ -31,6 +31,10 @@ function luku(arvo: string): number {
 }
 
 /** Hinta ajoista. Sama kaava kuin kannan lisatyon_hinta, esikatselua varten. */
+
+// Käyttöliittymän nimi vaiheelle jonka arvo kannassa on yhä 'teippaus'.
+const SUOJAUS = tyovaiheenNimi("teippaus");
+
 function hintaAjoista(teippausMin: number, maalausMin: number, tH: number, mH: number): number {
   return Math.round(((teippausMin / 60) * tH + (maalausMin / 60) * mH) * 100) / 100;
 }
@@ -141,7 +145,7 @@ export function Lisatyolista({
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground tabular-nums">
-                    teippaus {rivi.teippaus_min} min · maalaus {rivi.maalaus_min} min
+                    {SUOJAUS.toLowerCase()} {rivi.teippaus_min} min · maalaus {rivi.maalaus_min} min
                     {rivi.on_jako ? "" : ` · lisäkulutus ${rivi.lisakulutus_g} g`}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -222,7 +226,7 @@ export function Lisatyolista({
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label htmlFor="lisatyo_teippaus">Teippaus min</Label>
+                <Label htmlFor="lisatyo_teippaus">{SUOJAUS} min</Label>
                 <Input
                   id="lisatyo_teippaus"
                   type="number"

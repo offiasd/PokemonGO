@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { muotoileEuro } from "@/lib/vakiot";
+import { muotoileEuro, tyovaiheenNimi } from "@/lib/vakiot";
 import type { LisatyoLuettelossa } from "@/lib/supabase/database.types";
 
 import { Lisatyolista } from "./lisatyolista";
@@ -52,7 +52,7 @@ export default async function LisatyotSivu() {
           <p className="flex items-start gap-2 text-sm text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0" />
             <span>
-              Hinta lasketaan ajoista, ei kiinteistä summista: teippaus{" "}
+              Hinta lasketaan ajoista, ei kiinteistä summista: {tyovaiheenNimi("teippaus").toLowerCase()}{" "}
               <span className="font-medium text-foreground tabular-nums">
                 {muotoileEuro(teippausHinta)}/h
               </span>{" "}

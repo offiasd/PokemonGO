@@ -20,6 +20,17 @@ export const TYO_VAIHEET: { arvo: TyoVaihe; nimi: string }[] = [
   { arvo: "maalaus", nimi: "Maalaus" },
 ];
 
+/**
+ * Työvaiheen näyttönimi.
+ *
+ * Kannassa vaihe on 'teippaus', käyttöliittymässä "Suojaus": nimi on
+ * vaihtunut, arvo ei. Nimi luetaan siis aina täältä eikä kirjoiteta
+ * näkymiin käsin, jotta seuraava nimenmuutos riittää tehdä kerran.
+ */
+export function tyovaiheenNimi(vaihe: TyoVaihe): string {
+  return TYO_VAIHEET.find((v) => v.arvo === vaihe)?.nimi ?? vaihe;
+}
+
 export const VARI_TYYPIT: { arvo: VariTyyppi; nimi: string }[] = [
   { arvo: "yksivarinen", nimi: "Yksivärinen" },
   { arvo: "candy", nimi: "Candy" },
