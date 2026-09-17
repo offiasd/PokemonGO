@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { RotateCcw } from "lucide-react";
@@ -39,6 +39,22 @@ const SUOJAUS = tyovaiheenNimi("teippaus");
 export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisatyo[] }) {
   const router = useRouter();
   const [kesken, aja] = useTransition();
+
+  /**
+   * Rasti näkyy heti, ei vasta palvelimen vastauksesta.
+   *
+   * Aiemmin checked tuli suoraan palvelimen datasta ja rasti oli lisäksi
+   * disabled tallennuksen ajan: napautus haalisti ruudun eikä valintaa näkynyt
+   * ennen kuin kierros palvelimelle oli valmis. Puhelimessa se näytti siltä
+   * ettei napautus mennyt perille.
+   */
+  const [nakyvatRivit, asetaValintaHeti] = useOptimistic(
+    rivit,
+    (nykyiset: OsanLisatyo[], muutos: { lisatyoId: string; valittu: boolean }) =>
+      nykyiset.map((r) =>
+        r.lisatyo_id === muutos.lisatyoId ? { ...r, valittu: muutos.valittu } : r
+      )
+  );
   const [muokattava, setMuokattava] = useState<string | null>(null);
   const [teippaus, setTeippaus] = useState("");
   const [maalaus, setMaalaus] = useState("");
@@ -53,6 +69,20 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
     setLisakulutus(rivi.lisakulutus_oma ? String(rivi.lisakulutus_g) : "");
     setHintaPerus(rivi.hinta_perusvari_oma ? String(rivi.hinta_perusvari_eur) : "");
     setHintaErikois(rivi.hinta_erikoisvari_oma ? String(rivi.hinta_erikoisvari_eur) : "");
+  }
+
+  function vaihdaValinta(rivi: OsanLisatyo, valittu: boolean) {
+    aja(async () => {
+      asetaValintaHeti({ lisatyoId: rivi.lisatyo_id, valittu });
+      try {
+        await asetaOsanLisatyo(osaId, rivi.lisatyo_id, valittu);
+        router.refresh();
+      } catch (virhe) {
+        // Optimistinen arvo palautuu itsestään kun siirtymä päättyy, joten
+        // rasti palaa takaisin siihen mitä kannassa oikeasti on.
+        toast.error(virhe instanceof Error ? virhe.message : "Valinta ei tallentunut.");
+      }
+    });
   }
 
   function suorita(tehtava: () => Promise<void>, viesti: string) {
@@ -90,7 +120,7 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-2">
-        {rivit.map((rivi) => {
+        {nakyvatRivit.map((rivi) => {
           const auki = muokattava === rivi.lisatyo_id;
           const onPoikkeuksia =
             rivi.teippaus_oma ||
@@ -108,16 +138,14 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
             >
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <label className="flex min-w-0 flex-1 items-start gap-2 font-medium">
+                  {/* size-5 eikä size-4: tämä on puhelimella napautettava
+                      kohde, ja 16 pikseliä jää sormen alle. Ei disabled
+                      tallennuksen ajaksi - se näytti siltä ettei riviä voi
+                      valita lainkaan. */}
                   <Checkbox
-                    className="mt-0.5 shrink-0"
+                    className="mt-0.5 size-5 shrink-0"
                     checked={rivi.valittu}
-                    disabled={kesken}
-                    onCheckedChange={(arvo) =>
-                      suorita(
-                        () => asetaOsanLisatyo(osaId, rivi.lisatyo_id, arvo === true),
-                        arvo === true ? "Lisätyö otettu käyttöön osalle." : "Lisätyö poistettu osalta."
-                      )
-                    }
+                    onCheckedChange={(arvo) => vaihdaValinta(rivi, arvo === true)}
                     aria-label={`${rivi.nimi} mahdollinen tälle osalle`}
                   />
                   <span className="min-w-0 wrap-anywhere">

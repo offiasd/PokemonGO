@@ -22,9 +22,14 @@ export async function asetaOsanLisatyo(
   const supabase = await createClient();
 
   if (valittu) {
+    // Kaksoisnapautus ei saa kaatua uniikkirajoitteeseen: rasti on tila, ei
+    // tapahtuma, ja saman tilan asettaminen uudestaan on onnistunut lopputulos.
     const { error } = await supabase
       .from("osa_lisatyot")
-      .insert({ osa_id: osaId, lisatyo_id: lisatyoId });
+      .upsert(
+        { osa_id: osaId, lisatyo_id: lisatyoId },
+        { onConflict: "osa_id,lisatyo_id", ignoreDuplicates: true }
+      );
     if (error) throw new Error(error.message);
   } else {
     const { error } = await supabase

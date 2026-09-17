@@ -21,14 +21,6 @@ import type {
 } from "@/lib/lisatyot";
 
 /**
- * Lisätyöt työn rivillä.
- *
- * Laskenta on kokonaan lib/lisatyot.ts-moduulissa; tämä näyttää sen tuloksen
- * ja kerää valinnat. Automaattiset rivit tulevat samasta tuloksesta eivätkä
- * ole käyttäjän lisäämiä - ne merkitään erikseen, jotta käyttäjä näkee mitä
- * sovellus päätteli.
- */
-/**
  * Hinta lisäysnapissa ennen kuin väriä on valittu.
  *
  * Kategoria ratkeaa vasta väristä, joten toisen hinnan näyttäminen yksin
@@ -41,6 +33,14 @@ function napinHinta(p: LisatyonPerusta): string {
     : `${muotoileEuro(p.hinta_perusvari_eur)}\u2013${muotoileEuro(p.hinta_erikoisvari_eur)}`;
 }
 
+/**
+ * Lisätyöt työn rivillä.
+ *
+ * Laskenta on kokonaan lib/lisatyot.ts-moduulissa; tämä näyttää sen tuloksen
+ * ja kerää valinnat. Automaattiset rivit tulevat samasta tuloksesta eivätkä
+ * ole käyttäjän lisäämiä - ne merkitään erikseen, jotta käyttäjä näkee mitä
+ * sovellus päätteli.
+ */
 export function LisatyotRivilla({
   perustat,
   varit,
