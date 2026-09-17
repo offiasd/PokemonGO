@@ -28,6 +28,19 @@ import type {
  * ole käyttäjän lisäämiä - ne merkitään erikseen, jotta käyttäjä näkee mitä
  * sovellus päätteli.
  */
+/**
+ * Hinta lisäysnapissa ennen kuin väriä on valittu.
+ *
+ * Kategoria ratkeaa vasta väristä, joten toisen hinnan näyttäminen yksin
+ * olisi puolet totuudesta. Ero näytetään välinä ja yhtä suuret hinnat
+ * yhtenä lukuna, jottei nappi levene turhaan.
+ */
+function napinHinta(p: LisatyonPerusta): string {
+  return p.hinta_perusvari_eur === p.hinta_erikoisvari_eur
+    ? muotoileEuro(p.hinta_perusvari_eur)
+    : `${muotoileEuro(p.hinta_perusvari_eur)}\u2013${muotoileEuro(p.hinta_erikoisvari_eur)}`;
+}
+
 export function LisatyotRivilla({
   perustat,
   varit,
@@ -91,7 +104,7 @@ export function LisatyotRivilla({
             <Plus className="size-3.5 shrink-0" />
             <span className="min-w-0 truncate">{p.nimi}</span>
             <span className="shrink-0 tabular-nums text-muted-foreground">
-              {muotoileEuro(p.hinta_eur)}
+              {napinHinta(p)}
             </span>
           </Button>
         ))}

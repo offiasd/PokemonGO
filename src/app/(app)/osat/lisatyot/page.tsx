@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { muotoileEuro, tyovaiheenNimi } from "@/lib/vakiot";
+import { tyovaiheenNimi } from "@/lib/vakiot";
 import type { LisatyoLuettelossa } from "@/lib/supabase/database.types";
 
 import { Lisatyolista } from "./lisatyolista";
@@ -16,15 +16,8 @@ export default async function LisatyotSivu() {
   await vaaditaanAdmin();
   const supabase = await createClient();
 
-  const [{ data: luettelo }, { data: teippaus }, { data: maalaus }] = await Promise.all([
-    supabase.rpc("lisatyoluettelo"),
-    supabase.rpc("vaiheen_tuntiveloitus", { p_vaihe: "teippaus" }),
-    supabase.rpc("vaiheen_tuntiveloitus", { p_vaihe: "maalaus" }),
-  ]);
-
+  const { data: luettelo } = await supabase.rpc("lisatyoluettelo");
   const rivit = (luettelo ?? []) as LisatyoLuettelossa[];
-  const teippausHinta = teippaus ?? 0;
-  const maalausHinta = maalaus ?? 0;
 
   return (
     <div className="grid gap-4">
@@ -52,23 +45,20 @@ export default async function LisatyotSivu() {
           <p className="flex items-start gap-2 text-sm text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0" />
             <span>
-              Hinta lasketaan ajoista, ei kiinteistä summista: {tyovaiheenNimi("teippaus").toLowerCase()}{" "}
-              <span className="font-medium text-foreground tabular-nums">
-                {muotoileEuro(teippausHinta)}/h
-              </span>{" "}
-              ja maalaus{" "}
-              <span className="font-medium text-foreground tabular-nums">
-                {muotoileEuro(maalausHinta)}/h
-              </span>
-              . Kun tuntiveloitusta korotetaan, kaikki lisätyöt seuraavat. Pesu, maalinpoisto ja
-              puhallus tehdään osalle kerran riippumatta väreistä - ne ovat osan työvaiheita,
-              eivät lisätyön.
+              Hinta on kiinteä ja asetetaan erikseen kahdelle kategorialle:{" "}
+              <span className="font-medium text-foreground">perusväri</span> (Solid / RAL) ja{" "}
+              <span className="font-medium text-foreground">erikoisväri</span> (kaikki muut).
+              Kumpi on voimassa, ratkeaa lisätyölle valitusta väristä - sama logo maksaa eri
+              verran RAL-sävyllä kuin candylla. {tyovaiheenNimi("teippaus")}- ja maalausajat
+              kirjataan silti: ne eivät vaikuta hintaan, vaan niistä rakennetaan työjonon
+              ajankäyttö. Pesu, maalinpoisto ja puhallus tehdään osalle kerran riippumatta
+              väreistä - ne ovat osan työvaiheita, eivät lisätyön.
             </span>
           </p>
         </CardContent>
       </Card>
 
-      <Lisatyolista rivit={rivit} teippausHinta={teippausHinta} maalausHinta={maalausHinta} />
+      <Lisatyolista rivit={rivit} />
 
       <LisatyonLisays seuraavaJarjestys={(rivit.at(-1)?.jarjestys ?? 0) + 10} />
     </div>

@@ -371,18 +371,21 @@ export function TyonLomake({
               nimi: l.nimi,
               on_jako: l.on_jako,
               lisakulutus_g: l.lisakulutus_g,
-              hinta_eur: l.hinta_eur,
+              hinta_perusvari_eur: l.hinta_perusvari_eur,
+              hinta_erikoisvari_eur: l.hinta_erikoisvari_eur,
             })),
     [osienLisatyot, osaId, onMuu]
   );
 
-  // Laskenta tarvitsee värin saldon ja lakkaus- sekä pohjavärivaatimukset,
-  // mutta ei hintoja: lisätyön hinta tulee ajasta, ei maalista.
+  // Laskenta tarvitsee värin saldon, tyypin sekä lakkaus- ja
+  // pohjavärivaatimukset. Tyyppi ratkaisee lisätyön hintakategorian: solid on
+  // perusväri, kaikki muut erikoisväri.
   const varienTiedot = useMemo<VarinTiedot[]>(
     () =>
       varit.map((v) => ({
         id: v.id,
         nimi: v.nimi,
+        tyyppi: v.tyyppi,
         vaatii_pohjavarin: v.vaatii_pohjavarin,
         vaatii_lakkauksen: v.vaatii_lakkauksen,
         kiiltotaso: v.kiiltotaso,

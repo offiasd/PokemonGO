@@ -42,7 +42,13 @@ export async function asetaOsanLisatyo(
 export async function paivitaOsanLisatyonArvot(
   osaId: string,
   lisatyoId: string,
-  arvot: { teippausMin: number | null; maalausMin: number | null; lisakulutusG: number | null }
+  arvot: {
+    teippausMin: number | null;
+    maalausMin: number | null;
+    lisakulutusG: number | null;
+    hintaPerusvariEur: number | null;
+    hintaErikoisvariEur: number | null;
+  }
 ): Promise<void> {
   await vaaditaanAdmin();
   const supabase = await createClient();
@@ -53,6 +59,8 @@ export async function paivitaOsanLisatyonArvot(
       teippaus_min: arvot.teippausMin === null ? null : Math.round(arvot.teippausMin),
       maalaus_min: arvot.maalausMin === null ? null : Math.round(arvot.maalausMin),
       lisakulutus_g: arvot.lisakulutusG,
+      hinta_perusvari_eur: arvot.hintaPerusvariEur,
+      hinta_erikoisvari_eur: arvot.hintaErikoisvariEur,
     })
     .eq("osa_id", osaId)
     .eq("lisatyo_id", lisatyoId);

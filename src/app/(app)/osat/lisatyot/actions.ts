@@ -8,9 +8,12 @@ import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 /**
  * Lisätöiden katalogi.
  *
- * Hintaa ei tallenneta: se lasketaan ajoista tuntiveloitusten mukaan. Kun
- * tuntiveloitus nousee, kaikki lisätyöt seuraavat perässä ilman yhtäkään
- * käsin tehtyä muutosta - siksi kiinteää hintakenttää ei ole olemassakaan.
+ * Hinta on kiinteä ja asetetaan erikseen kahdelle värikategorialle:
+ * perusväri on solid (Solid / RAL), erikoisväri kaikki muut. Kategoria
+ * ratkeaa lisätyölle valitusta väristä, ei osan kategoriasta.
+ *
+ * Ajat jäävät kirjattaviksi vaikka ne eivät enää tuota hintaa: niistä
+ * rakennetaan myöhemmin jonojärjestelmä ajankäytön perusteella.
  */
 
 export interface LisatyonTiedot {
@@ -19,6 +22,8 @@ export interface LisatyonTiedot {
   teippausMin: number;
   maalausMin: number;
   lisakulutusG: number;
+  hintaPerusvariEur: number;
+  hintaErikoisvariEur: number;
   onJako: boolean;
   jarjestys: number;
 }
@@ -39,6 +44,8 @@ export async function lisaaLisatyo(tiedot: LisatyonTiedot): Promise<void> {
     teippaus_min: tiedot.teippausMin,
     maalaus_min: tiedot.maalausMin,
     lisakulutus_g: tiedot.lisakulutusG,
+    hinta_perusvari_eur: tiedot.hintaPerusvariEur,
+    hinta_erikoisvari_eur: tiedot.hintaErikoisvariEur,
     on_jako: tiedot.onJako,
     jarjestys: tiedot.jarjestys,
   });
@@ -59,6 +66,8 @@ export async function muokkaaLisatyo(id: string, tiedot: LisatyonTiedot): Promis
       teippaus_min: tiedot.teippausMin,
       maalaus_min: tiedot.maalausMin,
       lisakulutus_g: tiedot.lisakulutusG,
+      hinta_perusvari_eur: tiedot.hintaPerusvariEur,
+      hinta_erikoisvari_eur: tiedot.hintaErikoisvariEur,
       on_jako: tiedot.onJako,
       jarjestys: tiedot.jarjestys,
     })

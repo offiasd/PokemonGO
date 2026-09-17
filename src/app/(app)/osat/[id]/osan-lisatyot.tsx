@@ -43,12 +43,16 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
   const [teippaus, setTeippaus] = useState("");
   const [maalaus, setMaalaus] = useState("");
   const [lisakulutus, setLisakulutus] = useState("");
+  const [hintaPerus, setHintaPerus] = useState("");
+  const [hintaErikois, setHintaErikois] = useState("");
 
   function avaa(rivi: OsanLisatyo) {
     setMuokattava(rivi.lisatyo_id);
     setTeippaus(rivi.teippaus_oma ? String(rivi.teippaus_min) : "");
     setMaalaus(rivi.maalaus_oma ? String(rivi.maalaus_min) : "");
     setLisakulutus(rivi.lisakulutus_oma ? String(rivi.lisakulutus_g) : "");
+    setHintaPerus(rivi.hinta_perusvari_oma ? String(rivi.hinta_perusvari_eur) : "");
+    setHintaErikois(rivi.hinta_erikoisvari_oma ? String(rivi.hinta_erikoisvari_eur) : "");
   }
 
   function suorita(tehtava: () => Promise<void>, viesti: string) {
@@ -88,7 +92,12 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
       <CardContent className="grid gap-2">
         {rivit.map((rivi) => {
           const auki = muokattava === rivi.lisatyo_id;
-          const onPoikkeuksia = rivi.teippaus_oma || rivi.maalaus_oma || rivi.lisakulutus_oma;
+          const onPoikkeuksia =
+            rivi.teippaus_oma ||
+            rivi.maalaus_oma ||
+            rivi.lisakulutus_oma ||
+            rivi.hinta_perusvari_oma ||
+            rivi.hinta_erikoisvari_oma;
           return (
             <div
               key={rivi.lisatyo_id}
@@ -121,10 +130,20 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
                   </span>
                 </label>
                 <span className="shrink-0 font-semibold tabular-nums">
-                  {muotoileEuro(rivi.hinta_eur)}
+                  {rivi.hinta_perusvari_eur === rivi.hinta_erikoisvari_eur
+                    ? muotoileEuro(rivi.hinta_perusvari_eur)
+                    : `${muotoileEuro(rivi.hinta_perusvari_eur)} / ${muotoileEuro(rivi.hinta_erikoisvari_eur)}`}
                 </span>
               </div>
 
+              {(rivi.hinta_perusvari_eur !== rivi.hinta_erikoisvari_eur ||
+                rivi.hinta_perusvari_oma ||
+                rivi.hinta_erikoisvari_oma) && (
+                <p className="text-xs text-muted-foreground">
+                  perusväri{rivi.hinta_perusvari_oma ? " (oma)" : ""} / erikoisväri
+                  {rivi.hinta_erikoisvari_oma ? " (oma)" : ""}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground tabular-nums">
                 {SUOJAUS.toLowerCase()} {rivi.teippaus_min} min{rivi.teippaus_oma ? " (oma)" : ""} · maalaus{" "}
                 {rivi.maalaus_min} min{rivi.maalaus_oma ? " (oma)" : ""}
@@ -160,6 +179,8 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
                               teippausMin: null,
                               maalausMin: null,
                               lisakulutusG: null,
+                              hintaPerusvariEur: null,
+                              hintaErikoisvariEur: null,
                             }),
                           "Arvot periytyvät taas katalogista."
                         )
@@ -178,6 +199,36 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
                     Tyhjä kenttä palauttaa periytymisen, jolloin katalogin muutokset alkavat taas
                     näkyä tällä osalla.
                   </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor={`hinta-perus-${rivi.lisatyo_id}`}>
+                        Hinta perusvärillä €
+                      </Label>
+                      <Input
+                        id={`hinta-perus-${rivi.lisatyo_id}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={hintaPerus}
+                        placeholder={`Oletus ${rivi.hinta_perusvari_eur}`}
+                        onChange={(e) => setHintaPerus(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor={`hinta-erikois-${rivi.lisatyo_id}`}>
+                        Hinta erikoisvärillä €
+                      </Label>
+                      <Input
+                        id={`hinta-erikois-${rivi.lisatyo_id}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={hintaErikois}
+                        placeholder={`Oletus ${rivi.hinta_erikoisvari_eur}`}
+                        onChange={(e) => setHintaErikois(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="grid gap-1.5">
                       <Label htmlFor={`teippaus-${rivi.lisatyo_id}`}>{SUOJAUS} min</Label>
@@ -227,6 +278,8 @@ export function OsanLisatyot({ osaId, rivit }: { osaId: string; rivit: OsanLisat
                             teippausMin: luku(teippaus),
                             maalausMin: luku(maalaus),
                             lisakulutusG: rivi.on_jako ? null : luku(lisakulutus),
+                            hintaPerusvariEur: luku(hintaPerus),
+                            hintaErikoisvariEur: luku(hintaErikois),
                           });
                           setMuokattava(null);
                         }, "Arvot tallennettu.")

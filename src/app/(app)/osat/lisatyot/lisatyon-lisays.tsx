@@ -35,6 +35,8 @@ export function LisatyonLisays({ seuraavaJarjestys }: { seuraavaJarjestys: numbe
   const [teippaus, setTeippaus] = useState("");
   const [maalaus, setMaalaus] = useState("");
   const [lisakulutus, setLisakulutus] = useState("");
+  const [hintaPerus, setHintaPerus] = useState("");
+  const [hintaErikois, setHintaErikois] = useState("");
   const [onJako, setOnJako] = useState(false);
   const [kesken, aja] = useTransition();
 
@@ -65,6 +67,35 @@ export function LisatyonLisays({ seuraavaJarjestys }: { seuraavaJarjestys: numbe
             placeholder="Valinnainen, esim. Värijaot"
           />
         </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="uusi_hinta_perus">Hinta perusvärillä €</Label>
+            <Input
+              id="uusi_hinta_perus"
+              type="number"
+              min="0"
+              step="0.01"
+              value={hintaPerus}
+              onChange={(e) => setHintaPerus(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Solid / RAL</p>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="uusi_hinta_erikois">Hinta erikoisvärillä €</Label>
+            <Input
+              id="uusi_hinta_erikois"
+              type="number"
+              min="0"
+              step="0.01"
+              value={hintaErikois}
+              onChange={(e) => setHintaErikois(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Kaikki muut värit</p>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Ajat eivät vaikuta hintaan. Ne kirjataan työn keston arviointia varten.
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
             <Label htmlFor="uusi_teippaus">{SUOJAUS} min</Label>
@@ -125,6 +156,8 @@ export function LisatyonLisays({ seuraavaJarjestys }: { seuraavaJarjestys: numbe
                     teippausMin: Math.round(luku(teippaus)),
                     maalausMin: Math.round(luku(maalaus)),
                     lisakulutusG: onJako ? 0 : luku(lisakulutus),
+                    hintaPerusvariEur: luku(hintaPerus),
+                    hintaErikoisvariEur: luku(hintaErikois),
                     onJako,
                     jarjestys: seuraavaJarjestys,
                   });

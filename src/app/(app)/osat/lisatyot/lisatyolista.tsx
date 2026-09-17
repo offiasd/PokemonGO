@@ -30,13 +30,19 @@ function luku(arvo: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Hinta ajoista. Sama kaava kuin kannan lisatyon_hinta, esikatselua varten. */
-
 // Käyttöliittymän nimi vaiheelle jonka arvo kannassa on yhä 'teippaus'.
 const SUOJAUS = tyovaiheenNimi("teippaus");
 
-function hintaAjoista(teippausMin: number, maalausMin: number, tH: number, mH: number): number {
-  return Math.round(((teippausMin / 60) * tH + (maalausMin / 60) * mH) * 100) / 100;
+/**
+ * Hinnat rinnakkain kun ne eroavat, muuten yksi luku.
+ *
+ * Kahden hinnan näyttäminen aina veisi turhaa tilaa niiltä lisätöiltä joilla
+ * väri ei vaikuta hintaan - ja juuri ero on se tieto joka kannattaa erottua.
+ */
+function hintateksti(perusvari: number, erikoisvari: number): string {
+  return perusvari === erikoisvari
+    ? muotoileEuro(perusvari)
+    : `${muotoileEuro(perusvari)} / ${muotoileEuro(erikoisvari)}`;
 }
 
 /**
@@ -46,15 +52,7 @@ function hintaAjoista(teippausMin: number, maalausMin: number, tH: number, mH: n
  * osalla käytössä olevaa lisätyötä ei kannata poistaa vaan merkitä pois
  * käytöstä, jolloin vanhat työt säilyttävät hintansa.
  */
-export function Lisatyolista({
-  rivit,
-  teippausHinta,
-  maalausHinta,
-}: {
-  rivit: LisatyoLuettelossa[];
-  teippausHinta: number;
-  maalausHinta: number;
-}) {
+export function Lisatyolista({ rivit }: { rivit: LisatyoLuettelossa[] }) {
   const router = useRouter();
   const [avoin, setAvoin] = useState<LisatyoLuettelossa | null>(null);
   const [poistettava, setPoistettava] = useState<LisatyoLuettelossa | null>(null);
@@ -65,6 +63,8 @@ export function Lisatyolista({
   const [teippaus, setTeippaus] = useState("");
   const [maalaus, setMaalaus] = useState("");
   const [lisakulutus, setLisakulutus] = useState("");
+  const [hintaPerus, setHintaPerus] = useState("");
+  const [hintaErikois, setHintaErikois] = useState("");
   const [onJako, setOnJako] = useState(false);
 
   function avaa(rivi: LisatyoLuettelossa) {
@@ -74,6 +74,8 @@ export function Lisatyolista({
     setTeippaus(String(rivi.teippaus_min));
     setMaalaus(String(rivi.maalaus_min));
     setLisakulutus(String(rivi.lisakulutus_g));
+    setHintaPerus(String(rivi.hinta_perusvari_eur));
+    setHintaErikois(String(rivi.hinta_erikoisvari_eur));
     setOnJako(rivi.on_jako);
   }
 
@@ -111,8 +113,6 @@ export function Lisatyolista({
     else ryhmat.push({ nimi: avain, rivit: [rivi] });
   }
 
-  const esikatseluhinta = hintaAjoista(luku(teippaus), luku(maalaus), teippausHinta, maalausHinta);
-
   return (
     <>
       <div className="grid gap-4">
@@ -141,9 +141,12 @@ export function Lisatyolista({
                       {!rivi.aktiivinen && <Badge variant="outline">Pois käytöstä</Badge>}
                     </span>
                     <span className="font-semibold tabular-nums">
-                      {muotoileEuro(rivi.hinta_eur)}
+                      {hintateksti(rivi.hinta_perusvari_eur, rivi.hinta_erikoisvari_eur)}
                     </span>
                   </div>
+                  {rivi.hinta_perusvari_eur !== rivi.hinta_erikoisvari_eur && (
+                    <p className="text-xs text-muted-foreground">perusväri / erikoisväri</p>
+                  )}
                   <p className="text-sm text-muted-foreground tabular-nums">
                     {SUOJAUS.toLowerCase()} {rivi.teippaus_min} min · maalaus {rivi.maalaus_min} min
                     {rivi.on_jako ? "" : ` · lisäkulutus ${rivi.lisakulutus_g} g`}
@@ -224,6 +227,9 @@ export function Lisatyolista({
                 placeholder="Esim. Tekstit"
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Ajat eivät vaikuta hintaan. Ne kirjataan työn keston arviointia varten.
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="lisatyo_teippaus">{SUOJAUS} min</Label>
@@ -234,9 +240,6 @@ export function Lisatyolista({
                   value={teippaus}
                   onChange={(e) => setTeippaus(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {muotoileEuro(teippausHinta)}/h
-                </p>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="lisatyo_maalaus">Maalaus min</Label>
@@ -247,9 +250,6 @@ export function Lisatyolista({
                   value={maalaus}
                   onChange={(e) => setMaalaus(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {muotoileEuro(maalausHinta)}/h
-                </p>
               </div>
             </div>
             <div className="grid gap-2">
@@ -283,10 +283,32 @@ export function Lisatyolista({
                 </span>
               </span>
             </label>
-            <p className="rounded-md border bg-muted/30 p-3 text-sm">
-              Hinta ajoista:{" "}
-              <span className="font-semibold tabular-nums">{muotoileEuro(esikatseluhinta)}</span>
-            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="lisatyo_hinta_perus">Hinta perusvärillä €</Label>
+                <Input
+                  id="lisatyo_hinta_perus"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={hintaPerus}
+                  onChange={(e) => setHintaPerus(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Solid / RAL</p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="lisatyo_hinta_erikois">Hinta erikoisvärillä €</Label>
+                <Input
+                  id="lisatyo_hinta_erikois"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={hintaErikois}
+                  onChange={(e) => setHintaErikois(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Kaikki muut värit</p>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
@@ -305,6 +327,8 @@ export function Lisatyolista({
                       teippausMin: Math.round(luku(teippaus)),
                       maalausMin: Math.round(luku(maalaus)),
                       lisakulutusG: onJako ? 0 : luku(lisakulutus),
+                      hintaPerusvariEur: luku(hintaPerus),
+                      hintaErikoisvariEur: luku(hintaErikois),
                       onJako,
                       jarjestys: avoin?.jarjestys ?? 0,
                     }),

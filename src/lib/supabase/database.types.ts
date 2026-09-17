@@ -123,6 +123,14 @@ export type MaaliTyyppi =
   | "muu";
 export type ToinenVariRooli = "pohjavari" | "lakka";
 
+/**
+ * Lisätyön hintakategoria.
+ *
+ * Ratkeaa lisätyölle valitusta väristä, ei osan kategoriasta: sama logo
+ * maksaa eri verran sen mukaan millä värillä se maalataan.
+ */
+export type LisatyonVarikategoria = "perusvari" | "erikoisvari";
+
 /** Sovelluksen itse lisäämä lisätyörivi: pohjaväri tai koko osan lakkaus. */
 export type AutomaattinenLisatyo = "pohjavari" | "lakka";
 
@@ -145,7 +153,10 @@ export interface OsanLisatyo {
   teippaus_oma: boolean;
   maalaus_oma: boolean;
   lisakulutus_oma: boolean;
-  hinta_eur: number;
+  hinta_perusvari_eur: number;
+  hinta_erikoisvari_eur: number;
+  hinta_perusvari_oma: boolean;
+  hinta_erikoisvari_oma: boolean;
 }
 
 /**
@@ -164,7 +175,8 @@ export interface OsienLisatyo {
   on_jako: boolean;
   jarjestys: number;
   lisakulutus_g: number;
-  hinta_eur: number;
+  hinta_perusvari_eur: number;
+  hinta_erikoisvari_eur: number;
 }
 
 /** Lisätyön nimi erittelyä varten. Ei aikoja eikä hintoja. */
@@ -186,7 +198,8 @@ export interface LisatyoLuettelossa {
   on_jako: boolean;
   aktiivinen: boolean;
   jarjestys: number;
-  hinta_eur: number;
+  hinta_perusvari_eur: number;
+  hinta_erikoisvari_eur: number;
   osia: number;
 }
 // Silmämääräinen värisävy suodatusta varten - ei koske lakkoja (transparent),
@@ -739,9 +752,15 @@ export interface Database {
           id: string;
           nimi: string;
           ryhma: string | null;
+          /** Suojaukseen kuluva aika. Ei hinnan peruste - jää jonojärjestelmää varten. */
           teippaus_min: number;
+          /** Maalaukseen kuluva aika. Ks. teippaus_min. */
           maalaus_min: number;
           lisakulutus_g: number;
+          /** Kiinteä asiakashinta kun lisätyön väri on solid (Solid / RAL). */
+          hinta_perusvari_eur: number;
+          /** Kiinteä asiakashinta kun väri on mikä tahansa muu kuin solid. */
+          hinta_erikoisvari_eur: number;
           /** Jaettu pinta: kulutus jakautuu osan kulutuksesta, ei lisäydy päälle. */
           on_jako: boolean;
           aktiivinen: boolean;
@@ -760,6 +779,8 @@ export interface Database {
           teippaus_min: number | null;
           maalaus_min: number | null;
           lisakulutus_g: number | null;
+          hinta_perusvari_eur: number | null;
+          hinta_erikoisvari_eur: number | null;
         };
         Insert: Partial<Database["public"]["Tables"]["osa_lisatyot"]["Row"]> & {
           osa_id: string;
@@ -1401,15 +1422,10 @@ export interface Database {
       };
     };
     Functions: {
-      /** Lisätyön asiakashinta teippaus- ja maalausajasta. */
-      lisatyon_hinta: {
-        Args: { p_teippaus_min: number; p_maalaus_min: number };
-        Returns: number;
-      };
-      /** Työvaiheen tuntiveloitus: vaiheen oma hinta, muuten yleinen. */
-      vaiheen_tuntiveloitus: {
-        Args: { p_vaihe: string };
-        Returns: number;
+      /** Lisätyön hintakategoria väristä: solid on perusväri, muut erikoisväri. */
+      lisatyon_varikategoria: {
+        Args: { p_vari_id: string };
+        Returns: LisatyonVarikategoria;
       };
       /** Osan lisätyöt voimassa olevine arvoineen ja periytymismerkintöineen. */
       osan_lisatyot: {

@@ -5,9 +5,9 @@
  * tilikausi.ts: sääntöjen on oltava ajettavissa oikealla aineistolla ilman
  * palvelinta. Käyttöliittymä ja tallennus lukevat samat luvut täältä.
  *
- * Hintaa ei lasketa täällä uudelleen: lisätyön hinta tulee kannan
- * lisatyon_hinta-funktiosta osan_lisatyot-kutsun mukana, ja tämä moduuli
- * kertoo vain montako kertaa se otetaan ja miten kulutus jakautuu.
+ * Hintaa ei lasketa täällä uudelleen: lisätyön kiinteä hinta tulee kannasta
+ * osan_lisatyot-kutsun mukana, ja tämä moduuli kertoo vain kumpi kahdesta
+ * hinnasta valitaan, montako kertaa se otetaan ja miten kulutus jakautuu.
  */
 
 /** Osan lisätyö voimassa olevine arvoineen, kannan osan_lisatyot-muodossa. */
@@ -16,7 +16,10 @@ export interface LisatyonPerusta {
   nimi: string;
   on_jako: boolean;
   lisakulutus_g: number;
-  hinta_eur: number;
+  /** Kiinteä hinta kun lisätyön väri on solid. */
+  hinta_perusvari_eur: number;
+  /** Kiinteä hinta kun lisätyön väri on mikä tahansa muu. */
+  hinta_erikoisvari_eur: number;
 }
 
 /** Käyttäjän valinta työn rivillä. */
@@ -34,6 +37,8 @@ export interface LisatyoValinta {
 export interface VarinTiedot {
   id: string;
   nimi: string;
+  /** Maalityyppi. Ratkaisee lisätyön hintakategorian: solid vai muu. */
+  tyyppi: string;
   vaatii_pohjavarin: boolean;
   vaatii_lakkauksen: boolean;
   kiiltotaso: string | null;
@@ -94,6 +99,17 @@ export interface LisatoidenTulos {
 
 function pyorista(arvo: number): number {
   return Math.round(arvo * 100) / 100;
+}
+
+/**
+ * Lisätyön kiinteä hinta valitulle värille.
+ *
+ * Kategoria ratkeaa lisätyön omasta väristä eikä osan kategoriasta: sama
+ * logo maksaa eri verran sen mukaan maalataanko se RAL-sävyllä vai
+ * candylla. Sääntö on sama kuin kannan lisatyon_varikategoria-funktiossa.
+ */
+export function lisatyonHinta(perusta: LisatyonPerusta, vari: VarinTiedot): number {
+  return vari.tyyppi === "solid" ? perusta.hinta_perusvari_eur : perusta.hinta_erikoisvari_eur;
 }
 
 /**
@@ -158,6 +174,8 @@ export function laskeLisatyot(
     const v = vari(valinta.variId);
     if (!p || !v) continue;
 
+    const hinta = lisatyonHinta(p, v);
+
     if (p.on_jako) {
       const osuus = Math.min(Math.max(valinta.osuusProsentti, 0), 100);
       jakojenOsuus += osuus;
@@ -170,10 +188,10 @@ export function laskeLisatyot(
         maara: 1,
         osuusProsentti: osuus,
         kulutusG: pyorista((osanKulutusG * osuus) / 100),
-        hintaEur: pyorista(p.hinta_eur),
+        hintaEur: pyorista(hinta),
         automaattinen: null,
       });
-      hinnat += p.hinta_eur;
+      hinnat += hinta;
     } else {
       const maara = Math.max(1, Math.round(valinta.maara));
       rivit.push({
@@ -185,10 +203,10 @@ export function laskeLisatyot(
         maara,
         osuusProsentti: null,
         kulutusG: pyorista(p.lisakulutus_g * maara),
-        hintaEur: pyorista(p.hinta_eur * maara),
+        hintaEur: pyorista(hinta * maara),
         automaattinen: null,
       });
-      hinnat += p.hinta_eur * maara;
+      hinnat += hinta * maara;
     }
   }
 
