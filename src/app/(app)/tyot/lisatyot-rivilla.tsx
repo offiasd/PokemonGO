@@ -80,7 +80,7 @@ export function LisatyotRivilla({
   if (perustat.length === 0 && automaattiset.length === 0) return null;
 
   return (
-    <div className="grid gap-3 rounded-lg border p-3">
+    <div className="grid min-w-0 gap-3 rounded-lg border p-3">
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <Label className="text-sm">Lisätyöt</Label>
         {tulos.hinnatYhteensaEur > 0 && (
@@ -90,21 +90,26 @@ export function LisatyotRivilla({
         )}
       </div>
 
-      {/* Vain tälle osalle määritellyt: ei valikkoa jossa on kaikki mahdolliset. */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Vain tälle osalle määritellyt: ei valikkoa jossa on kaikki mahdolliset.
+          Kapealla ruudulla napit ovat omilla riveillään ja hinta nimen alla:
+          samalla rivillä hintaväli "100,00 €-145,00 €" vie niin paljon tilaa,
+          ettei nimestä jäisi jäljelle mitään. */}
+      <div className="grid min-w-0 gap-1.5 sm:flex sm:flex-wrap">
         {perustat.map((p) => (
           <Button
             key={p.lisatyo_id}
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 min-w-0 max-w-full"
+            className="h-auto min-w-0 justify-start py-1.5 text-left whitespace-normal"
             onClick={() => onLisaa(p.lisatyo_id)}
           >
             <Plus className="size-3.5 shrink-0" />
-            <span className="min-w-0 truncate">{p.nimi}</span>
-            <span className="shrink-0 tabular-nums text-muted-foreground">
-              {napinHinta(p)}
+            <span className="grid min-w-0 gap-0.5">
+              <span className="min-w-0 wrap-anywhere">{p.nimi}</span>
+              <span className="text-xs font-normal tabular-nums text-muted-foreground">
+                {napinHinta(p)}
+              </span>
             </span>
           </Button>
         ))}
