@@ -195,7 +195,7 @@ export function OsanValinta({
           Valitse ajoneuvotyyppi, niin sen osat tulevat näkyviin.
         </p>
       ) : (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {tyypinOsat.length === 0 && (
             <p className="col-span-full text-xs text-muted-foreground">
               Tälle ajoneuvotyypille ei ole osia.
@@ -214,10 +214,7 @@ export function OsanValinta({
                 rajaus={{ x: o.kuva_x, y: o.kuva_y, zoom: o.kuva_zoom }}
                 className="aspect-square w-full"
               />
-              {/* Kolmessa sarakkeessa ruutu on noin 90 pikseliä leveä, joten
-                  nimelle annetaan kolme riviä: "Pinnavanteiden Kehät 17" ei
-                  mahdu kahteen ilman että loppu katoaa. */}
-              <span className="min-w-0 text-[0.6875rem] leading-tight font-medium wrap-anywhere line-clamp-3">
+              <span className="min-w-0 text-xs leading-tight font-medium wrap-anywhere line-clamp-2">
                 {o.nimi}
               </span>
               {o.lisatiedot && (
