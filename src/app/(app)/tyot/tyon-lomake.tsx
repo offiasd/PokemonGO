@@ -403,7 +403,6 @@ export function TyonLomake({
         {
           pohjavariId: lisatyonPohjavariId,
           lakkaId: lisatyonLakkaId,
-          perusvariLahteena: true,
           // Solid ja metallic eivät vaadi lakkaa, mutta asiakas voi tilata
           // sen lisänä. Valinta on käyttäjän eikä värin ominaisuus.
           lakkausPaavarille: lakattu,
@@ -1290,8 +1289,7 @@ export function TyonLomake({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Osa</TableHead>
-                    <TableHead>Väri</TableHead>
-                    <TableHead>Pohjaväri / lakka</TableHead>
+                    <TableHead>Värit ja lisätyöt</TableHead>
                     <TableHead>Hinta</TableHead>
                     <TableHead />
                   </TableRow>
@@ -1309,6 +1307,14 @@ export function TyonLomake({
                       </TableCell>
                       <TableCell>
                         {r.variNimi}
+                        {/* Vanhan työn pohjaväri ja lakka ovat yhä työrivillä.
+                            Uusilla ne tulevat lisätyöriveinä alle. */}
+                        {r.toinenVariNimi && (
+                          <span className="block text-xs text-muted-foreground">
+                            {r.toinenVariRooli === "lakka" ? "Lakka" : "Pohjaväri"} ·{" "}
+                            {r.toinenVariNimi}
+                          </span>
+                        )}
                         {r.lisavarit.length > 0 && (
                           <span className="block text-xs text-muted-foreground">
                             + {r.lisavarit.map((l) => l.variNimi).join(" + ")}
@@ -1327,9 +1333,6 @@ export function TyonLomake({
                             {l.hintaEur > 0 && ` · ${muotoileEuro(l.hintaEur)}`}
                           </span>
                         ))}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {r.toinenVariNimi ?? "-"}
                       </TableCell>
                       <TableCell>{muotoileEuro(r.yksikkohintaEur)}</TableCell>
                       <TableCell>

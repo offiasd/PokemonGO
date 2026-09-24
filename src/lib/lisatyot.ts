@@ -235,14 +235,6 @@ export function laskeLisatyot(
     /** Käyttäjän muokkaukset automaattisiin riveihin. */
     muokkaukset?: AutomaattisenMuokkaus[];
     /**
-     * Onko työn pääväri lähde siinä missä lisätyöt. Oletus tosi.
-     *
-     * Epätosi vain siirtymän ajan, jos päävärin pohjaväri ja lakka tulevat
-     * vielä työrivin toinen_vari-kentistä: silloin pääväri lähteenä tuottaisi
-     * niistä toisen kappaleen.
-     */
-    perusvariLahteena?: boolean;
-    /**
      * Pääväri lakataan vaikka sen oma väri ei lakkausta vaadi.
      *
      * Solid ja metallic eivät vaadi lakkaa, mutta asiakas voi tilata sen
@@ -351,7 +343,7 @@ export function laskeLisatyot(
   // Pääväri on lähde siinä missä lisätyöt: sen pohjaväri ja lakka syntyvät
   // samalla säännöllä ja skaalautuvat samalla osuudella.
   const perusvari = vari(perusvariId);
-  if (automaattiset.perusvariLahteena !== false && perusvari && perusvarinOsuus > 0) {
+  if (perusvari && perusvarinOsuus > 0) {
     lahteet.unshift({
       avain: null,
       variId: perusvari.id,

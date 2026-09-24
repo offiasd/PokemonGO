@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { muotoileEuro, TYON_TILAN_NIMI } from "@/lib/vakiot";
+import { lisatyonNimi, muotoileEuro, TYON_TILAN_NIMI } from "@/lib/vakiot";
 import type { Database, ToinenVariRooli, TyonTila } from "@/lib/supabase/database.types";
 import { TYON_RIVI_SARAKKEET } from "@/lib/supabase/sarakkeet";
 
@@ -79,6 +79,21 @@ export default async function KayttajanTyotSivu({
           .order("jarjestys")
       : { data: [] };
   const lisavarit = lisavaritData ?? [];
+  // Pohjaväri, lakka ja värilliset lisätyöt ovat lisätyörivejä: ilman niitä
+  // candy-työ näyttäisi yksiväriseltä.
+  const { data: lisatyotData } =
+    rivit.length > 0
+      ? await supabase
+          .from("tyon_rivin_lisatyot")
+          .select("tyon_rivi_id, lisatyo_id, vari_id, maara, osuus_prosentti, automaattinen")
+          .in(
+            "tyon_rivi_id",
+            rivit.map((r) => r.id)
+          )
+          .order("jarjestys")
+      : { data: [] };
+  const rivinLisatyot = lisatyotData ?? [];
+  const { data: lisatyonNimet } = await supabase.rpc("lisatoiden_nimet");
 
   // Rivillä on joko osa tai oma kuvaus: kertakohteen nimi on rivillä itsellään.
   const rivinNimi = (rivi: { osa_id: string | null; oma_kuvaus: string | null }) =>
@@ -171,6 +186,17 @@ export default async function KayttajanTyotSivu({
                           .filter((l) => l.rivi_id === rivi.id)
                           .map((l) => (
                             <span key={l.vari_id}> + {variNimi(l.vari_id)}</span>
+                          ))}
+                        {rivinLisatyot
+                          .filter((l) => l.tyon_rivi_id === rivi.id)
+                          .map((l, i) => (
+                            <span key={`${rivi.id}-${i}`}>
+                              {" "}
+                              + {lisatyonNimi(l, lisatyonNimet)}
+                              {l.osuus_prosentti !== null && ` ${l.osuus_prosentti} %`}
+                              {l.maara > 1 && ` x${l.maara}`}
+                              {l.vari_id && `: ${variNimi(l.vari_id)}`}
+                            </span>
                           ))}
                         {rivi.kommentti && (
                           <span className="block text-xs text-muted-foreground italic">

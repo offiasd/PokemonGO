@@ -74,6 +74,23 @@ export const TOINEN_VARI_ROOLIN_NIMI: Record<ToinenVariRooli, string> = {
   lakka: "Lakka",
 };
 
+/**
+ * Lisätyörivin näytettävä nimi.
+ *
+ * Automaattisella rivillä ei ole katalogin lisätyötä lainkaan, vaan sen nimi
+ * kertoo mitä sovellus lisäsi itse. Sama sääntö on työlistalla, historiassa
+ * ja käyttäjän sivulla, joten se asuu täällä eikä kolmessa paikassa.
+ */
+export function lisatyonNimi(
+  lisatyo: { lisatyo_id: string | null; automaattinen: string | null },
+  nimet: { id: string; nimi: string }[] | null | undefined
+): string {
+  if (lisatyo.lisatyo_id) {
+    return nimet?.find((n) => n.id === lisatyo.lisatyo_id)?.nimi ?? "Lisätyö";
+  }
+  return lisatyo.automaattinen === "lakka" ? "Lakkaus" : "Pohjaväri";
+}
+
 // Työn peruutuksen syyt. Yleisimmät kaksi ovat valmiina, ja "muu" avaa
 // tekstiruudun - näin tavallinen peruutus on kahden klikkauksen takana mutta
 // poikkeus saa silti oman selityksensä.

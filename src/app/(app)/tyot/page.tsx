@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ajoneuvotyypinNimi,
   laskeTyoaikaMin,
+  lisatyonNimi,
   muotoileEuro,
   muotoileGrammat,
   muotoileKesto,
@@ -79,7 +80,9 @@ export default async function TyotSivu() {
     rivit.length > 0
       ? await supabase
           .from("tyon_rivin_lisatyot")
-          .select("tyon_rivi_id, lisatyo_id, vari_id, maara, osuus_prosentti, automaattinen")
+          .select(
+            "id, tyon_rivi_id, lisatyo_id, vari_id, maara, osuus_prosentti, automaattinen, kulutus_g, lahde_rivi_id, lakkaus_laajuus"
+          )
           .in("tyon_rivi_id", rivit.map((r) => r.id))
           .order("jarjestys")
       : { data: [] };
@@ -99,8 +102,15 @@ export default async function TyotSivu() {
       vaihe: TyoVaihe;
       arvioitu_kesto_min: number;
     }[];
+  // Värikerroksia on pääväri ja jokainen automaattinen lisätyörivi: pohjaväri
+  // ja lakka maalataan omina ajoinaan. Vanhoilla riveillä ne ovat yhä työrivin
+  // toinen_vari-kentässä, joten kumpikin lähde lasketaan.
+  const varikerroksia = (rivi: TyonRivi) =>
+    1 +
+    (rivi.toinen_vari_id ? 1 : 0) +
+    rivinLisatyot.filter((l) => l.tyon_rivi_id === rivi.id && l.automaattinen !== null).length;
   const rivinTyoaikaMin = (rivi: TyonRivi) =>
-    laskeTyoaikaMin(osanVaiheet(rivi.osa_id), rivi.toinen_vari_id ? 2 : 1) * rivi.kappalemaara;
+    laskeTyoaikaMin(osanVaiheet(rivi.osa_id), varikerroksia(rivi)) * rivi.kappalemaara;
 
   const profiiliNimi = (id: string | null) =>
     profiilit.find((p) => p.id === id)?.full_name ?? "-";
@@ -145,8 +155,9 @@ export default async function TyotSivu() {
 
   // Maalausjono väreittäin: laitteistossa on kerrallaan vain yksi väri, joten
   // saman värin osat kannattaa ajaa peräkkäin. Mukaan tulevat sekä
-  // vastaanotetut että keskeneräiset työt, ja myös rivin toinen väri
-  // (pohjaväri tai lakka) on oma ajonsa.
+  // vastaanotetut että keskeneräiset työt, ja jokainen lisätyörivi omana
+  // ajonaan - pohjaväri ja lakka ovat niitä. Vanhoilla riveillä ne ovat yhä
+  // työrivin toinen_vari-kentässä.
   const jonoKartta = new Map<
     string,
     { variId: string; osia: number; grammat: number; vanhin: string }
@@ -156,6 +167,9 @@ export default async function TyotSivu() {
       const osuudet: [string | null, number][] = [
         [rivi.vari_id, rivi.arvioitu_kulutus_g],
         [rivi.toinen_vari_id, rivi.toinen_arvioitu_kulutus_g ?? 0],
+        ...rivinLisatyot
+          .filter((l) => l.tyon_rivi_id === rivi.id)
+          .map((l): [string | null, number] => [l.vari_id, l.kulutus_g ?? 0]),
       ];
       for (const [variId, grammat] of osuudet) {
         if (!variId) continue;
@@ -183,6 +197,22 @@ export default async function TyotSivu() {
   const saaKasitella = (tyo: { tila: string; aloitti_id: string | null }) =>
     onAdmin || (tyo.tila === "vaiheessa" && tyo.aloitti_id === kayttaja.id);
 
+  /**
+   * Automaattisen rivin lähde: se väri jonka takia rivi syntyi.
+   *
+   * Null kun rivi ei ole automaattinen. Tyhjä lahde_rivi_id tarkoittaa työn
+   * pääväriä - myös vanhoilla riveillä, jotka luotiin ennen lähdesaraketta.
+   */
+  const lahteenKuvaus = (
+    rivi: TyonRivi,
+    lt: { automaattinen: string | null; lahde_rivi_id: string | null }
+  ) => {
+    if (!lt.automaattinen) return null;
+    const lahde = lt.lahde_rivi_id ? rivinLisatyot.find((l) => l.id === lt.lahde_rivi_id) : null;
+    if (!lahde) return variNimi(rivi.vari_id);
+    return lahde.vari_id ? variNimi(lahde.vari_id) : lisatyonNimi(lahde, lisatyonNimet);
+  };
+
   function riviteksti(rivi: TyonRivi) {
     let teksti = `${rivinNimi(rivi)} - ${variNimi(rivi.vari_id)}`;
     if (rivi.toinen_vari_id && rivi.toinen_vari_rooli) {
@@ -195,13 +225,9 @@ export default async function TyotSivu() {
       teksti += ` + ${lisat.map((l) => variNimi(l.vari_id)).join(" + ")}`;
     }
     // Lisätyöt nimineen ja väreineen. Automaattinen pohjaväri ja lakka
-    // merkitään erikseen, jotta käyttäjä erottaa mitä sovellus päätteli.
+    // merkitään lähteineen: sama väri voi tulla useasta lähteestä, ja
+    // pelkkä "automaattinen" ei kertoisi kumpi rivi on kumman pohja.
     for (const lt of rivinLisatyot.filter((l) => l.tyon_rivi_id === rivi.id)) {
-      const nimi = lt.lisatyo_id
-        ? (lisatyonNimet?.find((n) => n.id === lt.lisatyo_id)?.nimi ?? "Lisätyö")
-        : lt.automaattinen === "lakka"
-          ? "Lakkaus"
-          : "Pohjaväri";
       const maare =
         lt.osuus_prosentti !== null
           ? ` ${lt.osuus_prosentti} %`
@@ -209,7 +235,10 @@ export default async function TyotSivu() {
             ? ` x${lt.maara}`
             : "";
       const vari = lt.vari_id ? `: ${variNimi(lt.vari_id)}` : "";
-      teksti += ` + ${nimi}${maare}${vari}${lt.automaattinen ? " (automaattinen)" : ""}`;
+      const lahde = lahteenKuvaus(rivi, lt);
+      teksti += ` + ${lisatyonNimi(lt, lisatyonNimet)}${maare}${vari}${
+        lahde ? ` (automaattinen: ${lahde})` : ""
+      }`;
     }
     if (rivi.kommentti) {
       teksti += ` (${rivi.kommentti})`;
@@ -402,6 +431,17 @@ export default async function TyotSivu() {
                           toinenVariNimi: r.toinen_vari_id ? variNimi(r.toinen_vari_id) : null,
                           toinenVariRooli: r.toinen_vari_rooli,
                           toinenArvioituKulutusG: r.toinen_arvioitu_kulutus_g,
+                          // Vain värilliset rivit kuluttavat maalia: pelkkä
+                          // teippaustyö ei vie grammoja eikä sitä kysytä.
+                          lisatyot: rivinLisatyot
+                            .filter((lt) => lt.tyon_rivi_id === r.id && lt.vari_id !== null)
+                            .map((lt) => ({
+                              id: lt.id,
+                              nimi: lisatyonNimi(lt, lisatyonNimet),
+                              lahdeNimi: lahteenKuvaus(r, lt),
+                              variNimi: variNimi(lt.vari_id as string),
+                              arvioituKulutusG: lt.kulutus_g ?? 0,
+                            })),
                         }))}
                       />
                     </div>
@@ -473,6 +513,17 @@ export default async function TyotSivu() {
                             {ROOLIN_NIMI[rivi.toinen_vari_rooli]}: {variNimi(rivi.toinen_vari_id)}
                           </span>
                         )}
+                        {/* Pohjaväri, lakka ja jaot ovat lisätyörivejä: ilman
+                            niitä valmis työ näyttäisi yksiväriseltä. */}
+                        {rivinLisatyot
+                          .filter((l) => l.tyon_rivi_id === rivi.id)
+                          .map((l) => (
+                            <span key={l.id} className="text-muted-foreground break-words">
+                              {lisatyonNimi(l, lisatyonNimet)}
+                              {l.osuus_prosentti !== null && ` ${l.osuus_prosentti} %`}
+                              {l.vari_id && `: ${variNimi(l.vari_id)}`}
+                            </span>
+                          ))}
                       </div>
                       <div className="mt-auto flex items-end justify-between gap-2">
                         <span className="min-w-0 text-xs text-muted-foreground break-words">

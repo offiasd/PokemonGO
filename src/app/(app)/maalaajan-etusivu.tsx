@@ -85,6 +85,16 @@ export async function MaalaajanEtusivu({
     : { data: [] };
   const rivit = rivitData ?? [];
 
+  // Pohjaväri, lakka ja värilliset lisätyöt ovat omia lisätyörivejään, joten
+  // kulutus ja värikerrosten määrä luetaan sieltä eikä työriviltä.
+  const { data: lisatyotData } = rivit.length
+    ? await supabase
+        .from("tyon_rivin_lisatyot")
+        .select("tyon_rivi_id, kulutus_g, toteutunut_kulutus_g, automaattinen")
+        .in("tyon_rivi_id", rivit.map((r) => r.id))
+    : { data: [] };
+  const rivinLisatyot = lisatyotData ?? [];
+
   // Rivillä on joko osa tai oma kuvaus: kertakohteen nimi on rivillä itsellään.
   const rivinNimi = (rivi: { osa_id: string | null; oma_kuvaus: string | null }) =>
     rivi.osa_id
@@ -99,10 +109,16 @@ export async function MaalaajanEtusivu({
       vaihe: TyoVaihe;
       arvioitu_kesto_min: number;
     }[];
+  // Värikerroksia on pääväri ja jokainen automaattinen lisätyörivi. Vanhoilla
+  // riveillä pohjaväri on yhä työrivin toinen_vari-kentässä.
+  const varikerroksia = (rivi: { id: string; toinen_vari_id: string | null }) =>
+    1 +
+    (rivi.toinen_vari_id ? 1 : 0) +
+    rivinLisatyot.filter((l) => l.tyon_rivi_id === rivi.id && l.automaattinen !== null).length;
   const tyonTyoaikaMin = (tyoId: string) =>
     rivitTyolle(tyoId).reduce(
       (summa, r) =>
-        summa + laskeTyoaikaMin(osanVaiheet(r.osa_id), r.toinen_vari_id ? 2 : 1) * r.kappalemaara,
+        summa + laskeTyoaikaMin(osanVaiheet(r.osa_id), varikerroksia(r)) * r.kappalemaara,
       0
     );
 
@@ -132,7 +148,10 @@ export async function MaalaajanEtusivu({
         (s, r) =>
           s +
           (r.toteutunut_kulutus_g ?? r.arvioitu_kulutus_g) +
-          (r.toinen_toteutunut_kulutus_g ?? r.toinen_arvioitu_kulutus_g ?? 0),
+          (r.toinen_toteutunut_kulutus_g ?? r.toinen_arvioitu_kulutus_g ?? 0) +
+          rivinLisatyot
+            .filter((l) => l.tyon_rivi_id === r.id)
+            .reduce((g, l) => g + (l.toteutunut_kulutus_g ?? l.kulutus_g ?? 0), 0),
         0
       ),
     0
