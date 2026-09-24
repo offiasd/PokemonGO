@@ -375,51 +375,6 @@ export function OsaLomake({
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-md border p-4">
-        <Label className="font-medium">Hinnoittelun ylikirjoitukset (valinnainen)</Label>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="grid gap-2">
-            <Label htmlFor="kate_prosentti" className="text-xs text-muted-foreground">
-              Kate-% (tyhjä = alkuperän mukaan)
-            </Label>
-            <Input
-              id="kate_prosentti"
-              name="kate_prosentti"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={osa?.kate_prosentti ?? ""}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="kate_kiintea" className="text-xs text-muted-foreground">
-              Kiinteä lisä €
-            </Label>
-            <Input
-              id="kate_kiintea"
-              name="kate_kiintea"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={osa?.kate_kiintea ?? ""}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="manuaalinen_hinta" className="text-xs text-muted-foreground">
-              Manuaalinen hinta € (ohittaa laskennan)
-            </Label>
-            <Input
-              id="manuaalinen_hinta"
-              name="manuaalinen_hinta"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={osa?.manuaalinen_hinta ?? ""}
-            />
-          </div>
-        </div>
-      </div>
-
       {tila.virhe && (
         <p className="text-sm text-destructive" role="alert">
           {tila.virhe}

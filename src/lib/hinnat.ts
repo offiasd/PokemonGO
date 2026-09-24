@@ -135,16 +135,14 @@ export interface Kateprosentit {
 }
 
 /**
- * Osakohtainen kate ohittaa molemmat oletukset: se on asetettu nimenomaan
- * tälle osalle, eikä sitä ole eritelty alkuperittäin.
+ * Kateprosentit asetuksista, eriteltyinä värin alkuperän mukaan.
+ *
+ * Osakohtaista kateylikirjoitusta ei ole: kate on yksi asetus koko
+ * maalaamolle, ja osan hinta muodostuu sen kategoriahinnasta tai
+ * kustannuksesta. Aiemmin osalla oli oma kate_prosentti, mutta sitä ei
+ * käytetty yhdelläkään osalla eikä sille ollut käyttötarkoitusta.
  */
-export function osanKateprosentit(
-  osa: { kate_prosentti: number | null },
-  asetukset: AsetuksetRow
-): Kateprosentit {
-  if (osa.kate_prosentti !== null && osa.kate_prosentti !== undefined) {
-    return { eu: osa.kate_prosentti, eiEu: osa.kate_prosentti };
-  }
+export function oletusKateprosentit(asetukset: AsetuksetRow): Kateprosentit {
   return {
     eu: asetukset.kate_prosentti_oletus,
     eiEu: asetukset.kate_prosentti_ei_eu_oletus,

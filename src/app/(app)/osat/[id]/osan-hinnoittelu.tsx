@@ -46,9 +46,7 @@ interface VariKategoria {
 }
 
 export function OsanHinnoittelu({
-  manuaalinenHinta,
   kateprosentit,
-  kateKiintea,
   perusTyokustannusKerroksittain,
   pesunKustannus,
   maalinpoistonKustannus,
@@ -57,10 +55,8 @@ export function OsanHinnoittelu({
   variKategoriat,
   laskettuHinnoittelu = true,
 }: {
-  manuaalinenHinta: number | null;
   /** Kate-% erikseen EU- ja ei-EU-väreille. */
   kateprosentit: Kateprosentit;
-  kateKiintea: number;
   /** Työkustannus värien lukumäärän mukaan: [1 väri, 2 väriä]. */
   perusTyokustannusKerroksittain: number[];
   pesunKustannus: number;
@@ -137,10 +133,7 @@ export function OsanHinnoittelu({
   const hintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari) return null;
     if (!laskettuHinnoittelu) {
-      return (
-        kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakkausValittu) ??
-        manuaalinenHinta
-      );
+      return kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakkausValittu);
     }
     // Maalaus ja suojaus tehdään jokaiselle värikerrokselle erikseen.
     const varienMaara = kategoria ? kategorianVarienMaara(kategoria, lakkausValittu) : 1;
@@ -162,8 +155,7 @@ export function OsanHinnoittelu({
     // niillä kategorian oma hinta on ainoa.
     const kategorianHinta =
       kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakkausValittu) ??
-      manuaalinenHinta ??
-      Math.round((kustannus * (1 + kate / 100) + kateKiintea) * 100) / 100;
+      Math.round(kustannus * (1 + kate / 100) * 100) / 100;
 
     const pesuLisa = pesuValittu ? pesunKustannus : 0;
     const maalinpoistoLisa = maalinpoistoValittu ? maalinpoistonKustannus : 0;
@@ -176,9 +168,7 @@ export function OsanHinnoittelu({
     arvioituKulutusG,
     toinenArvioituKulutusG,
     perusTyokustannusKerroksittain,
-    manuaalinenHinta,
     kateprosentit,
-    kateKiintea,
     kategoria,
     lakkausValittu,
     pesuValittu,

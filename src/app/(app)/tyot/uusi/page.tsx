@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
-import { osanKateprosentit } from "@/lib/hinnat";
+import { oletusKateprosentit } from "@/lib/hinnat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
 
@@ -26,7 +26,7 @@ export default async function UusiTyoSivu() {
     supabase
       .from("osat")
       .select(
-        "id, nimi, lisatiedot, lakkaus_kulutus_g, lakkaus_lisahinta, kate_prosentti, kate_kiintea, manuaalinen_hinta"
+        "id, nimi, lisatiedot, lakkaus_kulutus_g, lakkaus_lisahinta"
       )
       .eq("aktiivinen", true)
       .order("nimi"),
@@ -70,8 +70,7 @@ export default async function UusiTyoSivu() {
         tuntiveloitukset,
         asetukset.yleinen_tuntihinta
       ),
-      kateprosentit: osanKateprosentit(osa, asetukset),
-      kateKiintea: osa.kate_kiintea ?? 0,
+      kateprosentit: oletusKateprosentit(asetukset),
     };
   });
 

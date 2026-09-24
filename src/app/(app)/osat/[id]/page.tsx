@@ -21,7 +21,7 @@ import {
   variTyypinNimi,
 } from "@/lib/vakiot";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
-import { osanKateprosentit } from "@/lib/hinnat";
+import { oletusKateprosentit } from "@/lib/hinnat";
 
 import { paivitaOsa } from "../actions";
 import { OsaLomake } from "../osa-lomake";
@@ -116,7 +116,7 @@ export default async function OsaSivu({
     tuntiveloitukset,
     asetukset.yleinen_tuntihinta
   );
-  const kateprosentit = osanKateprosentit(osa, asetukset);
+  const kateprosentit = oletusKateprosentit(asetukset);
 
   let tyoaikaMin = 0;
   let tyokustannus = 0;
@@ -179,9 +179,7 @@ export default async function OsaSivu({
 
           <div className="lg:col-span-2">
             <OsanHinnoittelu
-              manuaalinenHinta={osa.manuaalinen_hinta}
               kateprosentit={kateprosentit}
-              kateKiintea={osa.kate_kiintea ?? 0}
               perusTyokustannusKerroksittain={perusTyokustannusKerroksittain}
               pesunKustannus={pesunKustannus}
               maalinpoistonKustannus={maalinpoistonKustannus}
@@ -222,12 +220,6 @@ export default async function OsaSivu({
               <span className="text-muted-foreground">Työkustannus</span>
               <span>{muotoileEuro(tyokustannus)}</span>
             </div>
-            {osa.manuaalinen_hinta && (
-              <div className="flex justify-between font-medium">
-                <span>Manuaalinen hinta (ohittaa laskennan)</span>
-                <span>{muotoileEuro(osa.manuaalinen_hinta)}</span>
-              </div>
-            )}
           </div>
 
           {kategoriaKustannukset.length > 0 && (

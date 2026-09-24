@@ -69,8 +69,6 @@ interface Osa {
   tyokustannusKerroksittain: number[];
   /** Kate-% erikseen EU- ja ei-EU-väreille. */
   kateprosentit: Kateprosentit;
-  kateKiintea: number;
-  manuaalinen_hinta: number | null;
 }
 
 interface Vari {
@@ -474,10 +472,7 @@ export function TyonLomake({
   const osanLaskettuHintaEur = useMemo(() => {
     if (!valittuKategoriahinta || !valittuVari || !valittuOsa) return null;
     if (!laskettuHinnoittelu) {
-      return (
-        kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakattu) ??
-        valittuOsa.manuaalinen_hinta
-      );
+      return kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakattu);
     }
     // Maalaus ja suojaus tehdään jokaiselle värikerrokselle erikseen.
     const varienMaara = kategoria ? kategorianVarienMaara(kategoria, lakattu) : 1;
@@ -507,8 +502,7 @@ export function TyonLomake({
     // niillä kategorian oma hinta on ainoa.
     const kategorianHinta =
       kategorianKiinteaHinta(valittuKategoriahinta, !pakollinenRooli && lakattu) ??
-      valittuOsa.manuaalinen_hinta ??
-      Math.round((kustannus * (1 + kate / 100) + valittuOsa.kateKiintea) * 100) / 100;
+      Math.round(kustannus * (1 + kate / 100) * 100) / 100;
     return kategorianHinta;
   }, [
     valittuKategoriahinta,

@@ -9,7 +9,7 @@ import type {
 } from "@/lib/supabase/database.types";
 import {
   kategorianKiinteaHinta,
-  osanKateprosentit,
+  oletusKateprosentit,
   valitseKate,
   type Kateprosentit,
 } from "@/lib/hinnat";
@@ -95,20 +95,12 @@ export function laskeTyokustannusKerroksittain(
   );
 }
 
-// Sama laskentaperuste kuin SQL-funktiolla osa_suositushinta: manuaalinen_hinta
-// ohittaa kaiken, muuten kustannusarvio + kate-% + kiinteä lisä. Kate tulee
-// värien alkuperästä, joten sama kustannus voi tuottaa eri hinnan.
-function suositushinta(
-  yhdistelma: Yhdistelma,
-  osa: OsaRow,
-  kateprosentit: Kateprosentit
-): number {
-  if (osa.manuaalinen_hinta !== null && osa.manuaalinen_hinta !== undefined) {
-    return osa.manuaalinen_hinta;
-  }
+// Kustannusarvio + kate-%. Kate tulee värien alkuperästä, joten sama
+// kustannus voi tuottaa eri hinnan. Asiakkaalle asetettu kiinteä hinta
+// tulee kategoriahinnasta, ei osan omasta kentästä.
+function suositushinta(yhdistelma: Yhdistelma, kateprosentit: Kateprosentit): number {
   const kate = valitseKate(kateprosentit, ...yhdistelma.alkuperat);
-  const kiintea = osa.kate_kiintea ?? 0;
-  return pyoristaSentteihin(yhdistelma.kustannus * (1 + kate / 100) + kiintea);
+  return pyoristaSentteihin(yhdistelma.kustannus * (1 + kate / 100));
 }
 
 function rakennaRivi(
@@ -124,7 +116,7 @@ function rakennaRivi(
   const kustannukset = yhdistelmat.map((y) => y.kustannus);
   // Suositushinta lasketaan jokaisesta yhdistelmästä erikseen: halvin väri ei
   // välttämättä anna halvinta hintaa, jos kalliimmalla on pienempi kate.
-  const hinnat = yhdistelmat.map((y) => suositushinta(y, osa, kateprosentit));
+  const hinnat = yhdistelmat.map((y) => suositushinta(y, kateprosentit));
   return {
     avain,
     kategoria,
@@ -202,7 +194,7 @@ export function laskeKategoriaKustannukset({
     varit.filter((v) => kartta.get(v.id)?.has(tyyppi));
   const kategoriaHinta = (tyyppi: MyytavaMaaliTyyppi) =>
     kategoriahinnat.find((k) => k.maali_tyyppi === tyyppi) ?? null;
-  const kateprosentit = osanKateprosentit(osa, asetukset);
+  const kateprosentit = oletusKateprosentit(asetukset);
 
   // Maalaus ja suojaus kertautuvat värikerroksittain: candy ja illusion ovat
   // aina kahden värin töitä, perusväri ja metallic yhden - metallicille lakkaus

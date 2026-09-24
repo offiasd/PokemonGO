@@ -35,9 +35,6 @@ function lueOsaKentat(formData: FormData) {
       });
       return { kuva_x: rajaus.x, kuva_y: rajaus.y, kuva_zoom: rajaus.zoom };
     })(),
-    kate_prosentti: tyhjaksiNumeroksi(formData.get("kate_prosentti")),
-    kate_kiintea: tyhjaksiNumeroksi(formData.get("kate_kiintea")),
-    manuaalinen_hinta: tyhjaksiNumeroksi(formData.get("manuaalinen_hinta")),
     lakkaus_kulutus_g: tyhjaksiNumeroksi(formData.get("lakkaus_kulutus_g")),
   };
 }
