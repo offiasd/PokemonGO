@@ -5,13 +5,6 @@ import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
 import type {
   LisatoidenTulos,
@@ -19,6 +12,17 @@ import type {
   LisatyoValinta,
   VarinTiedot,
 } from "@/lib/lisatyot";
+
+import { VarinValinta } from "./osan-valinta";
+
+/**
+ * Väri laskentaa ja näyttämistä varten.
+ *
+ * Laskenta tarvitsee saldot ja vaatimukset, näyttäminen kuvan. Kuvaa ei
+ * lisätty lib/lisatyot.ts-moduulin VarinTiedot-tyyppiin: se on puhdas
+ * laskentamoduuli eikä kuva vaikuta yhteenkään lukuun.
+ */
+type NaytettavaVari = VarinTiedot & { kuva_url: string | null };
 
 /**
  * Hinta lisäysnapissa ennen kuin väriä on valittu.
@@ -59,11 +63,11 @@ export function LisatyotRivilla({
   onVaihdaLakka,
 }: {
   perustat: LisatyonPerusta[];
-  varit: VarinTiedot[];
+  varit: NaytettavaVari[];
   valinnat: LisatyoValinta[];
   tulos: LisatoidenTulos;
-  pohjavariVaihtoehdot: VarinTiedot[];
-  lakkaVaihtoehdot: VarinTiedot[];
+  pohjavariVaihtoehdot: NaytettavaVari[];
+  lakkaVaihtoehdot: NaytettavaVari[];
   pohjavariId: string | null;
   lakkaId: string | null;
   oletusPohjavariId: string | null;
@@ -137,67 +141,47 @@ export function LisatyotRivilla({
               </Button>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-[1fr_6rem]">
-              <div className="grid min-w-0 gap-1">
-                <Label htmlFor={`lisatyo-vari-${valinta.avain}`} className="text-xs">
-                  Väri
-                </Label>
-                <Select
-                  value={valinta.variId}
-                  onValueChange={(v) => onMuuta(valinta.avain, { variId: v })}
-                >
-                  <SelectTrigger
-                    id={`lisatyo-vari-${valinta.avain}`}
-                    className="w-full min-w-0 [&>span]:min-w-0 [&>span]:truncate"
-                  >
-                    <SelectValue placeholder="Valitse väri" />
-                  </SelectTrigger>
-                  <SelectContent className="max-w-[min(20rem,calc(100vw-2rem))]">
-                    {varit.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        <span className="min-w-0 truncate">{v.nimi}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <VarinValinta
+              varit={varit}
+              valittuId={valinta.variId}
+              onValitse={(v) => onMuuta(valinta.avain, { variId: v })}
+            />
 
-              {/* Jaolla ei ole kappalemäärää: se jakaa osan pintaa, ei lisää sitä. */}
-              {p.on_jako ? (
-                <div className="grid min-w-0 gap-1">
-                  <Label htmlFor={`lisatyo-osuus-${valinta.avain}`} className="text-xs">
-                    Osuus %
-                  </Label>
-                  <Input
-                    id={`lisatyo-osuus-${valinta.avain}`}
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={100}
-                    className="w-full min-w-0 tabular-nums"
-                    value={String(valinta.osuusProsentti)}
-                    onChange={(e) =>
-                      onMuuta(valinta.avain, { osuusProsentti: Number(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-              ) : (
-                <div className="grid min-w-0 gap-1">
-                  <Label htmlFor={`lisatyo-maara-${valinta.avain}`} className="text-xs">
-                    Määrä
-                  </Label>
-                  <Input
-                    id={`lisatyo-maara-${valinta.avain}`}
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    className="w-full min-w-0 tabular-nums"
-                    value={String(valinta.maara)}
-                    onChange={(e) => onMuuta(valinta.avain, { maara: Number(e.target.value) || 1 })}
-                  />
-                </div>
-              )}
-            </div>
+            {/* Jaolla ei ole kappalemäärää: se jakaa osan pintaa, ei lisää sitä. */}
+            {p.on_jako ? (
+              <div className="grid min-w-0 max-w-24 gap-1">
+                <Label htmlFor={`lisatyo-osuus-${valinta.avain}`} className="text-xs">
+                  Osuus %
+                </Label>
+                <Input
+                  id={`lisatyo-osuus-${valinta.avain}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={100}
+                  className="w-full min-w-0 tabular-nums"
+                  value={String(valinta.osuusProsentti)}
+                  onChange={(e) =>
+                    onMuuta(valinta.avain, { osuusProsentti: Number(e.target.value) || 0 })
+                  }
+                />
+              </div>
+            ) : (
+              <div className="grid min-w-0 max-w-24 gap-1">
+                <Label htmlFor={`lisatyo-maara-${valinta.avain}`} className="text-xs">
+                  Määrä
+                </Label>
+                <Input
+                  id={`lisatyo-maara-${valinta.avain}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  className="w-full min-w-0 tabular-nums"
+                  value={String(valinta.maara)}
+                  onChange={(e) => onMuuta(valinta.avain, { maara: Number(e.target.value) || 1 })}
+                />
+              </div>
+            )}
           </div>
         );
       })}
@@ -228,24 +212,13 @@ export function LisatyotRivilla({
               </span>
             </div>
             <div className="grid min-w-0 gap-1">
-              <Select
-                value={valittu ?? ""}
-                onValueChange={onLakka ? onVaihdaLakka : onVaihdaPohjavari}
-              >
-                <SelectTrigger
-                  className="w-full min-w-0 [&>span]:min-w-0 [&>span]:truncate"
-                  aria-label={rivi.nimi}
-                >
-                  <SelectValue placeholder="Valitse väri" />
-                </SelectTrigger>
-                <SelectContent className="max-w-[min(20rem,calc(100vw-2rem))]">
-                  {vaihtoehdot.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      <span className="min-w-0 truncate">{v.nimi}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <VarinValinta
+                varit={vaihtoehdot}
+                valittuId={valittu ?? ""}
+                onValitse={onLakka ? onVaihdaLakka : onVaihdaPohjavari}
+                otsikko={rivi.nimi}
+                naytaOtsikko={false}
+              />
               <span className="text-xs text-muted-foreground">
                 {valittu && oletus && valittu !== oletus ? (
                   <>

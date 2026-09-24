@@ -53,7 +53,6 @@ import {
   laskeLisatyot,
   type LisatyonPerusta,
   type LisatyoValinta,
-  type VarinTiedot,
 } from "@/lib/lisatyot";
 import type { OsienLisatyo } from "@/lib/supabase/database.types";
 
@@ -387,34 +386,20 @@ export function TyonLomake({
     [osienLisatyot, osaId, onMuu]
   );
 
-  // Laskenta tarvitsee värin saldon, tyypin sekä lakkaus- ja
-  // pohjavärivaatimukset. Tyyppi ratkaisee lisätyön hintakategorian: solid on
-  // perusväri, kaikki muut erikoisväri.
-  const varienTiedot = useMemo<VarinTiedot[]>(
-    () =>
-      varit.map((v) => ({
-        id: v.id,
-        nimi: v.nimi,
-        tyyppi: v.tyyppi,
-        vaatii_pohjavarin: v.vaatii_pohjavarin,
-        vaatii_lakkauksen: v.vaatii_lakkauksen,
-        kiiltotaso: v.kiiltotaso,
-        saldo_g: v.saldo_g,
-        varattu_g: v.varattu_g,
-      })),
-    [varit]
-  );
-
+  // Värilista kelpaa sellaisenaan sekä laskentaan että näyttämiseen: Vari
+  // sisältää kaikki VarinTiedot-kentät ja lisäksi kuvan. Erillinen
+  // välimuunnos olisi pudottanut kuvan pois juuri siltä valinnalta joka sitä
+  // tarvitsee.
   // Ilman suodatusta tarjottaisiin kaikkia värejä, joista suurin osa on
   // pohjaksi tai lakaksi väärin. Sama kategoriarajaus kuin rivin omalla
   // pohjavärillä ja lakalla.
   const lisatyonPohjaVaihtoehdot = useMemo(
-    () => varienTiedot.filter((v) => variKategoriaKartta.get(v.id)?.has("pohjavari")),
-    [varienTiedot, variKategoriaKartta]
+    () => varit.filter((v) => variKategoriaKartta.get(v.id)?.has("pohjavari")),
+    [varit, variKategoriaKartta]
   );
   const lisatyonLakkaVaihtoehdot = useMemo(
-    () => varienTiedot.filter((v) => variKategoriaKartta.get(v.id)?.has("transparent")),
-    [varienTiedot, variKategoriaKartta]
+    () => varit.filter((v) => variKategoriaKartta.get(v.id)?.has("transparent")),
+    [varit, variKategoriaKartta]
   );
 
   // Esitäyttö kelpaa vain jos väri on yhä suodatetussa valikossa: poistettu tai
@@ -435,7 +420,7 @@ export function TyonLomake({
       laskeLisatyot(
         lisatyot,
         osanLisatyot,
-        varienTiedot,
+        varit,
         variId,
         arvioituKulutusG,
         {
@@ -456,7 +441,7 @@ export function TyonLomake({
     [
       lisatyot,
       osanLisatyot,
-      varienTiedot,
+      varit,
       variId,
       arvioituKulutusG,
       valittuOsa,
@@ -984,7 +969,7 @@ export function TyonLomake({
           {kategoria && variId && (
             <LisatyotRivilla
               perustat={osanLisatyot}
-              varit={varienTiedot}
+              varit={varit}
               valinnat={lisatyot}
               tulos={lisatoidenTulos}
               pohjavariVaihtoehdot={lisatyonPohjaVaihtoehdot}

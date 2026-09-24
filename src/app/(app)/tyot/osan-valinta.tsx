@@ -245,12 +245,15 @@ export function VarinValinta({
   onValitse,
   otsikko = "Väri",
   tyhjaTeksti = "Tässä kategoriassa ei ole värejä.",
+  naytaOtsikko = true,
 }: {
   varit: ValittavaVari[];
   valittuId: string;
   onValitse: (id: string) => void;
   otsikko?: string;
   tyhjaTeksti?: string;
+  /** Pois kun kutsuja näyttää otsikon itse, esim. lisätyön automaattirivi. */
+  naytaOtsikko?: boolean;
 }) {
   const [haku, setHaku] = useState("");
   // Vaihda-painike avaa ruudukon uudelleen ilman että valinta katoaa.
@@ -268,7 +271,7 @@ export function VarinValinta({
     return (
       <div className="grid gap-2">
         <div className="flex min-w-0 items-start justify-between gap-2">
-          <Label className="text-sm">{otsikko}</Label>
+          {naytaOtsikko ? <Label className="text-sm">{otsikko}</Label> : <span />}
           <Button
             type="button"
             variant="ghost"
@@ -290,7 +293,7 @@ export function VarinValinta({
 
   return (
     <div className="grid gap-2">
-      <Label className="text-sm">{otsikko}</Label>
+      {naytaOtsikko && <Label className="text-sm">{otsikko}</Label>}
 
       {varit.length > 8 && (
         <div className="relative">
