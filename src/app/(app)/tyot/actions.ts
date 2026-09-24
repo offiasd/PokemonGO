@@ -41,6 +41,10 @@ export interface TyonRiviSyote {
    * lukittuvat riville sellaisinaan - kanta ei laske niitä uudelleen.
    */
   lisatyot?: {
+    /** Selaimen oma avain. Kanta ratkaisee sillä automaattirivin lähteen. */
+    avain: string;
+    /** Lähteen avain. Null = lähde on työn pääväri. */
+    lahdeAvain: string | null;
     lisatyoId: string | null;
     variId: string;
     maara: number;
@@ -48,6 +52,7 @@ export interface TyonRiviSyote {
     kulutusG: number;
     hintaEur: number;
     automaattinen: "pohjavari" | "lakka" | null;
+    lakkausLaajuus: "koko_osa" | "lahteen_osuus" | null;
   }[];
 }
 
@@ -76,6 +81,8 @@ function riviPayload(rivit: TyonRiviSyote[]) {
       arvioitu_kulutus_g: l.arvioituKulutusG,
     })),
     lisatyot: (r.lisatyot ?? []).map((l) => ({
+      avain: l.avain,
+      lahde_avain: l.lahdeAvain,
       lisatyo_id: l.lisatyoId,
       vari_id: l.variId,
       maara: l.maara,
@@ -83,6 +90,7 @@ function riviPayload(rivit: TyonRiviSyote[]) {
       kulutus_g: l.kulutusG,
       hinta_eur: l.hintaEur,
       automaattinen: l.automaattinen,
+      lakkaus_laajuus: l.lakkausLaajuus,
     })),
   }));
 }

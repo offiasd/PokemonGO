@@ -134,6 +134,9 @@ export type LisatyonVarikategoria = "perusvari" | "erikoisvari";
 /** Sovelluksen itse lisäämä lisätyörivi: pohjaväri tai koko osan lakkaus. */
 export type AutomaattinenLisatyo = "pohjavari" | "lakka";
 
+/** Lakkarivin laajuus: koko osa vai vain lähteen osuus. */
+export type LakkauksenLaajuus = "koko_osa" | "lahteen_osuus";
+
 /**
  * Osan lisätyö voimassa olevine arvoineen.
  *
@@ -823,6 +826,12 @@ export interface Database {
           hinta_lukittu_at: string | null;
           /** pohjavari tai lakka kun sovellus lisäsi rivin itse. */
           automaattinen: AutomaattinenLisatyo | null;
+          /** Lisätyörivi jonka väri synnytti tämän automaattisen rivin. Null = pääväri. */
+          lahde_rivi_id: string | null;
+          /** Vain lakkariveillä: koko_osa tai lahteen_osuus. */
+          lakkaus_laajuus: LakkauksenLaajuus | null;
+          /** Valmistumisessa kirjattu todellinen menekki. Null = arvio kelpaa. */
+          toteutunut_kulutus_g: number | null;
           varaus_purettu: boolean;
           jarjestys: number;
         };
@@ -1198,6 +1207,12 @@ export interface Database {
           /** Milloin hinta lukittiin. Taloustietoa. */
           hinta_lukittu_at: string | null;
           automaattinen: AutomaattinenLisatyo | null;
+          /** Lisätyörivi jonka väri synnytti tämän automaattisen rivin. Null = pääväri. */
+          lahde_rivi_id: string | null;
+          /** Vain lakkariveillä: koko_osa tai lahteen_osuus. */
+          lakkaus_laajuus: LakkauksenLaajuus | null;
+          /** Valmistumisessa kirjattu todellinen menekki. Null = arvio kelpaa. */
+          toteutunut_kulutus_g: number | null;
           jarjestys: number;
         };
         Insert: Partial<Database["public"]["Tables"]["arkistoidut_rivin_lisatyot"]["Row"]>;

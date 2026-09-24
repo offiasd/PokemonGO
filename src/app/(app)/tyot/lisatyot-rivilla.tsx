@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
 import type {
+  AutomaattinenLaji,
+  AutomaattisenMuokkaus,
   LisatoidenTulos,
   LisatyonPerusta,
   LisatyoValinta,
@@ -52,15 +54,11 @@ export function LisatyotRivilla({
   tulos,
   pohjavariVaihtoehdot,
   lakkaVaihtoehdot,
-  pohjavariId,
-  lakkaId,
-  oletusPohjavariId,
-  oletusLakkaId,
   onLisaa,
   onPoista,
   onMuuta,
-  onVaihdaPohjavari,
-  onVaihdaLakka,
+  onMuokkaaAutomaattia,
+  onPalautaOletus,
 }: {
   perustat: LisatyonPerusta[];
   varit: NaytettavaVari[];
@@ -68,20 +66,18 @@ export function LisatyotRivilla({
   tulos: LisatoidenTulos;
   pohjavariVaihtoehdot: NaytettavaVari[];
   lakkaVaihtoehdot: NaytettavaVari[];
-  pohjavariId: string | null;
-  lakkaId: string | null;
-  oletusPohjavariId: string | null;
-  oletusLakkaId: string | null;
   onLisaa: (lisatyoId: string) => void;
   onPoista: (avain: string) => void;
   onMuuta: (avain: string, muutos: Partial<Omit<LisatyoValinta, "avain">>) => void;
-  onVaihdaPohjavari: (variId: string) => void;
-  onVaihdaLakka: (variId: string) => void;
+  onMuokkaaAutomaattia: (muutos: AutomaattisenMuokkaus) => void;
+  onPalautaOletus: (lahdeAvain: string | null, laji: AutomaattinenLaji) => void;
 }) {
-  if (perustat.length === 0) return null;
-
   const perusta = (id: string) => perustat.find((p) => p.lisatyo_id === id);
   const automaattiset = tulos.rivit.filter((r) => r.automaattinen !== null);
+
+  // Näkymä tarvitaan myös ilman yhtäkään lisätyötä: pelkkä candy synnyttää
+  // pohjaväririvin, joka on käyttäjän nähtävä ja muokattava.
+  if (perustat.length === 0 && automaattiset.length === 0) return null;
 
   return (
     <div className="grid gap-3 rounded-lg border p-3">
@@ -197,11 +193,14 @@ export function LisatyotRivilla({
         </div>
       )}
 
+      {/* Automaattiset rivit erillisinä, jotta kutakin voi muokata
+          itsenäisesti. Rivillä näkyy mistä väristä se syntyi: sama pohjaväri
+          voi tulla sekä päävärin että jaon takia, ja kumpikin on oma erä. */}
       {automaattiset.map((rivi) => {
         const onLakka = rivi.automaattinen === "lakka";
+        const laji: AutomaattinenLaji = onLakka ? "lakka" : "pohjavari";
         const vaihtoehdot = onLakka ? lakkaVaihtoehdot : pohjavariVaihtoehdot;
-        const valittu = onLakka ? lakkaId : pohjavariId;
-        const oletus = onLakka ? oletusLakkaId : oletusPohjavariId;
+        const muokattu = !rivi.variOletus || !rivi.laajuusOletus;
         return (
           <div key={rivi.avain} className="grid gap-2 rounded-md border border-dashed p-2">
             <div className="flex min-w-0 items-baseline justify-between gap-2">
@@ -211,31 +210,64 @@ export function LisatyotRivilla({
                 {rivi.hintaEur > 0 && ` · ${muotoileEuro(rivi.hintaEur)}`}
               </span>
             </div>
-            <div className="grid min-w-0 gap-1">
-              <VarinValinta
-                varit={vaihtoehdot}
-                valittuId={valittu ?? ""}
-                onValitse={onLakka ? onVaihdaLakka : onVaihdaPohjavari}
-                otsikko={rivi.nimi}
-                naytaOtsikko={false}
-              />
-              <span className="text-xs text-muted-foreground">
-                {valittu && oletus && valittu !== oletus ? (
-                  <>
-                    Vaihdettu ·{" "}
-                    <button
-                      type="button"
-                      className="underline underline-offset-2"
-                      onClick={() => (onLakka ? onVaihdaLakka(oletus) : onVaihdaPohjavari(oletus))}
-                    >
-                      palauta oletus
-                    </button>
-                  </>
-                ) : (
-                  "Automaattinen, oletus asetuksista"
-                )}
+            {rivi.lahdeKuvaus && (
+              <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
+                {rivi.lahdeKuvaus}
               </span>
-            </div>
+            )}
+
+            <VarinValinta
+              varit={vaihtoehdot}
+              valittuId={rivi.variId}
+              onValitse={(variId) => onMuokkaaAutomaattia({ lahdeAvain: rivi.lahdeAvain, laji, variId })}
+              otsikko={rivi.nimi}
+              naytaOtsikko={false}
+            />
+
+            {/* Lakan laajuus: jaon reuna on jo teipattu värinvaihdon takia,
+                joten lakan voi vetää vain sen osuudelle. Logon reunaa ei voi
+                teipata, joten se lakataan koko osalta. */}
+            {onLakka && (
+              <div className="flex flex-wrap gap-1.5">
+                {(["koko_osa", "lahteen_osuus"] as const).map((vaihtoehto) => (
+                  <Button
+                    key={vaihtoehto}
+                    type="button"
+                    size="sm"
+                    variant={rivi.lakkausLaajuus === vaihtoehto ? "default" : "outline"}
+                    className="h-8 min-w-0 max-w-full"
+                    onClick={() =>
+                      onMuokkaaAutomaattia({
+                        lahdeAvain: rivi.lahdeAvain,
+                        laji,
+                        laajuus: vaihtoehto,
+                      })
+                    }
+                  >
+                    <span className="min-w-0 truncate">
+                      {vaihtoehto === "koko_osa" ? "Koko osa" : "Vain tämä osuus"}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            <span className="text-xs text-muted-foreground">
+              {muokattu ? (
+                <>
+                  Vaihdettu ·{" "}
+                  <button
+                    type="button"
+                    className="underline underline-offset-2"
+                    onClick={() => onPalautaOletus(rivi.lahdeAvain, laji)}
+                  >
+                    palauta oletus
+                  </button>
+                </>
+              ) : (
+                "Automaattinen, oletukset asetuksista"
+              )}
+            </span>
           </div>
         );
       })}

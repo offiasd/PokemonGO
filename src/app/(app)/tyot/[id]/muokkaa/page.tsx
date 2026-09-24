@@ -138,7 +138,7 @@ export default async function MuokkaaTyotaSivu({
   // Nimi tulee katalogista, automaattiselta riviltä lisatyo_id on null.
   const { data: rivinLisatyot } = await supabase
     .from("tyon_rivin_lisatyot")
-    .select("tyon_rivi_id, lisatyo_id, vari_id, maara, osuus_prosentti, kulutus_g, hinta_eur, automaattinen")
+    .select("id, tyon_rivi_id, lisatyo_id, vari_id, maara, osuus_prosentti, kulutus_g, hinta_eur, automaattinen, lahde_rivi_id, lakkaus_laajuus")
     .in("tyon_rivi_id", (rivitVastaus.data ?? []).map((r) => r.id))
     .order("jarjestys");
 
@@ -175,6 +175,11 @@ export default async function MuokkaaTyotaSivu({
     lisatyot: (rivinLisatyot ?? [])
       .filter((l) => l.tyon_rivi_id === rivi.id)
       .map((l) => ({
+        // Avaimena kannan id, jolloin lähdeviittaus säilyy muokkauksen yli.
+        avain: l.id,
+        lahdeAvain: l.lahde_rivi_id,
+        lakkausLaajuus: l.lakkaus_laajuus,
+        lahdeKuvaus: null,
         lisatyoId: l.lisatyo_id,
         nimi: lisatyonNimi(l.lisatyo_id, l.automaattinen),
         variId: l.vari_id ?? "",

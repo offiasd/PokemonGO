@@ -33,7 +33,6 @@ import {
   myytavaMaaliTyypinNimi,
   MYYTAVAT_MAALI_TYYPIT,
   PAKOLLINEN_TOINEN_VARI_ROOLI,
-  TOINEN_VARI_ROOLIN_NIMI,
   VALINNAINEN_TOINEN_VARI_ROOLI,
 } from "@/lib/vakiot";
 import type {
@@ -51,6 +50,8 @@ import {
 } from "@/lib/hinnat";
 import {
   laskeLisatyot,
+  type AutomaattinenLaji,
+  type AutomaattisenMuokkaus,
   type LisatyonPerusta,
   type LisatyoValinta,
 } from "@/lib/lisatyot";
@@ -145,6 +146,10 @@ export interface KoriRivi {
  * kulutushetkellä eikä niitä lasketa uudelleen tallennuksessa.
  */
 export interface KoriLisatyo {
+  /** Selaimen avain. Kanta ratkaisee sillä automaattirivin lähteen. */
+  avain: string;
+  /** Lähteen avain. Null = lähde on työn pääväri. */
+  lahdeAvain: string | null;
   lisatyoId: string | null;
   nimi: string;
   variId: string;
@@ -154,6 +159,9 @@ export interface KoriLisatyo {
   kulutusG: number;
   hintaEur: number;
   automaattinen: "pohjavari" | "lakka" | null;
+  lakkausLaajuus: "koko_osa" | "lahteen_osuus" | null;
+  /** Ihmisluettava lähde korissa, esim. "Blue Morpho (jako 50 %)". */
+  lahdeKuvaus: string | null;
 }
 
 /** Lisäväririvi lomakkeella: väri valitaan ja kulutus kirjoitetaan itse. */
@@ -248,9 +256,10 @@ export function TyonLomake({
   const [kategoria, setKategoria] = useState<MyytavaMaaliTyyppi | "">("");
   const [variId, setVariId] = useState("");
   const [lakkausValittu, setLakkausValittu] = useState(false);
-  // null = valintaa ei ole koskettu, jolloin kentässä näkyy asetusten esitäyttö
-  // ja se seuraa kategorian vaihtoa. Merkkijono on käyttäjän oma valinta.
-  const [toinenVariSyote, setToinenVariSyote] = useState<string | null>(null);
+  // Käyttäjän muokkaukset automaattisiin pohjaväri- ja lakkariveihin. Jokainen
+  // lähde voi saada oman värinsä ja lakkarivi oman laajuutensa; koskematon
+  // rivi seuraa asetusten oletusta ja lähteen oletuslaajuutta.
+  const [automaattiMuokkaukset, setAutomaattiMuokkaukset] = useState<AutomaattisenMuokkaus[]>([]);
 
   // Custom-työssä osa maalataan useammalla värillä kuin rivin omat kaksi, ja
   // maalaaja päättää itse miten kulutus jakautuu ja mitä työstä veloitetaan.
@@ -259,7 +268,6 @@ export function TyonLomake({
   // null = kenttää ei ole koskettu, jolloin siinä näkyy kategorian esitäyttö ja
   // se seuraa värin vaihtoa. Merkkijono on maalaajan oma arvo.
   const [kulutusSyote, setKulutusSyote] = useState<string | null>(null);
-  const [toinenKulutusSyote, setToinenKulutusSyote] = useState<string | null>(null);
   const [hintaSyote, setHintaSyote] = useState<string | null>(null);
   const [lisavarit, setLisavarit] = useState<LisavariSyote[]>([]);
   const seuraavaLisavariAvain = useRef(0);
@@ -268,8 +276,6 @@ export function TyonLomake({
   // automaattisessa värissä tarkoittaa "asetusten oletus", merkkijono
   // käyttäjän omaa valintaa - sama kuvio kuin toinenVariSyote-kentässä.
   const [lisatyot, setLisatyot] = useState<LisatyoValinta[]>([]);
-  const [lisatyonPohjaSyote, setLisatyonPohjaSyote] = useState<string | null>(null);
-  const [lisatyonLakkaSyote, setLisatyonLakkaSyote] = useState<string | null>(null);
   const seuraavaLisatyoAvain = useRef(0);
 
   const onMuu = osaId === MUU_OSA;
@@ -317,40 +323,9 @@ export function TyonLomake({
     Boolean(valinnainenRooli) && !pakollinenRooli && (onMuu || toisenKulutusG > 0);
   const lakattu = lakkausMahdollinen && lakkausValittu;
 
-  const toinenVariRooli = pakollinenRooli ?? (lakattu ? valinnainenRooli : undefined);
-  const toinenVariAktiivinen = Boolean(toinenVariRooli);
-  const toisenVarinKategoria: MaaliTyyppi | undefined =
-    toinenVariRooli === "pohjavari" ? "pohjavari" : toinenVariRooli === "lakka" ? "transparent" : undefined;
-  const toisenVarinVaihtoehdot = useMemo(
-    () =>
-      varit.filter(
-        (v) =>
-          v.id !== variId &&
-          (!toisenVarinKategoria || variKategoriaKartta.get(v.id)?.has(toisenVarinKategoria))
-      ),
-    [varit, variId, toisenVarinKategoria, variKategoriaKartta]
-  );
-
-  // Candyn pohjaväri ja illusionin/metallicin lakka ovat käytännössä joka
-  // kerta sama väri, joten asetuksissa valittu oletus esitäytetään. Esitäyttö
-  // kelpaa vain jos väri on yhä valittavissa: poistettu tai väärään
-  // kategoriaan siirretty oletus jättää kentän tyhjäksi eikä valitse mitään
-  // sattumanvaraista tilalle.
-  const oletusToinenVariId =
-    toinenVariRooli === "pohjavari"
-      ? oletusPohjavariId
-      : toinenVariRooli === "lakka"
-        ? oletusLakkaId
-        : null;
-  const esitaytettyToinenVari =
-    oletusToinenVariId && toisenVarinVaihtoehdot.some((v) => v.id === oletusToinenVariId)
-      ? oletusToinenVariId
-      : "";
-  const toinenVariId = toinenVariSyote ?? esitaytettyToinenVari;
-  const valittuToinenVari = useMemo(
-    () => varit.find((v) => v.id === toinenVariId),
-    [varit, toinenVariId]
-  );
+  // Toinen maalikerros ei ole enää työrivin oma kenttä vaan automaattinen
+  // lisätyörivi, joka syntyy lähteestä. Kategorian rooli jää silti kertomaan
+  // sisältyykö kerros jo kiinteään hintaan.
 
   // Kategorian kulutus on esitäyttö. Custom-työssä sen voi jakaa väreille
   // toisin, mutta oletus jää näkyviin arvion tueksi.
@@ -361,9 +336,6 @@ export function TyonLomake({
   const arvioituKulutusG = kulutusKasin
     ? numeroTaiOletus(kulutusSyote ?? "", oletusKulutusG)
     : oletusKulutusG;
-  const toinenArvioituKulutusG = kulutusKasin
-    ? numeroTaiOletus(toinenKulutusSyote ?? "", oletusToinenKulutusG)
-    : oletusToinenKulutusG;
 
   // ---- Lisätyöt ----
   // Valikossa ovat vain tälle osalle rastitut lisätyöt. "Muu"-rivillä niitä ei
@@ -405,15 +377,13 @@ export function TyonLomake({
   // Esitäyttö kelpaa vain jos väri on yhä suodatetussa valikossa: poistettu tai
   // toiseen kategoriaan siirretty oletus jättää valinnan tyhjäksi.
   const lisatyonPohjavariId =
-    lisatyonPohjaSyote ??
-    (oletusPohjavariId && lisatyonPohjaVaihtoehdot.some((v) => v.id === oletusPohjavariId)
+    oletusPohjavariId && lisatyonPohjaVaihtoehdot.some((v) => v.id === oletusPohjavariId)
       ? oletusPohjavariId
-      : null);
+      : null;
   const lisatyonLakkaId =
-    lisatyonLakkaSyote ??
-    (oletusLakkaId && lisatyonLakkaVaihtoehdot.some((v) => v.id === oletusLakkaId)
+    oletusLakkaId && lisatyonLakkaVaihtoehdot.some((v) => v.id === oletusLakkaId)
       ? oletusLakkaId
-      : null);
+      : null;
 
   const lisatoidenTulos = useMemo(
     () =>
@@ -433,9 +403,11 @@ export function TyonLomake({
         {
           pohjavariId: lisatyonPohjavariId,
           lakkaId: lisatyonLakkaId,
-          // Päävärin pohjaväri ja lakka tulevat yhä rivin toinen_vari-
-          // kentistä, joten pääväri ei vielä ole lähde lisätyölaskennassa.
-          perusvariLahteena: false,
+          perusvariLahteena: true,
+          // Solid ja metallic eivät vaadi lakkaa, mutta asiakas voi tilata
+          // sen lisänä. Valinta on käyttäjän eikä värin ominaisuus.
+          lakkausPaavarille: lakattu,
+          muokkaukset: automaattiMuokkaukset,
         }
       ),
     [
@@ -448,8 +420,20 @@ export function TyonLomake({
       valittuKategoriahinta,
       lisatyonPohjavariId,
       lisatyonLakkaId,
+      lakattu,
+      automaattiMuokkaukset,
     ]
   );
+
+  // Päävärin oma pohjaväri ja lakka ovat nyt automaattisia lisätyörivejä,
+  // joiden lähde on pääväri (lahdeAvain null). Hinnoittelu tarvitsee niistä
+  // värin katteen ja maalikustannuksen valintaan.
+  const paavarinAutomaatit = lisatoidenTulos.rivit.filter(
+    (r) => r.automaattinen !== null && r.lahdeAvain === null
+  );
+  const paavarinToinenVari = paavarinAutomaatit[0]
+    ? varit.find((v) => v.id === paavarinAutomaatit[0].variId)
+    : undefined;
 
   // Jaot siirtävät grammoja perusväriltä, eivät lisää niitä: riville
   // tallennetaan jäännös, jolloin osan kokonaiskulutus pysyy samana.
@@ -481,8 +465,11 @@ export function TyonLomake({
     // kustannukseen. Aiemmin tämä laskettiin vain pakollisille pohjaväreille ja
     // lakoille, jolloin Työt-sivu antoi solid + lakkaus -työlle eri hinnan kuin
     // osan oma kustannusarvio.
-    if (toinenVariAktiivinen && valittuToinenVari) {
-      kustannus += (oletusToinenKulutusG / 1000) * valittuToinenVari.kokonaishinta;
+    // Toinen maalikerros hinnoitellaan kategorian täydellä kulutuksella, ei
+    // jaon osuudella: osa maalataan kokonaan, jako vain vaihtaa sävyä ja sen
+    // oma hinta tulee lisätyöstä.
+    if (paavarinToinenVari) {
+      kustannus += (oletusToinenKulutusG / 1000) * paavarinToinenVari.kokonaishinta;
     }
     // Kate valitaan värien alkuperästä: EU:n ulkopuolelta tilaaminen on
     // työläämpää, joten sille on oma prosentti. Valinnainen lakka lasketaan
@@ -490,7 +477,7 @@ export function TyonLomake({
     const kate = valitseKate(
       valittuOsa.kateprosentit,
       valittuVari.alkupera,
-      toinenVariAktiivinen ? valittuToinenVari?.alkupera : undefined
+      paavarinToinenVari?.alkupera
     );
     // Lakattu työ voi olla omalla kiinteällä hinnallaan: se on kalliimpi kuin
     // lakkaamaton. Candyllä ja illusionilla lakka kuuluu hintaan aina, joten
@@ -503,8 +490,7 @@ export function TyonLomake({
     valittuKategoriahinta,
     valittuVari,
     valittuOsa,
-    valittuToinenVari,
-    toinenVariAktiivinen,
+    paavarinToinenVari,
     oletusKulutusG,
     oletusToinenKulutusG,
     kategoria,
@@ -520,9 +506,10 @@ export function TyonLomake({
     return muunKohteenHinta(
       [
         { ...valittuVari, grammat: arvioituKulutusG },
-        ...(toinenVariAktiivinen && valittuToinenVari
-          ? [{ ...valittuToinenVari, grammat: toinenArvioituKulutusG }]
-          : []),
+        ...paavarinAutomaatit.flatMap((r) => {
+          const v = varit.find((x) => x.id === r.variId);
+          return v ? [{ ...v, grammat: r.kulutusG }] : [];
+        }),
         ...lisavarit.flatMap((l) => {
           const vari = varit.find((v) => v.id === l.variId);
           return vari ? [{ ...vari, grammat: numeroTaiOletus(l.kulutus, 0) }] : [];
@@ -533,10 +520,8 @@ export function TyonLomake({
   }, [
     onMuu,
     valittuVari,
-    valittuToinenVari,
-    toinenVariAktiivinen,
+    paavarinAutomaatit,
     arvioituKulutusG,
-    toinenArvioituKulutusG,
     lisavarit,
     varit,
     oletusKateprosentit,
@@ -572,18 +557,19 @@ export function TyonLomake({
   // Sama väri ei voi olla rivillä kahdesti: pääväri, pohjaväri ja jo lisätyt
   // ovat poissa valittavista.
   const lisavarinVaihtoehdot = useMemo(() => {
-    const varatut = new Set([variId, toinenVariId].filter(Boolean));
+    const varatut = new Set(
+      [variId, ...paavarinAutomaatit.map((r) => r.variId)].filter(Boolean)
+    );
     return varit.filter((v) => !varatut.has(v.id));
-  }, [varit, variId, toinenVariId]);
+  }, [varit, variId, paavarinAutomaatit]);
 
   const lisavarienKulutusG = lisavarit.reduce(
     (summa, l) => summa + numeroTaiOletus(l.kulutus, 0),
     0
   );
-  const kulutusYhteensaG =
-    arvioituKulutusG + (toinenVariAktiivinen ? toinenArvioituKulutusG : 0) + lisavarienKulutusG;
-  const oletusYhteensaG =
-    oletusKulutusG + (toinenVariAktiivinen ? oletusToinenKulutusG : 0);
+  const automaattienKulutusG = paavarinAutomaatit.reduce((s, r) => s + r.kulutusG, 0);
+  const kulutusYhteensaG = arvioituKulutusG + automaattienKulutusG + lisavarienKulutusG;
+  const oletusYhteensaG = oletusKulutusG + (paavarinAutomaatit.length > 0 ? oletusToinenKulutusG : 0);
 
   function vaihdaOsa(v: string) {
     setOsaId(v);
@@ -591,7 +577,7 @@ export function TyonLomake({
     setKategoria("");
     setVariId("");
     setLakkausValittu(false);
-    setToinenVariSyote(null);
+    setAutomaattiMuokkaukset([]);
     tyhjennaCustom();
     // Toisen osan lisätyöt ovat eri lisätöitä: valinnat eivät saa jäädä
     // roikkumaan, koska ne viittaisivat lisätyöhön jota uudella osalla ei ole.
@@ -602,7 +588,7 @@ export function TyonLomake({
     setKategoria(v as MyytavaMaaliTyyppi);
     setVariId("");
     setLakkausValittu(false);
-    setToinenVariSyote(null);
+    setAutomaattiMuokkaukset([]);
   }
 
   /** Custom-valinnat nollautuvat aina rivin mukana, ei työn mukana. */
@@ -610,7 +596,6 @@ export function TyonLomake({
     setCustom(false);
     setKommentti("");
     setKulutusSyote(null);
-    setToinenKulutusSyote(null);
     setHintaSyote(null);
     setLisavarit([]);
   }
@@ -623,8 +608,6 @@ export function TyonLomake({
    */
   function tyhjennaLisatyot() {
     setLisatyot([]);
-    setLisatyonPohjaSyote(null);
-    setLisatyonLakkaSyote(null);
   }
 
   function lisaaLisatyo(lisatyoId: string) {
@@ -641,6 +624,31 @@ export function TyonLomake({
     ]);
   }
 
+  /**
+   * Automaattisen rivin muokkaus.
+   *
+   * Avaimena lähde ja laji: sama pohjaväri voi tulla sekä päävärin että jaon
+   * takia, ja kumpaakin riviä on voitava muokata itsenäisesti. Aiempi arvo
+   * säilyy, jotta värin vaihto ei nollaa laajuutta eikä päinvastoin.
+   */
+  function muokkaaAutomaattia(muutos: AutomaattisenMuokkaus) {
+    setAutomaattiMuokkaukset((vanhat) => {
+      const muut = vanhat.filter(
+        (m) => !(m.lahdeAvain === muutos.lahdeAvain && m.laji === muutos.laji)
+      );
+      const vanha = vanhat.find(
+        (m) => m.lahdeAvain === muutos.lahdeAvain && m.laji === muutos.laji
+      );
+      return [...muut, { ...vanha, ...muutos }];
+    });
+  }
+
+  function palautaAutomaatinOletus(lahdeAvain: string | null, laji: AutomaattinenLaji) {
+    setAutomaattiMuokkaukset((vanhat) =>
+      vanhat.filter((m) => !(m.lahdeAvain === lahdeAvain && m.laji === laji))
+    );
+  }
+
   function muutaLisatyo(avain: string, muutos: Partial<Omit<LisatyoValinta, "avain">>) {
     setLisatyot((vanhat) =>
       vanhat.map((l) => (l.avain === avain ? { ...l, ...muutos } : l))
@@ -653,7 +661,7 @@ export function TyonLomake({
     setKategoria("");
     setVariId("");
     setLakkausValittu(false);
-    setToinenVariSyote(null);
+    setAutomaattiMuokkaukset([]);
     tyhjennaCustom();
     tyhjennaLisatyot();
   }
@@ -684,20 +692,8 @@ export function TyonLomake({
       toast.error("Kirjoita mitä maalataan.");
       return;
     }
-    if (toinenVariAktiivinen && !toinenVariId) {
-      toast.error(`Valitse ${(toinenVariRooli && TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]) ?? "toinen väri"}.`);
-      return;
-    }
     if (arvioituKulutusG <= 0) {
       toast.error("Anna maalinkulutus - ilman sitä varastosta ei varata oikeaa määrää.");
-      return;
-    }
-    // Pohjaväri ja lakka varaavat maalia siinä missä pääväri. Esitäytöllä
-    // kulutus on aina yli nollan, mutta "Muu"-rivillä se kirjoitetaan käsin.
-    if (toinenVariAktiivinen && toinenArvioituKulutusG <= 0) {
-      toast.error(
-        `Anna ${(toinenVariRooli && TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli].toLowerCase()) ?? "toisen värin"} kulutus.`
-      );
       return;
     }
     // Jokainen lisäväri varaa maalia varastosta, joten kulutus on pakko tietää.
@@ -712,7 +708,7 @@ export function TyonLomake({
     // Sama väri kahdesti samalla rivillä varaisi maalia kahteen kertaan ja
     // kaatuisi vasta kannassa. Kategorian vaihto voi jättää lisävärin osumaan
     // uuteen päävääriin, joten tarkistus on tässä eikä pelkässä valikossa.
-    const kaytetyt = [variId, toinenVariAktiivinen ? toinenVariId : null].filter(Boolean);
+    const kaytetyt = [variId];
     const lisavarienIdt = kulutusKasin ? lisavarit.map((l) => l.variId) : [];
     if (new Set([...kaytetyt, ...lisavarienIdt]).size !== kaytetyt.length + lisavarienIdt.length) {
       toast.error("Sama väri on rivillä kahdesti - valitse eri värit.");
@@ -735,13 +731,17 @@ export function TyonLomake({
       variNimi: valittuVari.nimi,
       arvioituKulutusG: perusvarinKulutusG,
       yksikkohintaEur: riviHintaEur,
-      toinenVariId: toinenVariAktiivinen ? toinenVariId : null,
-      toinenVariNimi: toinenVariAktiivinen ? (valittuToinenVari?.nimi ?? null) : null,
-      toinenVariRooli: toinenVariAktiivinen ? (toinenVariRooli ?? null) : null,
-      toinenArvioituKulutusG: toinenVariAktiivinen ? toinenArvioituKulutusG : null,
+      // Uudella rivillä pohjaväri ja lakka ovat automaattisia lisätyörivejä,
+      // eivät työrivin omia kenttiä. Vanhat rivit kantavat nämä yhä.
+      toinenVariId: null,
+      toinenVariNimi: null,
+      toinenVariRooli: null,
+      toinenArvioituKulutusG: null,
       custom,
       kommentti: custom ? kommentti.trim() || null : null,
       lisatyot: lisatoidenTulos.rivit.map((r) => ({
+        avain: r.avain,
+        lahdeAvain: r.lahdeAvain,
         lisatyoId: r.lisatyoId,
         nimi: r.nimi,
         variId: r.variId,
@@ -751,6 +751,8 @@ export function TyonLomake({
         kulutusG: r.kulutusG,
         hintaEur: r.hintaEur,
         automaattinen: r.automaattinen,
+        lakkausLaajuus: r.lakkausLaajuus,
+        lahdeKuvaus: r.lahdeKuvaus,
       })),
       lisavarit: kulutusKasin
         ? lisavarit.map((l) => ({
@@ -803,6 +805,8 @@ export function TyonLomake({
         arvioituKulutusG: l.arvioituKulutusG,
       })),
       lisatyot: r.lisatyot.map((l) => ({
+        avain: l.avain,
+        lahdeAvain: l.lahdeAvain,
         lisatyoId: l.lisatyoId,
         variId: l.variId,
         maara: l.maara,
@@ -810,6 +814,7 @@ export function TyonLomake({
         kulutusG: l.kulutusG,
         hintaEur: l.hintaEur,
         automaattinen: l.automaattinen,
+        lakkausLaajuus: l.lakkausLaajuus,
       })),
     }));
 
@@ -947,20 +952,6 @@ export function TyonLomake({
             </div>
           )}
 
-          {/* Pohjaväri ja lakka valitaan samoin kuin pääväri: ne ovat yhtä
-              lailla maalia, ja asetusten esitäyttö näkyy heti valittuna. */}
-          {toinenVariAktiivinen && toinenVariRooli && (
-            <div className="rounded-md border bg-muted/30 p-3">
-              <VarinValinta
-                varit={toisenVarinVaihtoehdot}
-                valittuId={toinenVariId}
-                onValitse={setToinenVariSyote}
-                otsikko={`${TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]}${pakollinenRooli ? " *" : ""}`}
-                tyhjaTeksti="Ei värejä tässä kategoriassa - lisää lisäkategoria värille."
-              />
-            </div>
-          )}
-
           {/* Lisätyöt tulevat värin jälkeen: jaon osuus lasketaan perusvärin
               kulutuksesta ja automaattinen lakkaus riippuu siitä, lakataanko
               rivi jo muutenkin. */}
@@ -972,17 +963,13 @@ export function TyonLomake({
               tulos={lisatoidenTulos}
               pohjavariVaihtoehdot={lisatyonPohjaVaihtoehdot}
               lakkaVaihtoehdot={lisatyonLakkaVaihtoehdot}
-              pohjavariId={lisatyonPohjavariId}
-              lakkaId={lisatyonLakkaId}
-              oletusPohjavariId={oletusPohjavariId}
-              oletusLakkaId={oletusLakkaId}
               onLisaa={lisaaLisatyo}
               onPoista={(avain) =>
                 setLisatyot((vanhat) => vanhat.filter((l) => l.avain !== avain))
               }
               onMuuta={muutaLisatyo}
-              onVaihdaPohjavari={setLisatyonPohjaSyote}
-              onVaihdaLakka={setLisatyonLakkaSyote}
+              onMuokkaaAutomaattia={muokkaaAutomaattia}
+              onPalautaOletus={palautaAutomaatinOletus}
             />
           )}
 
@@ -1053,23 +1040,6 @@ export function TyonLomake({
                       onChange={(e) => setKulutusSyote(e.target.value)}
                     />
                   </div>
-                  {toinenVariAktiivinen && toinenVariRooli && (
-                    <div className="grid gap-1">
-                      <Label htmlFor="toinen_kulutus" className="text-xs text-muted-foreground">
-                        {valittuToinenVari?.nimi ?? TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]} (g)
-                        {onMuu ? " *" : ""}
-                      </Label>
-                      <Input
-                        id="toinen_kulutus"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={kentanArvo(toinenKulutusSyote, oletusToinenKulutusG)}
-                        onChange={(e) => setToinenKulutusSyote(e.target.value)}
-                      />
-                    </div>
-                  )}
-
                   {lisavarit.map((lisa) => (
                     <div
                       key={lisa.avain}
@@ -1147,14 +1117,12 @@ export function TyonLomake({
                     <span className="min-w-0 truncate">Pääväri</span>
                     <span className="shrink-0">{oletusKulutusG} g</span>
                   </span>
-                  {toinenVariAktiivinen && toinenVariRooli && (
-                    <span className="flex justify-between gap-3">
-                      <span className="min-w-0 truncate">
-                        {TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]}
-                      </span>
-                      <span className="shrink-0">{oletusToinenKulutusG} g</span>
+                  {paavarinAutomaatit.map((r) => (
+                    <span key={r.avain} className="flex justify-between gap-3">
+                      <span className="min-w-0 truncate">{r.nimi}</span>
+                      <span className="shrink-0">{r.kulutusG} g</span>
                     </span>
-                  )}
+                  ))}
                   <span className="flex justify-between gap-3 border-t pt-1">
                     <span>Yhteensä</span>
                     <span className="shrink-0">{oletusYhteensaG} g</span>
@@ -1232,9 +1200,6 @@ export function TyonLomake({
                   {" - maalia "}
                   {[
                     perusvarinKulutusG,
-                    ...(toinenVariAktiivinen && toinenArvioituKulutusG > 0
-                      ? [toinenArvioituKulutusG]
-                      : []),
                     ...(kulutusKasin ? lisavarit.map((l) => numeroTaiOletus(l.kulutus, 0)) : []),
                     ...lisatoidenTulos.rivit.map((r) => r.kulutusG),
                   ]
