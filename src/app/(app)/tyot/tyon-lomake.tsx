@@ -37,6 +37,7 @@ import {
   VALINNAINEN_TOINEN_VARI_ROOLI,
 } from "@/lib/vakiot";
 import type {
+  AjoneuvoTyyppi,
   Alkupera,
   MaaliTyyppi,
   MyytavaMaaliTyyppi,
@@ -58,11 +59,18 @@ import type { OsienLisatyo } from "@/lib/supabase/database.types";
 
 import { aloitaTyo, paivitaTyo } from "./actions";
 import { LisatyotRivilla } from "./lisatyot-rivilla";
+import { MUU_AJONEUVO, OsanValinta, VarinValinta } from "./osan-valinta";
 
 interface Osa {
   id: string;
   nimi: string;
   lisatiedot: string | null;
+  /** Ajoneuvotyyppi ratkaisee missä ryhmässä osa selataan. */
+  ajoneuvotyyppi: AjoneuvoTyyppi;
+  kuva_url: string | null;
+  kuva_x: number;
+  kuva_y: number;
+  kuva_zoom: number;
   lakkaus_kulutus_g: number | null;
   /** Osan oma lakkauslisä. Käytetään vain jos kategorialla ei ole lakattua hintaa. */
   lakkaus_lisahinta: number | null;
@@ -81,6 +89,7 @@ interface Vari {
   vaatii_lakkauksen: boolean;
   vaatii_pohjavarin: boolean;
   kiiltotaso: string | null;
+  kuva_url: string | null;
   kokonaishinta: number;
 }
 
@@ -161,7 +170,7 @@ interface LisavariSyote {
  * Arvo ei ole uuid, joten se ei voi osua osan id:hen. Rivi tallentuu ilman
  * osaa, pelkän kuvauksen varassa, eikä osaluetteloon synny mitään.
  */
-const MUU_OSA = "muu";
+const MUU_OSA = MUU_AJONEUVO;
 
 /** Tyhjä tai kelvoton syöte tarkoittaa "käytä oletusta". */
 function numeroTaiOletus(syote: string, oletus: number) {
@@ -174,6 +183,7 @@ export function TyonLomake({
   varit,
   kategoriahinnat,
   variKategoriat,
+  ajoneuvotyypit,
   osienLisatyot,
   oletusPohjavariId,
   oletusLakkaId,
@@ -185,6 +195,8 @@ export function TyonLomake({
   varit: Vari[];
   kategoriahinnat: Kategoriahinta[];
   variKategoriat: VariKategoria[];
+  /** Ajoneuvotyyppien näyttönimet: tyypit ovat adminin hallinnoimaa dataa. */
+  ajoneuvotyypit: { avain: string; nimi: string }[];
   /** Kaikkien osien rastitut lisätyöt. Vain nämä tarjotaan rivillä. */
   osienLisatyot: OsienLisatyo[];
   /** Asetuksissa valittu esitäyttö candyn pohjavärille. */
@@ -903,65 +915,39 @@ export function TyonLomake({
           <CardTitle className="text-base">Lisää osa koriin</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid min-w-0 gap-2">
-              <Label htmlFor="osa_id">Osa</Label>
-              <Select value={osaId} onValueChange={vaihdaOsa}>
-                <SelectTrigger id="osa_id" className="w-full min-w-0 [&>span]:min-w-0 [&>span]:truncate">
-                  <SelectValue placeholder="Valitse osa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {osat.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.nimi}
-                      {o.lisatiedot && (
-                        <span className="text-muted-foreground"> - {o.lisatiedot}</span>
-                      )}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={MUU_OSA}>
-                    Muu
-                    <span className="text-muted-foreground"> - kirjoita itse</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {onMuu ? kuvausKentta : kategoriaKentta}
-          </div>
+          {/* Ensin kuva, sitten hinnoittelu: maalari näkee mitä on
+              maalaamassa ennen kuin valitsee millä. Kategoria ja väri
+              ilmestyvät vasta osan jälkeen, jotta valinnat tehdään
+              järjestyksessä eikä tyhjiin valikoihin. */}
+          <OsanValinta
+            osat={osat}
+            ajoneuvotyypit={ajoneuvotyypit}
+            valittuId={osaId}
+            onValitse={vaihdaOsa}
+          />
 
-          {onMuu && <div className="grid gap-4 sm:grid-cols-2">{kategoriaKentta}</div>}
+          {onMuu && kuvausKentta}
+
+          {osaId && <div className="grid gap-4 sm:max-w-sm">{kategoriaKentta}</div>}
 
           {kategoria && (
-            <div className="grid gap-2">
-              <Label htmlFor="vari_id">Väri</Label>
-              <Select
-                value={variId}
-                onValueChange={(uusiId) => {
-                  setVariId(uusiId);
-                  // Lakkaus ei ole kategoriakohtainen pakko vaan värikohtainen
-                  // tieto, joten valinta seuraa väriä molempiin suuntiin: uusi
-                  // väri joka vaatii lakkauksen kytkee sen päälle ja väri joka
-                  // ei vaadi ottaa sen pois. Käyttäjä voi silti muuttaa
-                  // valintaa itse - siksi se on ehdotus eikä lukko.
-                  setLakkausValittu(
-                    varit.find((v) => v.id === uusiId)?.vaatii_lakkauksen === true
-                  );
-                }}
-              >
-                <SelectTrigger id="vari_id" className="w-full">
-                  <SelectValue placeholder="Valitse väri" />
-                </SelectTrigger>
-                <SelectContent>
-                  {kategorianVarit.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.nimi}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <VarinValinta
+              varit={kategorianVarit}
+              valittuId={variId}
+              onValitse={(uusiId) => {
+                setVariId(uusiId);
+                // Lakkaus ei ole kategoriakohtainen pakko vaan värikohtainen
+                // tieto, joten valinta seuraa väriä molempiin suuntiin: uusi
+                // väri joka vaatii lakkauksen kytkee sen päälle ja väri joka
+                // ei vaadi ottaa sen pois. Käyttäjä voi silti muuttaa
+                // valintaa itse - siksi se on ehdotus eikä lukko.
+                setLakkausValittu(
+                  varit.find((v) => v.id === uusiId)?.vaatii_lakkauksen === true
+                );
+              }}
+              tyhjaTeksti="Tässä kategoriassa ei ole värejä - lisää kategoria värille."
+            />
           )}
-
           {lakkausMahdollinen && (
             <div className="flex items-center gap-2">
               <Checkbox
@@ -998,7 +984,15 @@ export function TyonLomake({
                   )}
                   {toisenVarinVaihtoehdot.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
-                      {v.nimi}
+                      {v.kuva_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={v.kuva_url}
+                          alt=""
+                          className="size-5 shrink-0 rounded-sm object-cover"
+                        />
+                      )}
+                      <span className="min-w-0 truncate">{v.nimi}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>

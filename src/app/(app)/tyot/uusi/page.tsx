@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
 import { haeAsetukset } from "@/lib/supabase/asetukset";
+import { haeAjoneuvotyypit } from "@/lib/supabase/ajoneuvotyypit";
 import { oletusKateprosentit } from "@/lib/hinnat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TyoVaihe } from "@/lib/supabase/database.types";
@@ -13,6 +14,7 @@ export default async function UusiTyoSivu() {
   await vaaditaanAdmin();
   const supabase = await createClient();
   const asetukset = await haeAsetukset();
+  const ajoneuvotyypit = await haeAjoneuvotyypit();
 
   const [
     osatVastaus,
@@ -26,14 +28,14 @@ export default async function UusiTyoSivu() {
     supabase
       .from("osat")
       .select(
-        "id, nimi, lisatiedot, lakkaus_kulutus_g, lakkaus_lisahinta"
+        "id, nimi, lisatiedot, ajoneuvotyyppi, kuva_url, kuva_x, kuva_y, kuva_zoom, lakkaus_kulutus_g, lakkaus_lisahinta"
       )
       .eq("aktiivinen", true)
       .order("nimi"),
     supabase
       .from("varit")
       .select(
-        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, vaatii_lakkauksen, vaatii_pohjavarin, kiiltotaso"
+        "id, nimi, alkupera, tyyppi, saldo_g, varattu_g, vaatii_lakkauksen, vaatii_pohjavarin, kiiltotaso, kuva_url"
       )
       .eq("aktiivinen", true)
       .order("nimi"),
@@ -100,6 +102,7 @@ export default async function UusiTyoSivu() {
             varit={varitHinnoin}
             kategoriahinnat={kategoriahintaVastaus.data ?? []}
             variKategoriat={variKategoriaVastaus.data ?? []}
+            ajoneuvotyypit={ajoneuvotyypit}
             osienLisatyot={lisatyoVastaus.data ?? []}
             oletusKateprosentit={{
               eu: asetukset.kate_prosentti_oletus,
