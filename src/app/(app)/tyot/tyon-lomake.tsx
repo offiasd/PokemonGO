@@ -426,16 +426,16 @@ export function TyonLomake({
         {
           lakkaus_kulutus_g: valittuOsa?.lakkaus_kulutus_g ?? null,
           lakkaus_lisahinta: valittuOsa?.lakkaus_lisahinta ?? null,
+          pohjaKulutusG: valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? null,
           kategoriaHinta: valittuKategoriahinta?.hinta ?? null,
           kategoriaHintaLakattu: valittuKategoriahinta?.hinta_lakattu ?? null,
         },
         {
           pohjavariId: lisatyonPohjavariId,
           lakkaId: lisatyonLakkaId,
-          // Rivi lakataan jo joko kategorian pakosta (candy, illusion) tai
-          // erikseen valittuna. Silloin lisätyö ei tuo toista lakkausta eikä
-          // lakkauslisää veloiteta kahdesti.
-          perusrivinLakkaus: toinenVariAktiivinen && toinenVariRooli === "lakka",
+          // Päävärin pohjaväri ja lakka tulevat yhä rivin toinen_vari-
+          // kentistä, joten pääväri ei vielä ole lähde lisätyölaskennassa.
+          perusvariLahteena: false,
         }
       ),
     [
@@ -448,8 +448,6 @@ export function TyonLomake({
       valittuKategoriahinta,
       lisatyonPohjavariId,
       lisatyonLakkaId,
-      toinenVariAktiivinen,
-      toinenVariRooli,
     ]
   );
 
