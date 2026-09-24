@@ -197,7 +197,7 @@ export function OsanValinta({
           Valitse ajoneuvotyyppi, niin sen osat tulevat näkyviin.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
           {tyypinOsat.length === 0 && (
             <p className="col-span-full text-xs text-muted-foreground">
               Tälle ajoneuvotyypille ei ole osia.
@@ -208,7 +208,7 @@ export function OsanValinta({
               key={o.id}
               type="button"
               onClick={() => onValitse(o.id)}
-              className="grid min-w-0 gap-1 rounded-lg border p-1.5 text-left transition-colors hover:bg-accent"
+              className="grid min-w-0 gap-1 rounded-lg border p-1.5 text-center transition-colors hover:bg-accent"
             >
               <Kuva
                 url={o.kuva_url}
@@ -216,7 +216,10 @@ export function OsanValinta({
                 rajaus={{ x: o.kuva_x, y: o.kuva_y, zoom: o.kuva_zoom }}
                 className="aspect-square w-full"
               />
-              <span className="min-w-0 text-xs leading-tight font-medium wrap-anywhere line-clamp-2">
+              {/* Kolmessa sarakkeessa ruutu on noin 90 pikseliä leveä, joten
+                  nimelle annetaan kolme riviä: "Pinnavanteiden Kehät 17" ei
+                  mahdu kahteen ilman että loppu katoaa. */}
+              <span className="min-w-0 text-[0.6875rem] leading-tight font-medium wrap-anywhere line-clamp-3">
                 {o.nimi}
               </span>
               {o.lisatiedot && (
@@ -238,6 +241,10 @@ export function OsanValinta({
  * Kategorian värejä voi olla kymmeniä, joten mukana on nimihaku. Saldo näkyy
  * jokaisessa ruudussa: riittävyys kuuluu näkyä valinnan hetkellä eikä vasta
  * varoituksena tallennuksen jälkeen.
+ *
+ * Valinnan jälkeen ruudukko sulkeutuu ja jäljelle jää valittu väri. 76 värin
+ * ruudukko veisi muuten koko näytön loppulomakkeen tieltä, eikä valittu väri
+ * erottuisi selattavasta - sama kuvio kuin osan valinnassa.
  */
 export function VarinValinta({
   varit,
@@ -253,12 +260,45 @@ export function VarinValinta({
   tyhjaTeksti?: string;
 }) {
   const [haku, setHaku] = useState("");
+  // Vaihda-painike avaa ruudukon uudelleen ilman että valinta katoaa.
+  const [muokataan, setMuokataan] = useState(false);
+
+  const valittu = varit.find((v) => v.id === valittuId) ?? null;
 
   const nakyvat = useMemo(() => {
     const hakusana = haku.trim().toLowerCase();
     if (hakusana === "") return varit;
     return varit.filter((v) => v.nimi.toLowerCase().includes(hakusana));
   }, [varit, haku]);
+
+  if (valittu && !muokataan) {
+    return (
+      <div className="grid gap-2">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <Label className="text-sm">{otsikko}</Label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="-mt-1 h-8 shrink-0"
+            onClick={() => setMuokataan(true)}
+          >
+            <Pencil className="size-3.5" />
+            Vaihda
+          </Button>
+        </div>
+        <div className="flex min-w-0 items-center gap-3 rounded-lg border p-2">
+          <Kuva url={valittu.kuva_url} nimi={valittu.nimi} className="size-14 shrink-0" />
+          <div className="grid min-w-0 gap-0.5">
+            <span className="min-w-0 text-sm font-medium wrap-anywhere">{valittu.nimi}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              Vapaana {muotoileGrammat(Math.max(0, valittu.saldo_g - valittu.varattu_g))}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-2">
@@ -284,22 +324,25 @@ export function VarinValinta({
       ) : (
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
           {nakyvat.map((v) => {
-            const valittu = v.id === valittuId;
+            const onValittu = v.id === valittuId;
             const vapaa = Math.max(0, v.saldo_g - v.varattu_g);
             return (
               <button
                 key={v.id}
                 type="button"
-                onClick={() => onValitse(v.id)}
-                aria-pressed={valittu}
+                onClick={() => {
+                  onValitse(v.id);
+                  setMuokataan(false);
+                }}
+                aria-pressed={onValittu}
                 className={cn(
-                  "grid min-w-0 gap-1 rounded-lg border p-1.5 text-left transition-colors",
-                  valittu ? "border-primary bg-accent" : "hover:bg-accent"
+                  "grid min-w-0 gap-1 rounded-lg border p-1.5 text-center transition-colors",
+                  onValittu ? "border-primary bg-accent" : "hover:bg-accent"
                 )}
               >
                 <div className="relative">
                   <Kuva url={v.kuva_url} nimi={v.nimi} className="aspect-square w-full" />
-                  {valittu && (
+                  {onValittu && (
                     <span className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
                       <Check className="size-3.5" />
                     </span>

@@ -964,39 +964,17 @@ export function TyonLomake({
             </div>
           )}
 
+          {/* Pohjaväri ja lakka valitaan samoin kuin pääväri: ne ovat yhtä
+              lailla maalia, ja asetusten esitäyttö näkyy heti valittuna. */}
           {toinenVariAktiivinen && toinenVariRooli && (
-            <div className="grid gap-2 rounded-md border bg-muted/30 p-4">
-              <Label htmlFor="toinen_vari_id">
-                {TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]}
-                {pakollinenRooli ? " *" : ""}
-              </Label>
-              <Select value={toinenVariId} onValueChange={setToinenVariSyote}>
-                <SelectTrigger id="toinen_vari_id" className="w-full">
-                  <SelectValue
-                    placeholder={`Valitse ${TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli].toLowerCase()}`}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {toisenVarinVaihtoehdot.length === 0 && (
-                    <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                      Ei värejä tässä kategoriassa - lisää lisäkategoria värille
-                    </p>
-                  )}
-                  {toisenVarinVaihtoehdot.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.kuva_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={v.kuva_url}
-                          alt=""
-                          className="size-5 shrink-0 rounded-sm object-cover"
-                        />
-                      )}
-                      <span className="min-w-0 truncate">{v.nimi}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="rounded-md border bg-muted/30 p-3">
+              <VarinValinta
+                varit={toisenVarinVaihtoehdot}
+                valittuId={toinenVariId}
+                onValitse={setToinenVariSyote}
+                otsikko={`${TOINEN_VARI_ROOLIN_NIMI[toinenVariRooli]}${pakollinenRooli ? " *" : ""}`}
+                tyhjaTeksti="Ei värejä tässä kategoriassa - lisää lisäkategoria värille."
+              />
             </div>
           )}
 
