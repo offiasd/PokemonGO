@@ -235,13 +235,21 @@ export function laskeLisatyot(
     /** Käyttäjän muokkaukset automaattisiin riveihin. */
     muokkaukset?: AutomaattisenMuokkaus[];
     /**
-     * Onko työn pääväri lähde siinä missä lisätyöt.
+     * Onko työn pääväri lähde siinä missä lisätyöt. Oletus tosi.
      *
-     * Toistaiseksi epätosi: päävärin pohjaväri ja lakka tulevat yhä työrivin
-     * toinen_vari-kentistä, ja pääväri lähteenä tuottaisi niistä toisen
-     * kappaleen. Kytkin kääntyy tosiksi kun toinen_vari puretaan.
+     * Epätosi vain siirtymän ajan, jos päävärin pohjaväri ja lakka tulevat
+     * vielä työrivin toinen_vari-kentistä: silloin pääväri lähteenä tuottaisi
+     * niistä toisen kappaleen.
      */
     perusvariLahteena?: boolean;
+    /**
+     * Pääväri lakataan vaikka sen oma väri ei lakkausta vaadi.
+     *
+     * Solid ja metallic eivät vaadi lakkaa, mutta asiakas voi tilata sen
+     * lisänä. Valinta on käyttäjän eikä värin ominaisuus, joten se tulee
+     * erillisenä tietona eikä vaatii_lakkauksen-sarakkeesta.
+     */
+    lakkausPaavarille?: boolean;
   }
 ): LisatoidenTulos {
   const vari = (id: string) => varit.find((v) => v.id === id);
@@ -411,7 +419,13 @@ export function laskeLisatyot(
   // lähteinä ovat vain käyttäjän valitsemat värit. Automaattinen pohjaväri ei
   // ole lähde, vaikka se itse olisi lakkausta vaativa metallic: candy sen
   // päällä on pinta.
-  const lakkaaTarvitsevat = lahteet.filter((l) => vari(l.variId)?.vaatii_lakkauksen === true);
+  const lakkaaTarvitsevat = lahteet.filter(
+    (l) =>
+      vari(l.variId)?.vaatii_lakkauksen === true ||
+      // Valinnainen lakkaus koskee vain päävärin pintaa: lisätyön lakkaus
+      // tulee aina sen oman värin vaatimuksesta.
+      (l.avain === null && automaattiset.lakkausPaavarille === true)
+  );
   let lakkauslisaEur = 0;
 
   if (lakkaaTarvitsevat.length > 0) {
