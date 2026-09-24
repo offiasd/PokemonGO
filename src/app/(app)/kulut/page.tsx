@@ -81,7 +81,7 @@ export default async function KulutSivu({
     ? await supabase
         .from("kuitin_rivit")
         .select(
-          "id, kuitti_id, teksti, brutto_eur, brutto_valuutassa, verokanta, kayttotarkoitus, kululuokka_id, jarjestys"
+          "id, kuitti_id, teksti, maara, yksikko, brutto_eur, brutto_valuutassa, verokanta, kayttotarkoitus, kululuokka_id, jarjestys"
         )
         .in("kuitti_id", vuodenIdt)
     : { data: [] };
@@ -182,6 +182,17 @@ export default async function KulutSivu({
       puute,
       mitatoity: kuitti.mitatoity_at !== null,
       mitatointiSyy: kuitti.mitatointi_syy,
+      // Rivit kulkevat listalle asti, jotta kuitin ostokset voi katsoa
+      // avaamatta kuittia. Kuukauden rivit on jo haettu summia varten, joten
+      // tämä ei ole uusi kysely.
+      rivit: kuitti.kuitin_rivit.map((rivi) => ({
+        id: rivi.id,
+        teksti: rivi.teksti,
+        maara: rivi.maara,
+        yksikko: rivi.yksikko,
+        bruttoEur: rivi.brutto_eur,
+        bruttoValuutassa: rivi.brutto_valuutassa,
+      })),
     };
   });
   const puutteellisia = listalle.filter((k) => k.puute !== null).length;

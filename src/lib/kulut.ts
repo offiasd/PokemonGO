@@ -377,3 +377,37 @@ export function toimittajanIkoni(toimittaja: string | null): ToimittajanIkoni {
   if (!toimittaja) return "kuitti";
   return TOIMITTAJAN_IKONIT.find((t) => t.sanat.test(toimittaja))?.ikoni ?? "kuitti";
 }
+
+/**
+ * Yhtiömuotoa tarkoittavat sanat toimittajan nimessä.
+ *
+ * "Puuilo Oy" ja "PUUILO" ovat sama kauppa, ja kuukausinäkymässä sama kauppa
+ * kuuluu samaan ryhmään.
+ */
+const YHTIOMUODOT = /\b(oy|oyj|ab|ky|ry|tmi|as|gmbh|inc|ltd|llc|srl|bv|plc)\b/g;
+
+/**
+ * Toimittajan nimi ryhmittelyavaimeksi.
+ *
+ * Toimittaja on kuitista poimittua tekstiä: sama kauppa kirjoittuu milloin
+ * versaalilla, milloin yhtiömuodon ja välimerkkien kanssa. Avain kokoaa nämä
+ * yhteen, jotta kuukauden yhteenvedossa ei ole samaa toimittajaa kahdesti.
+ *
+ * Kirjoitusvirheitä ei yhdistetä - "PUULO" jää omaksi ryhmäkseen. Sumea
+ * vertailu yhdistäisi ennen pitkää kaksi eri toimittajaa, ja väärin yhdistetty
+ * ryhmä on pahempi kuin kaksi erillistä oikeaa.
+ *
+ * Tyhjä avain tarkoittaa puuttuvaa toimittajaa.
+ */
+export function toimittajanAvain(toimittaja: string | null): string {
+  const teksti = (toimittaja ?? "").toLowerCase();
+  const karsittu = teksti
+    .replace(YHTIOMUODOT, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  // Pelkästä yhtiömuodosta koostuva nimi ("Ab") jäisi karsinnassa tyhjäksi ja
+  // valuisi samaan ryhmään puuttuvien kanssa. Silloin käytetään nimeä
+  // sellaisenaan: se on huono nimi, mutta se on nimi.
+  if (karsittu) return karsittu;
+  return teksti.replace(/\s+/g, " ").trim();
+}
