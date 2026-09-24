@@ -156,9 +156,6 @@ export function LisatyotRivilla({
                     {varit.map((v) => (
                       <SelectItem key={v.id} value={v.id}>
                         <span className="min-w-0 truncate">{v.nimi}</span>
-                        <span className="shrink-0 tabular-nums text-muted-foreground">
-                          {muotoileGrammat(Math.max(0, v.saldo_g - v.varattu_g))}
-                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
