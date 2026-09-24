@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { ajoneuvotyypinNimi, muotoileGrammat } from "@/lib/vakiot";
+import { ajoneuvotyypinNimi } from "@/lib/vakiot";
 import { rajauksenTyyli, siistiRajaus } from "@/lib/kuvarajaus";
 import type { AjoneuvoTyyppi } from "@/lib/supabase/database.types";
 
@@ -28,8 +28,6 @@ export interface ValittavaVari {
   id: string;
   nimi: string;
   kuva_url: string | null;
-  saldo_g: number;
-  varattu_g: number;
 }
 
 /** Osaluettelon ulkopuolinen kertakohde. Sama arvo kuin lomakkeen MUU_OSA. */
@@ -238,9 +236,7 @@ export function OsanValinta({
 /**
  * Värin valinta kuvista.
  *
- * Kategorian värejä voi olla kymmeniä, joten mukana on nimihaku. Saldo näkyy
- * jokaisessa ruudussa: riittävyys kuuluu näkyä valinnan hetkellä eikä vasta
- * varoituksena tallennuksen jälkeen.
+ * Kategorian värejä voi olla kymmeniä, joten mukana on nimihaku.
  *
  * Valinnan jälkeen ruudukko sulkeutuu ja jäljelle jää valittu väri. 76 värin
  * ruudukko veisi muuten koko näytön loppulomakkeen tieltä, eikä valittu väri
@@ -289,12 +285,7 @@ export function VarinValinta({
         </div>
         <div className="flex min-w-0 items-center gap-3 rounded-lg border p-2">
           <Kuva url={valittu.kuva_url} nimi={valittu.nimi} className="size-14 shrink-0" />
-          <div className="grid min-w-0 gap-0.5">
-            <span className="min-w-0 text-sm font-medium wrap-anywhere">{valittu.nimi}</span>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              Vapaana {muotoileGrammat(Math.max(0, valittu.saldo_g - valittu.varattu_g))}
-            </span>
-          </div>
+          <span className="min-w-0 text-sm font-medium wrap-anywhere">{valittu.nimi}</span>
         </div>
       </div>
     );
@@ -325,7 +316,6 @@ export function VarinValinta({
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
           {nakyvat.map((v) => {
             const onValittu = v.id === valittuId;
-            const vapaa = Math.max(0, v.saldo_g - v.varattu_g);
             return (
               <button
                 key={v.id}
@@ -350,9 +340,6 @@ export function VarinValinta({
                 </div>
                 <span className="min-w-0 text-[0.6875rem] leading-tight font-medium wrap-anywhere line-clamp-2">
                   {v.nimi}
-                </span>
-                <span className="text-[0.625rem] leading-tight tabular-nums text-muted-foreground">
-                  {muotoileGrammat(vapaa)}
                 </span>
               </button>
             );
