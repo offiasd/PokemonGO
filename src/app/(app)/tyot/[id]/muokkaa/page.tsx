@@ -51,7 +51,7 @@ export default async function MuokkaaTyotaSivu({
     supabase
       .from("osat")
       .select(
-        "id, nimi, lisatiedot, ajoneuvotyyppi, kuva_url, kuva_x, kuva_y, kuva_zoom, lakkaus_kulutus_g, lakkaus_lisahinta"
+        "id, nimi, lisatiedot, ajoneuvotyyppi, kuva_url, kuva_x, kuva_y, kuva_zoom, lakkaus_kulutus_g"
       )
       .eq("aktiivinen", true)
       .order("nimi"),

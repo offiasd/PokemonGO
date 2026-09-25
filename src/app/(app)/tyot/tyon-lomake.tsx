@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Palette, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { Loader2, Palette, Plus, ShoppingCart, Trash2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,8 +72,6 @@ interface Osa {
   kuva_y: number;
   kuva_zoom: number;
   lakkaus_kulutus_g: number | null;
-  /** Osan oma lakkauslisä. Käytetään vain jos kategorialla ei ole lakattua hintaa. */
-  lakkaus_lisahinta: number | null;
   tyokustannusKerroksittain: number[];
   /** Kate-% erikseen EU- ja ei-EU-väreille. */
   kateprosentit: Kateprosentit;
@@ -256,6 +254,10 @@ export function TyonLomake({
   const [kategoria, setKategoria] = useState<MyytavaMaaliTyyppi | "">("");
   const [variId, setVariId] = useState("");
   const [lakkausValittu, setLakkausValittu] = useState(false);
+  // Kun käyttäjä on itse valinnut päävärin jaon rinnalle, sovellus ei enää
+  // vaihda sitä automaattisesti vaan tyytyy varoittamaan. Muuten valinta
+  // kumoutuisi heti kun jaon väriä koskee.
+  const [paavariKasin, setPaavariKasin] = useState(false);
   // Käyttäjän muokkaukset automaattisiin pohjaväri- ja lakkariveihin. Jokainen
   // lähde voi saada oman värinsä ja lakkarivi oman laajuutensa; koskematon
   // rivi seuraa asetusten oletusta ja lähteen oletuslaajuutta.
@@ -395,10 +397,7 @@ export function TyonLomake({
         arvioituKulutusG,
         {
           lakkaus_kulutus_g: valittuOsa?.lakkaus_kulutus_g ?? null,
-          lakkaus_lisahinta: valittuOsa?.lakkaus_lisahinta ?? null,
           pohjaKulutusG: valittuKategoriahinta?.toinen_arvioitu_kulutus_g ?? null,
-          kategoriaHinta: valittuKategoriahinta?.hinta ?? null,
-          kategoriaHintaLakattu: valittuKategoriahinta?.hinta_lakattu ?? null,
         },
         {
           pohjavariId: lisatyonPohjavariId,
@@ -433,6 +432,108 @@ export function TyonLomake({
   const paavarinToinenVari = paavarinAutomaatit[0]
     ? varit.find((v) => v.id === paavarinAutomaatit[0].variId)
     : undefined;
+
+  // ---- Pääväri on aina kalliimpi väri ----
+  // Perushinta tulee päävärin kategoriasta ja lisätyö hinnoitellaan erikseen
+  // sen mukaan onko sen väri solid vai erikoisväri. Siksi sama jako saa kaksi
+  // eri hintaa sen mukaan kumpi väri on syötetty pääväriksi - ja oikea on se
+  // jossa kalliimpi väri on pääväri.
+
+  /** Osan kallein kategoria jolle väri kelpaa. Null kun kiinteää hintaa ei ole. */
+  const varinKategoriaOsalle = useCallback(
+    (id: string) => {
+      const varinKategoriat = variKategoriaKartta.get(id);
+      if (!varinKategoriat) return null;
+      let paras: { kategoria: MyytavaMaaliTyyppi; hinta: number } | null = null;
+      for (const k of osanKategoriat) {
+        if (!varinKategoriat.has(k.maali_tyyppi) || k.hinta === null) continue;
+        if (!paras || k.hinta > paras.hinta) paras = { kategoria: k.maali_tyyppi, hinta: k.hinta };
+      }
+      return paras;
+    },
+    [osanKategoriat, variKategoriaKartta]
+  );
+
+  const varinNimi = (id: string) => varit.find((v) => v.id === id)?.nimi ?? "Tuntematon väri";
+
+  const onJako = useCallback(
+    (lisatyoId: string) => osanLisatyot.find((p) => p.lisatyo_id === lisatyoId)?.on_jako === true,
+    [osanLisatyot]
+  );
+
+  /**
+   * Jaon väri joka on osalle päävärii kalliimpi.
+   *
+   * Vertailu tehdään vain kiinteillä kategoriahinnoilla: lasketussa
+   * hinnoittelussa hinta tulee maalin kulutuksesta eikä kategoriasta, jolloin
+   * päävärin vaihto ei siirrä hintaa mihinkään.
+   */
+  const kalliimpiEhdokas = useMemo(() => {
+    if (onMuu || !kategoria || !variId) return null;
+    const nykyinenHinta = valittuKategoriahinta?.hinta;
+    if (nykyinenHinta === null || nykyinenHinta === undefined) return null;
+
+    let paras: { avain: string; variId: string; kategoria: MyytavaMaaliTyyppi; hinta: number } | null =
+      null;
+    for (const l of lisatyot) {
+      if (!l.variId || !onJako(l.lisatyoId)) continue;
+      const k = varinKategoriaOsalle(l.variId);
+      if (!k || k.hinta <= nykyinenHinta) continue;
+      if (!paras || k.hinta > paras.hinta) paras = { avain: l.avain, variId: l.variId, ...k };
+    }
+    return paras;
+  }, [
+    onMuu,
+    kategoria,
+    variId,
+    valittuKategoriahinta,
+    lisatyot,
+    onJako,
+    varinKategoriaOsalle,
+  ]);
+
+  /**
+   * Rivin hinta jos pääväri ja ehdokkaan jako vaihtaisivat paikkaa.
+   *
+   * Lasketaan samalla moduulilla kuin nykyinenkin hinta, jottei lisätöiden
+   * hinnoittelusääntö ole kahdessa paikassa.
+   */
+  const ehdokkaanHintaEur = useMemo(() => {
+    if (!kalliimpiEhdokas) return null;
+    const kategoriahinta = osanKategoriat.find(
+      (k) => k.maali_tyyppi === kalliimpiEhdokas.kategoria
+    );
+    if (!kategoriahinta) return null;
+
+    const vaihdetutValinnat = lisatyot.map((l) =>
+      l.avain === kalliimpiEhdokas.avain ? { ...l, variId } : l
+    );
+    const tulos = laskeLisatyot(
+      vaihdetutValinnat,
+      osanLisatyot,
+      varit,
+      kalliimpiEhdokas.variId,
+      kategoriahinta.arvioitu_kulutus_g,
+      {
+        lakkaus_kulutus_g: valittuOsa?.lakkaus_kulutus_g ?? null,
+        pohjaKulutusG: kategoriahinta.toinen_arvioitu_kulutus_g ?? null,
+      },
+      { pohjavariId: lisatyonPohjavariId, lakkaId: lisatyonLakkaId }
+    );
+    const perus = kategorianKiinteaHinta(kategoriahinta, false);
+    if (perus === null) return null;
+    return Math.round((perus + tulos.hinnatYhteensaEur) * 100) / 100;
+  }, [
+    kalliimpiEhdokas,
+    osanKategoriat,
+    lisatyot,
+    variId,
+    osanLisatyot,
+    varit,
+    valittuOsa,
+    lisatyonPohjavariId,
+    lisatyonLakkaId,
+  ]);
 
   // Jaot siirtävät grammoja perusväriltä, eivät lisää niitä: riville
   // tallennetaan jäännös, jolloin osan kokonaiskulutus pysyy samana.
@@ -540,9 +641,11 @@ export function TyonLomake({
       ? null
       : Math.round(numeroTaiOletus(hintaSyote ?? "", laskettuHintaEur ?? 0) * 100) / 100;
 
-  // Asiakashinta = osan perushinta + lisätöiden hinnat + mahdollinen
-  // lakkauslisä. Riville tallentuu tämä summa, ja lisätyörivit säilyttävät
-  // oman hintansa erittelynä - niitä ei lasketa myyntiin toiseen kertaan.
+  // Asiakashinta = osan kategoriahinta + lisätöiden hinnat. Automaattiset
+  // pohjaväri- ja lakkarivit eivät lisää hintaa: ne varaavat maalia ja
+  // kuluttavat saldoa. Riville tallentuu tämä summa, ja lisätyörivit
+  // säilyttävät oman hintansa erittelynä - niitä ei lasketa myyntiin
+  // toiseen kertaan.
   const riviHintaEur =
     yksikkohintaEur === null
       ? null
@@ -576,6 +679,7 @@ export function TyonLomake({
     setKategoria("");
     setVariId("");
     setLakkausValittu(false);
+    setPaavariKasin(false);
     setAutomaattiMuokkaukset([]);
     tyhjennaCustom();
     // Toisen osan lisätyöt ovat eri lisätöitä: valinnat eivät saa jäädä
@@ -588,6 +692,22 @@ export function TyonLomake({
     setVariId("");
     setLakkausValittu(false);
     setAutomaattiMuokkaukset([]);
+  }
+
+  /**
+   * Päävärin valinta käyttöliittymästä.
+   *
+   * Jos rivillä on jo värillinen jako, valinta on käyttäjän tietoinen päätös
+   * eikä sovellus enää vaihda pääväriä automaattisesti.
+   */
+  function valitsePaavari(uusiId: string) {
+    setVariId(uusiId);
+    // Lakkaus ei ole kategoriakohtainen pakko vaan värikohtainen tieto, joten
+    // valinta seuraa väriä molempiin suuntiin: uusi väri joka vaatii
+    // lakkauksen kytkee sen päälle ja väri joka ei vaadi ottaa sen pois.
+    // Käyttäjä voi silti muuttaa valintaa itse - siksi se on ehdotus eikä lukko.
+    setLakkausValittu(varit.find((v) => v.id === uusiId)?.vaatii_lakkauksen === true);
+    if (lisatyot.some((l) => l.variId && onJako(l.lisatyoId))) setPaavariKasin(true);
   }
 
   /** Custom-valinnat nollautuvat aina rivin mukana, ei työn mukana. */
@@ -649,9 +769,41 @@ export function TyonLomake({
   }
 
   function muutaLisatyo(avain: string, muutos: Partial<Omit<LisatyoValinta, "avain">>) {
+    setLisatyot((vanhat) => vanhat.map((l) => (l.avain === avain ? { ...l, ...muutos } : l)));
+
+    // Jaon väri voi olla osalle päävärii kalliimpi. Silloin pääväri ja jako
+    // vaihtavat paikkaa heti, koska perushinta tulee päävärin kategoriasta:
+    // muuten sama työ hinnoiteltaisiin halvemmin sen mukaan kumpi väri
+    // sattui tulemaan ensin. Käyttäjä voi vaihtaa takaisin - se varoittaa
+    // muttei estä.
+    const jako = lisatyot.find((l) => l.avain === avain);
+    if (muutos.variId && jako && onJako(jako.lisatyoId) && !paavariKasin) {
+      vaihdaPaavariksi(avain, muutos.variId);
+    }
+  }
+
+  /**
+   * Vaihtaa jaon värin pääväriksi ja päävärin jakoon.
+   *
+   * Tekee vaihdon vain kun uusi väri on osalle kalliimpi; muuten ei mitään.
+   */
+  function vaihdaPaavariksi(jaonAvain: string, jaonVariId: string) {
+    const uusi = varinKategoriaOsalle(jaonVariId);
+    const nykyinenHinta = valittuKategoriahinta?.hinta;
+    if (!uusi || nykyinenHinta === null || nykyinenHinta === undefined) return;
+    if (uusi.hinta <= nykyinenHinta) return;
+
+    const vanhaPaavari = variId;
+    setKategoria(uusi.kategoria);
+    setVariId(jaonVariId);
+    setLakkausValittu(varit.find((v) => v.id === jaonVariId)?.vaatii_lakkauksen === true);
     setLisatyot((vanhat) =>
-      vanhat.map((l) => (l.avain === avain ? { ...l, ...muutos } : l))
+      vanhat.map((l) => (l.avain === jaonAvain ? { ...l, variId: vanhaPaavari } : l))
     );
+    // Lähteiden värit vaihtuivat, joten niille tehdyt poikkeukset eivät enää
+    // osu samaan väriin.
+    setAutomaattiMuokkaukset([]);
+    setPaavariKasin(false);
   }
 
   function tyhjennaRivilomake() {
@@ -660,6 +812,7 @@ export function TyonLomake({
     setKategoria("");
     setVariId("");
     setLakkausValittu(false);
+    setPaavariKasin(false);
     setAutomaattiMuokkaukset([]);
     tyhjennaCustom();
     tyhjennaLisatyot();
@@ -921,17 +1074,7 @@ export function TyonLomake({
             <VarinValinta
               varit={kategorianVarit}
               valittuId={variId}
-              onValitse={(uusiId) => {
-                setVariId(uusiId);
-                // Lakkaus ei ole kategoriakohtainen pakko vaan värikohtainen
-                // tieto, joten valinta seuraa väriä molempiin suuntiin: uusi
-                // väri joka vaatii lakkauksen kytkee sen päälle ja väri joka
-                // ei vaadi ottaa sen pois. Käyttäjä voi silti muuttaa
-                // valintaa itse - siksi se on ehdotus eikä lukko.
-                setLakkausValittu(
-                  varit.find((v) => v.id === uusiId)?.vaatii_lakkauksen === true
-                );
-              }}
+              onValitse={valitsePaavari}
               tyhjaTeksti="Tässä kategoriassa ei ole värejä - lisää kategoria värille."
             />
           )}
@@ -983,6 +1126,35 @@ export function TyonLomake({
               onMuokkaaAutomaattia={muokkaaAutomaattia}
               onPalautaOletus={palautaAutomaatinOletus}
             />
+          )}
+
+          {/* Pääväriksi on valittu halvempi väri: varoitus, ei esto.
+              Poikkeustapauksia voi olla, joten tallennus onnistuu silti. */}
+          {kalliimpiEhdokas && ehdokkaanHintaEur !== null && riviHintaEur !== null && (
+            <div className="grid min-w-0 gap-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+              <div className="flex min-w-0 gap-2">
+                <TriangleAlert className="mt-px size-3.5 shrink-0" />
+                <span className="min-w-0 wrap-anywhere">
+                  Pääväriksi on valittu halvempi väri. Osan perushinta tulee päävärin
+                  kategoriasta, joten {varinNimi(kalliimpiEhdokas.variId)} pääväriksi antaa{" "}
+                  {muotoileEuro(ehdokkaanHintaEur)}, nykyinen järjestys{" "}
+                  {muotoileEuro(riviHintaEur)}.
+                </span>
+              </div>
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 min-w-0 max-w-full"
+                  onClick={() => vaihdaPaavariksi(kalliimpiEhdokas.avain, kalliimpiEhdokas.variId)}
+                >
+                  <span className="min-w-0 truncate">
+                    Vaihda pääväriksi {varinNimi(kalliimpiEhdokas.variId)}
+                  </span>
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* Varoitukset ja maalinkulutus koskevat koko riviä, joten ne ovat
@@ -1272,7 +1444,7 @@ export function TyonLomake({
                       .filter(Boolean)
                       .join(" + ")}
                   </span>
-                  {/* Lisätyöt omina riveinään: lakkauslisä ei saa piiloutua
+                  {/* Lisätyöt omina riveinään: lisätyön hinta ei saa piiloutua
                       loppusummaan, vaan asiakkaan on nähtävä mistä maksaa. */}
                   {r.lisatyot.map((l, i) => (
                     <span

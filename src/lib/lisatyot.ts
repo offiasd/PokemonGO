@@ -75,15 +75,16 @@ export interface VarinTiedot {
   varattu_g: number;
 }
 
-/** Osan ne tiedot joita automaattiset rivit tarvitsevat. */
+/**
+ * Osan ne tiedot joita automaattiset rivit tarvitsevat.
+ *
+ * Pelkkää kulutusta: automaattiset rivit varaavat maalia eivätkä vaikuta
+ * hintaan, joten kategoriahintoja ei tarvita täällä.
+ */
 export interface OsanLakkaustiedot {
   lakkaus_kulutus_g: number | null;
-  lakkaus_lisahinta: number | null;
   /** Pohjavärin kulutus koko osalle: osa_kategoriahinnat.toinen_arvioitu_kulutus_g. */
   pohjaKulutusG: number | null;
-  /** Kategoriahinta perusvärin maalityypille, lakkauslisän johtamista varten. */
-  kategoriaHinta: number | null;
-  kategoriaHintaLakattu: number | null;
 }
 
 /** Yksi laskettu lisätyörivi, sellaisena kuin se tallennetaan ja näytetään. */
@@ -130,10 +131,13 @@ export interface LisatoidenTulos {
   perusvarinKulutusG: number;
   /** Perusvärin osuus prosentteina, jäännöksenä laskettuna. */
   perusvarinOsuus: number;
-  /** Lisätöiden hinnat yhteensä, lakkauslisä mukaan lukien. */
+  /**
+   * Lisätöiden hinnat yhteensä.
+   *
+   * Vain käyttäjän valitsemat lisätyöt: automaattiset pohjaväri- ja
+   * lakkarivit eivät lisää hintaa lainkaan.
+   */
   hinnatYhteensaEur: number;
-  /** Lakkauslisä omana lukunaan, jotta se voidaan näyttää omana rivinään. */
-  lakkauslisaEur: number;
   varoitukset: Varoitus[];
   /** Kulutus väreittäin, samanväriset rivit yhdistettyinä. */
   varienKulutus: { variId: string; variNimi: string; kulutusG: number; automaattinen: boolean }[];
@@ -159,27 +163,6 @@ export function lisatyonHinta(perusta: LisatyonPerusta, vari: VarinTiedot): numb
   return vari.tyyppi === "solid" ? perusta.hinta_perusvari_eur : perusta.hinta_erikoisvari_eur;
 }
 
-/**
- * Lakkauslisä.
- *
- * Koskee vain lisätyön värin vaatimaa lakkausta. Päävärin lakkaus sisältyy
- * osan kategoriahintaan - candyllä ja illusionilla aina, solidilla ja
- * metallicilla hinta_lakattu-kentän kautta - joten sitä ei veloiteta erikseen.
- *
- * Kategoriahinnassa voi olla lakattu variantti (hinta_lakattu), jolloin lisä
- * johdetaan sen erotuksena. Jos lisä otettaisiin osat.lakkaus_lisahinta-
- * kentästä silloinkin, lakkaus veloitettaisiin kahdesti.
- *
- * Palauttaa null kun kumpaakaan arvoa ei ole - se on varoitus, ei nolla.
- */
-export function lakkauslisa(osa: OsanLakkaustiedot): number | null {
-  if (osa.kategoriaHintaLakattu !== null && osa.kategoriaHinta !== null) {
-    return pyorista(Math.max(0, osa.kategoriaHintaLakattu - osa.kategoriaHinta));
-  }
-  if (osa.lakkaus_lisahinta !== null) return pyorista(osa.lakkaus_lisahinta);
-  return null;
-}
-
 /** Lähde jolle automaattinen rivi voi syntyä. */
 interface Lahde {
   /** null = työn pääväri. */
@@ -193,12 +176,32 @@ interface Lahde {
   kuvaus: string;
 }
 
-/** Automaattisen rivin oletuslaajuus lähteen mukaan. */
-function oletuslaajuus(lahde: Lahde): LakkauksenLaajuus {
-  // Jaon reuna on jo teipattu värinvaihdon takia, joten lakan voi vetää vain
-  // omalle osuudelleen. Logon reunaa ei voi teipata, joten se lakataan koko
-  // osalta. Pääväri kattaa osan muutenkin.
-  return lahde.osuus !== null && lahde.avain !== null ? "lahteen_osuus" : "koko_osa";
+/**
+ * Automaattisen lakkarivin oletuslaajuus.
+ *
+ * Oletus tulee jaon TOISESTA väristä, ei lähteen tyypistä eikä jaon tyylistä:
+ * candya ei lakata päälle, joten sen rinnalla lakka vedetään vain lähteen
+ * osuudelle. Solid ja metallic kestävät kirkkaan lakan koko osalta, ja
+ * metallic vaatii sen usein itsekin.
+ *
+ * Fade ja rajaus eivät vaikuta laajuuteen: molemmissa raja on teipattu
+ * samalla tavalla.
+ *
+ * Sävyttävä lakka - yleisimmin mattalakka illusionin päällä - on poikkeus
+ * jota ei päätellä automaattisesti, vaan käyttäjä vaihtaa laajuuden itse.
+ */
+function oletuslaajuus(
+  lahde: Lahde,
+  lahteet: Lahde[],
+  varinTyyppi: (id: string) => string | undefined
+): LakkauksenLaajuus {
+  // Logolla ja tekstillä ei ole osuutta osan pinnasta: reunaa ei voi teipata,
+  // joten ne lakataan koko osalta.
+  if (lahde.osuus === null) return "koko_osa";
+  const toisetPinnat = lahteet.filter((l) => l !== lahde && l.osuus !== null);
+  return toisetPinnat.some((l) => varinTyyppi(l.variId) === "candy")
+    ? "lahteen_osuus"
+    : "koko_osa";
 }
 
 /**
@@ -249,6 +252,7 @@ export function laskeLisatyot(
   }
 ): LisatoidenTulos {
   const vari = (id: string) => varit.find((v) => v.id === id);
+  const varinTyyppi = (id: string) => vari(id)?.tyyppi;
   const perusta = (id: string) => perustat.find((p) => p.lisatyo_id === id);
   const muokkaukset = automaattiset.muokkaukset ?? [];
   const muokkaus = (lahdeAvain: string | null, laji: AutomaattinenLaji) =>
@@ -422,25 +426,12 @@ export function laskeLisatyot(
       // tulee aina sen oman värin vaatimuksesta.
       (l.avain === null && automaattiset.lakkausPaavarille === true)
   );
-  let lakkauslisaEur = 0;
-
   if (lakkaaTarvitsevat.length > 0) {
-    // Kun pääväri lakataan, lakkaus sisältyy osan kategoriahintaan eikä sitä
-    // veloiteta erikseen: osa lakataan kerran, vaikka lisätyön värikin sitä
-    // vaatisi. Lisä jää vain tapaukseen jossa lakkaus tulee pelkästään
-    // lisätyön väristä - silloin kiinteä hinta on lakkaamattoman työn hinta.
-    const paavariLakataan = lakkaaTarvitsevat.some((l) => l.avain === null);
-    const lisa = paavariLakataan ? null : lakkauslisa(osa);
-    const puuttuvat = [
-      osa.lakkaus_kulutus_g === null ? "lakkauskulutusta" : null,
-      !paavariLakataan && lisa === null ? "lakkauslisää" : null,
-    ].filter((teksti): teksti is string => teksti !== null);
-    if (puuttuvat.length > 0) {
+    if (osa.lakkaus_kulutus_g === null) {
       varoitukset.push({
         laji: "lakkausarvot_puuttuvat",
-        viesti: `Osalle ei ole asetettu ${puuttuvat.join(
-          " eikä "
-        )}. Lakkaus tarvitaan silti - täydennä arvot osan tietoihin.`,
+        viesti:
+          "Osalle ei ole asetettu lakkauskulutusta. Lakkaus tarvitaan silti - täydennä arvo osan tietoihin.",
       });
     }
 
@@ -451,7 +442,7 @@ export function laskeLisatyot(
       const lakka = variIdRivilla ? vari(variIdRivilla) : undefined;
       if (!lakka) continue;
 
-      const laajuus = oma?.laajuus ?? oletuslaajuus(lahde);
+      const laajuus = oma?.laajuus ?? oletuslaajuus(lahde, lahteet, varinTyyppi);
       const kulutus =
         laajuus === "koko_osa"
           ? pyorista(osa.lakkaus_kulutus_g ?? 0)
@@ -466,11 +457,12 @@ export function laskeLisatyot(
         maara: 1,
         osuusProsentti: laajuus === "lahteen_osuus" ? lahde.osuus : null,
         kulutusG: kulutus,
-        // Lakkauslisä veloitetaan kerran vaikka lähteitä olisi useita, eikä
-        // sitä puoliteta laajuuden mukaan: maalin osuus työn hinnasta on pieni
-        // marginaali ja teippaustyö tehdään joka tapauksessa. Null tarkoittaa
-        // ettei lisää veloiteta lainkaan - lakkaus on jo osan hinnassa.
-        hintaEur: lakkaLuotu ? 0 : (lisa ?? 0),
+        // Automaattinen rivi ei koskaan lisää hintaa: se varaa maalia ja
+        // kuluttaa saldoa, siinä kaikki. Työn hinta on päävärin
+        // kategoriahinta + lisätöiden hinnat, ja lakkaus sisältyy siihen -
+        // candyllä ja illusionilla aina, solidilla ja metallicilla
+        // hinta_lakattu-kentän kautta.
+        hintaEur: 0,
         automaattinen: "lakka",
         lahdeAvain: lahde.avain,
         lahdeKuvaus: lahde.kuvaus,
@@ -478,12 +470,7 @@ export function laskeLisatyot(
         laajuusOletus: !oma?.laajuus,
         variOletus: !oma?.variId,
       });
-
-      if (!lakkaLuotu) {
-        lakkauslisaEur = lisa ?? 0;
-        hinnat += lakkauslisaEur;
-        lakkaLuotu = true;
-      }
+      lakkaLuotu = true;
 
       // Mattalakka vaimentaa illusionin syväefektin.
       if (lakka.kiiltotaso === "matta") {
@@ -542,7 +529,6 @@ export function laskeLisatyot(
     perusvarinKulutusG,
     perusvarinOsuus,
     hinnatYhteensaEur: pyorista(hinnat),
-    lakkauslisaEur,
     varoitukset,
     varienKulutus: [...kulutukset.entries()].map(([variId, t]) => ({
       variId,
