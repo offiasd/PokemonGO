@@ -9,6 +9,7 @@ import { muotoileEuro, muotoileGrammat } from "@/lib/vakiot";
 import type {
   AutomaattinenLaji,
   AutomaattisenMuokkaus,
+  LaskettuLisatyo,
   LisatoidenTulos,
   LisatyonPerusta,
   LisatyoValinta,
@@ -37,6 +38,187 @@ function napinHinta(p: LisatyonPerusta): string {
   return p.hinta_perusvari_eur === p.hinta_erikoisvari_eur
     ? muotoileEuro(p.hinta_perusvari_eur)
     : `${muotoileEuro(p.hinta_perusvari_eur)}\u2013${muotoileEuro(p.hinta_erikoisvari_eur)}`;
+}
+
+/**
+ * Yksi automaattinen rivi: sovelluksen itse lisäämä pohjaväri tai lakkaus.
+ *
+ * Rivit ovat erillisiä, jotta kutakin voi muokata itsenäisesti: sama pohjaväri
+ * voi tulla sekä päävärin että jaon takia, ja kumpikin on oma eränsä.
+ */
+function AutomaattiRivi({
+  rivi,
+  vaihtoehdot,
+  naytaLahde,
+  naytaLaajuus,
+  onMuokkaa,
+  onPalautaOletus,
+}: {
+  rivi: LaskettuLisatyo;
+  vaihtoehdot: NaytettavaVari[];
+  /** Mistä väristä rivi syntyi. Päävärin riveillä turha - väri on heti yllä. */
+  naytaLahde: boolean;
+  /** Lakan laajuusvalinta. Turha kun lähde kattaa osan kokonaan. */
+  naytaLaajuus: boolean;
+  onMuokkaa: (muutos: AutomaattisenMuokkaus) => void;
+  onPalautaOletus: (lahdeAvain: string | null, laji: AutomaattinenLaji) => void;
+}) {
+  const onLakka = rivi.automaattinen === "lakka";
+  const laji: AutomaattinenLaji = onLakka ? "lakka" : "pohjavari";
+  const muokattu = !rivi.variOletus || !rivi.laajuusOletus;
+
+  return (
+    <div className="grid min-w-0 gap-2 rounded-md border border-dashed p-2">
+      <div className="flex min-w-0 items-baseline justify-between gap-2">
+        <span className="min-w-0 truncate text-sm">{rivi.nimi}</span>
+        <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+          {muotoileGrammat(rivi.kulutusG)}
+          {rivi.hintaEur > 0 && ` · ${muotoileEuro(rivi.hintaEur)}`}
+        </span>
+      </div>
+      {naytaLahde && rivi.lahdeKuvaus && (
+        <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
+          {rivi.lahdeKuvaus}
+        </span>
+      )}
+
+      <VarinValinta
+        varit={vaihtoehdot}
+        valittuId={rivi.variId}
+        onValitse={(variId) => onMuokkaa({ lahdeAvain: rivi.lahdeAvain, laji, variId })}
+        otsikko={rivi.nimi}
+        naytaOtsikko={false}
+      />
+
+      {/* Lakan laajuus: jaon reuna on jo teipattu värinvaihdon takia, joten
+          lakan voi vetää vain sen osuudelle. Logon reunaa ei voi teipata, joten
+          se lakataan koko osalta. */}
+      {onLakka && naytaLaajuus && (
+        <div className="flex min-w-0 flex-wrap gap-1.5">
+          {(["koko_osa", "lahteen_osuus"] as const).map((vaihtoehto) => (
+            <Button
+              key={vaihtoehto}
+              type="button"
+              size="sm"
+              variant={rivi.lakkausLaajuus === vaihtoehto ? "default" : "outline"}
+              className="h-8 min-w-0 max-w-full"
+              onClick={() => onMuokkaa({ lahdeAvain: rivi.lahdeAvain, laji, laajuus: vaihtoehto })}
+            >
+              <span className="min-w-0 truncate">
+                {vaihtoehto === "koko_osa" ? "Koko osa" : "Vain tämä osuus"}
+              </span>
+            </Button>
+          ))}
+        </div>
+      )}
+
+      <span className="text-xs text-muted-foreground">
+        {muokattu ? (
+          <>
+            Vaihdettu ·{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2"
+              onClick={() => onPalautaOletus(rivi.lahdeAvain, laji)}
+            >
+              palauta oletus
+            </button>
+          </>
+        ) : (
+          "Automaattinen, oletukset asetuksista"
+        )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Päävärin vaatimat maalikerrokset: pohjaväri ja lakkaus.
+ *
+ * Nämä eivät ole lisätöitä vaan osa perusmaalausta, ja ne sisältyvät osalle
+ * asetettuun kiinteään hintaan. Siksi ne näkyvät heti värin alla eivätkä
+ * lisätöiden joukossa, eikä niillä ole omaa hintaa.
+ */
+export function PaavarinKerrokset({
+  tulos,
+  pohjavariVaihtoehdot,
+  lakkaVaihtoehdot,
+  onMuokkaaAutomaattia,
+  onPalautaOletus,
+}: {
+  tulos: LisatoidenTulos;
+  pohjavariVaihtoehdot: NaytettavaVari[];
+  lakkaVaihtoehdot: NaytettavaVari[];
+  onMuokkaaAutomaattia: (muutos: AutomaattisenMuokkaus) => void;
+  onPalautaOletus: (lahdeAvain: string | null, laji: AutomaattinenLaji) => void;
+}) {
+  const rivit = tulos.rivit.filter((r) => r.automaattinen !== null && r.lahdeAvain === null);
+  if (rivit.length === 0) return null;
+
+  return (
+    <div className="grid min-w-0 gap-2">
+      {rivit.map((rivi) => (
+        <AutomaattiRivi
+          key={rivi.avain}
+          rivi={rivi}
+          vaihtoehdot={rivi.automaattinen === "lakka" ? lakkaVaihtoehdot : pohjavariVaihtoehdot}
+          naytaLahde={false}
+          // Laajuus on valinta vain kun jako vie osan pinnasta: muuten
+          // "koko osa" ja "vain tämä osuus" tarkoittavat samaa.
+          naytaLaajuus={tulos.perusvarinOsuus < 100}
+          onMuokkaa={onMuokkaaAutomaattia}
+          onPalautaOletus={onPalautaOletus}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Rivin varoitukset ja maalinkulutus väreittäin.
+ *
+ * Koskevat koko riviä eivätkä pelkkiä lisätöitä, joten ne näkyvät myös kun
+ * osalle ei ole määritelty yhtään lisätyötä.
+ */
+export function RivinYhteenveto({ tulos }: { tulos: LisatoidenTulos }) {
+  if (tulos.varoitukset.length === 0 && tulos.varienKulutus.length < 2) return null;
+
+  return (
+    <div className="grid min-w-0 gap-3">
+      {tulos.varoitukset.length > 0 && (
+        <ul className="grid gap-1.5">
+          {tulos.varoitukset.map((v, i) => (
+            <li
+              key={`${v.laji}-${i}`}
+              className="flex min-w-0 gap-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100"
+            >
+              <TriangleAlert className="mt-px size-3.5 shrink-0" />
+              <span className="min-w-0 wrap-anywhere">{v.viesti}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Kulutus väreittäin, ei yhtenä lukuna: käyttäjän on nähtävä mikä väri
+          loppuu ja mitkä grammat sovellus lisäsi itse. */}
+      {tulos.varienKulutus.length > 1 && (
+        <div className="grid gap-1">
+          {/* Merkintä omalle rivilleen: värinimen perässä se leikkautuisi pois
+              320 pikselin leveydellä, ja juuri se erottaa sovelluksen
+              päättelemät grammat käyttäjän valitsemista. */}
+          {tulos.varienKulutus.map((k) => (
+            <div key={k.variId} className="grid min-w-0 gap-0.5 text-xs">
+              <div className="flex min-w-0 justify-between gap-2">
+                <span className="min-w-0 truncate">{k.variNimi}</span>
+                <span className="shrink-0 tabular-nums">{muotoileGrammat(k.kulutusG)}</span>
+              </div>
+              {k.automaattinen && <span className="text-muted-foreground">automaattinen</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -73,11 +255,13 @@ export function LisatyotRivilla({
   onPalautaOletus: (lahdeAvain: string | null, laji: AutomaattinenLaji) => void;
 }) {
   const perusta = (id: string) => perustat.find((p) => p.lisatyo_id === id);
-  const automaattiset = tulos.rivit.filter((r) => r.automaattinen !== null);
+  // Vain lisätyön värin synnyttämät automaattirivit: päävärin omat kuuluvat
+  // värin yhteyteen, koska ne sisältyvät osan hintaan eivätkä ole lisätyö.
+  const lisatoidenAutomaatit = tulos.rivit.filter(
+    (r) => r.automaattinen !== null && r.lahdeAvain !== null
+  );
 
-  // Näkymä tarvitaan myös ilman yhtäkään lisätyötä: pelkkä candy synnyttää
-  // pohjaväririvin, joka on käyttäjän nähtävä ja muokattava.
-  if (perustat.length === 0 && automaattiset.length === 0) return null;
+  if (perustat.length === 0 && lisatoidenAutomaatit.length === 0) return null;
 
   return (
     <div className="grid min-w-0 gap-3 rounded-lg border p-3">
@@ -198,117 +382,20 @@ export function LisatyotRivilla({
         </div>
       )}
 
-      {/* Automaattiset rivit erillisinä, jotta kutakin voi muokata
-          itsenäisesti. Rivillä näkyy mistä väristä se syntyi: sama pohjaväri
-          voi tulla sekä päävärin että jaon takia, ja kumpikin on oma erä. */}
-      {automaattiset.map((rivi) => {
-        const onLakka = rivi.automaattinen === "lakka";
-        const laji: AutomaattinenLaji = onLakka ? "lakka" : "pohjavari";
-        const vaihtoehdot = onLakka ? lakkaVaihtoehdot : pohjavariVaihtoehdot;
-        const muokattu = !rivi.variOletus || !rivi.laajuusOletus;
-        return (
-          <div key={rivi.avain} className="grid gap-2 rounded-md border border-dashed p-2">
-            <div className="flex min-w-0 items-baseline justify-between gap-2">
-              <span className="min-w-0 truncate text-sm">{rivi.nimi}</span>
-              <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
-                {muotoileGrammat(rivi.kulutusG)}
-                {rivi.hintaEur > 0 && ` · ${muotoileEuro(rivi.hintaEur)}`}
-              </span>
-            </div>
-            {rivi.lahdeKuvaus && (
-              <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
-                {rivi.lahdeKuvaus}
-              </span>
-            )}
+      {/* Lisätyön värin vaatimat automaattiset rivit. Päävärin omat ovat
+          värin yhteydessä, koska ne ovat osa perusmaalausta eivätkä lisätyö. */}
+      {lisatoidenAutomaatit.map((rivi) => (
+        <AutomaattiRivi
+          key={rivi.avain}
+          rivi={rivi}
+          vaihtoehdot={rivi.automaattinen === "lakka" ? lakkaVaihtoehdot : pohjavariVaihtoehdot}
+          naytaLahde
+          naytaLaajuus
+          onMuokkaa={onMuokkaaAutomaattia}
+          onPalautaOletus={onPalautaOletus}
+        />
+      ))}
 
-            <VarinValinta
-              varit={vaihtoehdot}
-              valittuId={rivi.variId}
-              onValitse={(variId) => onMuokkaaAutomaattia({ lahdeAvain: rivi.lahdeAvain, laji, variId })}
-              otsikko={rivi.nimi}
-              naytaOtsikko={false}
-            />
-
-            {/* Lakan laajuus: jaon reuna on jo teipattu värinvaihdon takia,
-                joten lakan voi vetää vain sen osuudelle. Logon reunaa ei voi
-                teipata, joten se lakataan koko osalta. */}
-            {onLakka && (
-              <div className="flex flex-wrap gap-1.5">
-                {(["koko_osa", "lahteen_osuus"] as const).map((vaihtoehto) => (
-                  <Button
-                    key={vaihtoehto}
-                    type="button"
-                    size="sm"
-                    variant={rivi.lakkausLaajuus === vaihtoehto ? "default" : "outline"}
-                    className="h-8 min-w-0 max-w-full"
-                    onClick={() =>
-                      onMuokkaaAutomaattia({
-                        lahdeAvain: rivi.lahdeAvain,
-                        laji,
-                        laajuus: vaihtoehto,
-                      })
-                    }
-                  >
-                    <span className="min-w-0 truncate">
-                      {vaihtoehto === "koko_osa" ? "Koko osa" : "Vain tämä osuus"}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-            )}
-
-            <span className="text-xs text-muted-foreground">
-              {muokattu ? (
-                <>
-                  Vaihdettu ·{" "}
-                  <button
-                    type="button"
-                    className="underline underline-offset-2"
-                    onClick={() => onPalautaOletus(rivi.lahdeAvain, laji)}
-                  >
-                    palauta oletus
-                  </button>
-                </>
-              ) : (
-                "Automaattinen, oletukset asetuksista"
-              )}
-            </span>
-          </div>
-        );
-      })}
-
-      {tulos.varoitukset.length > 0 && (
-        <ul className="grid gap-1.5">
-          {tulos.varoitukset.map((v, i) => (
-            <li
-              key={`${v.laji}-${i}`}
-              className="flex min-w-0 gap-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100"
-            >
-              <TriangleAlert className="mt-px size-3.5 shrink-0" />
-              <span className="min-w-0 wrap-anywhere">{v.viesti}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* Kulutus väreittäin, ei yhtenä lukuna: käyttäjän on nähtävä mikä väri
-          loppuu ja mitkä grammat sovellus lisäsi itse. */}
-      {tulos.varienKulutus.length > 1 && (
-        <div className="grid gap-1 border-t pt-2">
-          {/* Merkintä omalle rivilleen: värinimen perässä se leikkautuisi pois
-              320 pikselin leveydellä, ja juuri se erottaa sovelluksen
-              päättelemät grammat käyttäjän valitsemista. */}
-          {tulos.varienKulutus.map((k) => (
-            <div key={k.variId} className="grid min-w-0 gap-0.5 text-xs">
-              <div className="flex min-w-0 justify-between gap-2">
-                <span className="min-w-0 truncate">{k.variNimi}</span>
-                <span className="shrink-0 tabular-nums">{muotoileGrammat(k.kulutusG)}</span>
-              </div>
-              {k.automaattinen && <span className="text-muted-foreground">automaattinen</span>}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

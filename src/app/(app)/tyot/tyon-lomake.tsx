@@ -58,7 +58,7 @@ import {
 import type { OsienLisatyo } from "@/lib/supabase/database.types";
 
 import { aloitaTyo, paivitaTyo } from "./actions";
-import { LisatyotRivilla } from "./lisatyot-rivilla";
+import { LisatyotRivilla, PaavarinKerrokset, RivinYhteenveto } from "./lisatyot-rivilla";
 import { MUU_AJONEUVO, OsanValinta, VarinValinta } from "./osan-valinta";
 
 interface Osa {
@@ -951,6 +951,19 @@ export function TyonLomake({
             </div>
           )}
 
+          {/* Päävärin pohjaväri ja lakkaus ovat osa perusmaalausta ja
+              sisältyvät osalle asetettuun kiinteään hintaan, joten ne näkyvät
+              heti värin alla eivätkä lisätöiden joukossa. */}
+          {kategoria && variId && (
+            <PaavarinKerrokset
+              tulos={lisatoidenTulos}
+              pohjavariVaihtoehdot={lisatyonPohjaVaihtoehdot}
+              lakkaVaihtoehdot={lisatyonLakkaVaihtoehdot}
+              onMuokkaaAutomaattia={muokkaaAutomaattia}
+              onPalautaOletus={palautaAutomaatinOletus}
+            />
+          )}
+
           {/* Lisätyöt tulevat värin jälkeen: jaon osuus lasketaan perusvärin
               kulutuksesta ja automaattinen lakkaus riippuu siitä, lakataanko
               rivi jo muutenkin. */}
@@ -971,6 +984,11 @@ export function TyonLomake({
               onPalautaOletus={palautaAutomaatinOletus}
             />
           )}
+
+          {/* Varoitukset ja maalinkulutus koskevat koko riviä, joten ne ovat
+              lisätyölaatikon ulkopuolella - myös lisätyötön candy varaa
+              pohjaväriä ja voi jäädä saldosta vajaaksi. */}
+          {kategoria && variId && <RivinYhteenveto tulos={lisatoidenTulos} />}
 
           {/* Custom-työ: sama osa maalataan usealla värillä, kulutus jaetaan
               käsin ja hinta sovitaan tapauskohtaisesti. Nappi tulee näkyviin

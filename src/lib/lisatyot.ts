@@ -162,6 +162,10 @@ export function lisatyonHinta(perusta: LisatyonPerusta, vari: VarinTiedot): numb
 /**
  * Lakkauslisä.
  *
+ * Koskee vain lisätyön värin vaatimaa lakkausta. Päävärin lakkaus sisältyy
+ * osan kategoriahintaan - candyllä ja illusionilla aina, solidilla ja
+ * metallicilla hinta_lakattu-kentän kautta - joten sitä ei veloiteta erikseen.
+ *
  * Kategoriahinnassa voi olla lakattu variantti (hinta_lakattu), jolloin lisä
  * johdetaan sen erotuksena. Jos lisä otettaisiin osat.lakkaus_lisahinta-
  * kentästä silloinkin, lakkaus veloitettaisiin kahdesti.
@@ -421,17 +425,22 @@ export function laskeLisatyot(
   let lakkauslisaEur = 0;
 
   if (lakkaaTarvitsevat.length > 0) {
-    const lisa = lakkauslisa(osa);
-    if (osa.lakkaus_kulutus_g === null || lisa === null) {
+    // Kun pääväri lakataan, lakkaus sisältyy osan kategoriahintaan eikä sitä
+    // veloiteta erikseen: osa lakataan kerran, vaikka lisätyön värikin sitä
+    // vaatisi. Lisä jää vain tapaukseen jossa lakkaus tulee pelkästään
+    // lisätyön väristä - silloin kiinteä hinta on lakkaamattoman työn hinta.
+    const paavariLakataan = lakkaaTarvitsevat.some((l) => l.avain === null);
+    const lisa = paavariLakataan ? null : lakkauslisa(osa);
+    const puuttuvat = [
+      osa.lakkaus_kulutus_g === null ? "lakkauskulutusta" : null,
+      !paavariLakataan && lisa === null ? "lakkauslisää" : null,
+    ].filter((teksti): teksti is string => teksti !== null);
+    if (puuttuvat.length > 0) {
       varoitukset.push({
         laji: "lakkausarvot_puuttuvat",
-        viesti: `Osalle ei ole asetettu ${
-          osa.lakkaus_kulutus_g === null && lisa === null
-            ? "lakkauskulutusta eikä lakkauslisää"
-            : osa.lakkaus_kulutus_g === null
-              ? "lakkauskulutusta"
-              : "lakkauslisää"
-        }. Lakkaus tarvitaan silti - täydennä arvot osan tietoihin.`,
+        viesti: `Osalle ei ole asetettu ${puuttuvat.join(
+          " eikä "
+        )}. Lakkaus tarvitaan silti - täydennä arvot osan tietoihin.`,
       });
     }
 
@@ -459,7 +468,8 @@ export function laskeLisatyot(
         kulutusG: kulutus,
         // Lakkauslisä veloitetaan kerran vaikka lähteitä olisi useita, eikä
         // sitä puoliteta laajuuden mukaan: maalin osuus työn hinnasta on pieni
-        // marginaali ja teippaustyö tehdään joka tapauksessa.
+        // marginaali ja teippaustyö tehdään joka tapauksessa. Null tarkoittaa
+        // ettei lisää veloiteta lainkaan - lakkaus on jo osan hinnassa.
         hintaEur: lakkaLuotu ? 0 : (lisa ?? 0),
         automaattinen: "lakka",
         lahdeAvain: lahde.avain,
