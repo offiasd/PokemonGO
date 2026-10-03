@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Palette, Plus, ShoppingCart, Trash2, TriangleAlert } from "lucide-react";
+import { ChevronDown, Loader2, Palette, Plus, ShoppingCart, Trash2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -264,6 +265,9 @@ export function TyonLomake({
   // kulutusta, joten ne eivät mahdu työriviksi lainkaan.
   const [muutTyot, setMuutTyot] = useState<KoriMuuTyo[]>(muokattavaTyo?.muutTyot ?? []);
   const [muunKuvaus, setMuunKuvaus] = useState("");
+  // Kentät ovat piilossa kunnes niitä tarvitaan: useimmat työt ovat pelkkää
+  // maalausta, eikä tyhjä lomake saa viedä tilaa osavalinnalta.
+  const [muuAuki, setMuuAuki] = useState(false);
   const [muunHinta, setMuunHinta] = useState("");
   const seuraavaMuunAvain = useRef(muokattavaTyo?.muutTyot.length ?? 0);
 
@@ -1465,43 +1469,55 @@ export function TyonLomake({
 
       {/* Maalaamaton työ: märkäpuhallus, vanteiden purku ja rihtaus ja muu
           mitä maalaamolla tehdään. Näistä ei pidetä luetteloa - työ
-          kirjoitetaan sille työlle jolle se kuuluu ja jää siihen näkyviin. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Lisää työ</CardTitle>
+          kirjoitetaan sille työlle jolle se kuuluu ja jää siihen näkyviin.
+
+          Kentät avautuvat napista: useimmat työt ovat pelkkää maalausta, eikä
+          tyhjä lomake saa viedä tilaa osavalinnalta puhelimen ruudulla. */}
+      <Card className="gap-0 py-4">
+        <CardHeader className="px-4">
+          <button
+            type="button"
+            aria-expanded={muuAuki}
+            onClick={() => setMuuAuki((auki) => !auki)}
+            className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 text-left"
+          >
+            <CardTitle className="min-w-0 text-base">Lisää työ</CardTitle>
+            <ChevronDown
+              className={cn("size-4 shrink-0 transition-transform", muuAuki && "rotate-180")}
+            />
+          </button>
         </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid min-w-0 gap-2">
-            <Label htmlFor="muun_tyon_kuvaus">Mitä tehtiin</Label>
+        {muuAuki && (
+          <CardContent className="grid gap-3 px-4 pt-4">
             <Input
-              id="muun_tyon_kuvaus"
               className="w-full min-w-0"
-              placeholder="Esim. vanteiden märkäpuhallus"
+              placeholder="Työn kuvaus"
+              aria-label="Työn kuvaus"
               value={muunKuvaus}
               onChange={(e) => setMuunKuvaus(e.target.value)}
             />
-          </div>
-          <div className="grid min-w-0 max-w-40 gap-2">
-            <Label htmlFor="muun_tyon_hinta">Hinta (€)</Label>
-            <Input
-              id="muun_tyon_hinta"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="0,00"
-              className="w-full min-w-0 tabular-nums"
-              value={muunHinta}
-              onChange={(e) => setMuunHinta(e.target.value)}
-            />
-          </div>
-          <div>
-            <Button type="button" onClick={lisaaMuuTyo}>
-              <Plus className="size-4" />
-              Lisää koriin
-            </Button>
-          </div>
-        </CardContent>
+            <div className="grid min-w-0 max-w-40 gap-2">
+              <Label htmlFor="muun_tyon_hinta">Hinta (€)</Label>
+              <Input
+                id="muun_tyon_hinta"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                placeholder="0,00"
+                className="w-full min-w-0 tabular-nums"
+                value={muunHinta}
+                onChange={(e) => setMuunHinta(e.target.value)}
+              />
+            </div>
+            <div>
+              <Button type="button" onClick={lisaaMuuTyo}>
+                <Plus className="size-4" />
+                Lisää koriin
+              </Button>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       <Card>
@@ -1582,7 +1598,6 @@ export function TyonLomake({
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
-                  <span className="text-sm text-muted-foreground">Työ ilman maalausta</span>
                   <span className="text-sm font-medium">{muotoileEuro(t.hintaEur)}</span>
                 </div>
               ))}
@@ -1655,7 +1670,7 @@ export function TyonLomake({
                   {muutTyot.map((t) => (
                     <TableRow key={t.avain}>
                       <TableCell>{t.kuvaus}</TableCell>
-                      <TableCell className="text-muted-foreground">Työ ilman maalausta</TableCell>
+                      <TableCell />
                       <TableCell>{muotoileEuro(t.hintaEur)}</TableCell>
                       <TableCell>
                         <Button
