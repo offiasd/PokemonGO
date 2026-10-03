@@ -57,6 +57,17 @@ export interface TyonRiviSyote {
 }
 
 /**
+ * Maalaamaton työ: märkäpuhallus, rihtaus ja vastaavat.
+ *
+ * Ei osaa, väriä eikä maalinkulutusta. Näitä ei tallenneta katalogiin vaan
+ * ne kirjoitetaan sille työlle jolle ne kuuluvat.
+ */
+export interface MuuTyoSyote {
+  kuvaus: string;
+  hintaEur: number;
+}
+
+/**
  * Rivit korvaa_tyon_rivit-funktion odottamassa muodossa.
  *
  * Sekä uuden työn että muokkauksen rivit kulkevat saman funktion kautta: se
@@ -93,6 +104,38 @@ function riviPayload(rivit: TyonRiviSyote[]) {
       lakkaus_laajuus: l.lakkausLaajuus,
     })),
   }));
+}
+
+/**
+ * Korvaa työn muut työt: vanhat pois, uudet tilalle.
+ *
+ * Nämä eivät varaa maalia eivätkä koske saldoihin, joten ne kirjoitetaan
+ * suoraan taulun käytäntöjen kautta ilman omaa kantafunktiota. Tyhjä lista
+ * on sallittu - työ voi olla pelkkää maalausta.
+ */
+async function kirjoitaMuutTyot(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tyoId: string,
+  muutTyot: MuuTyoSyote[]
+): Promise<string | null> {
+  const { error: poistoVirhe } = await supabase
+    .from("tyon_muut_tyot")
+    .delete()
+    .eq("tyo_id", tyoId);
+  if (poistoVirhe) return poistoVirhe.message;
+
+  const rivit = muutTyot
+    .map((t, i) => ({
+      tyo_id: tyoId,
+      kuvaus: t.kuvaus.trim(),
+      hinta_eur: Math.round(t.hintaEur * 100) / 100,
+      jarjestys: i,
+    }))
+    .filter((t) => t.kuvaus !== "");
+  if (rivit.length === 0) return null;
+
+  const { error } = await supabase.from("tyon_muut_tyot").insert(rivit);
+  return error?.message ?? null;
 }
 
 /**
@@ -165,13 +208,16 @@ export async function aloitaTyo(
   asiakas: string | null,
   rivit: TyonRiviSyote[],
   alennusProsentti = 0,
-  tila: "vastaanotettu" | "vaiheessa" = "vaiheessa"
+  tila: "vastaanotettu" | "vaiheessa" = "vaiheessa",
+  muutTyot: MuuTyoSyote[] = []
 ): Promise<TyonTulos> {
   try {
     // Vain admin kirjaa töitä: maalaaja ottaa valmiiksi kirjatun työn itselleen.
     const kayttaja = await vaaditaanAdmin();
-    if (rivit.length === 0) {
-      return { ok: false, virhe: "Lisää vähintään yksi osa työhön ennen aloitusta." };
+    // Työ voi olla pelkkää märkäpuhallusta tai rihtausta ilman maalausta,
+    // joten riittää että korissa on jompaakumpaa.
+    if (rivit.length === 0 && muutTyot.length === 0) {
+      return { ok: false, virhe: "Lisää vähintään yksi osa tai työ ennen aloitusta." };
     }
     const kohdevirhe = tarkistaKohteet(rivit);
     if (kohdevirhe) return { ok: false, virhe: kohdevirhe };
@@ -200,10 +246,11 @@ export async function aloitaTyo(
       p_tyo_id: tyo.id,
       p_rivit: riviPayload(rivit),
     });
-    if (riviVirhe) {
+    const muuVirhe = riviVirhe ? null : await kirjoitaMuutTyot(supabase, tyo.id, muutTyot);
+    if (riviVirhe || muuVirhe) {
       // Siivotaan luotu työ, ettei jää rivittömiä "haamu"-töitä.
       await supabase.from("tyot").delete().eq("id", tyo.id);
-      return { ok: false, virhe: riviVirhe.message };
+      return { ok: false, virhe: riviVirhe?.message ?? muuVirhe ?? "Työn tallennus epäonnistui." };
     }
 
     revalidatePath("/tyot");
@@ -228,12 +275,13 @@ export async function paivitaTyo(
   tyoId: string,
   asiakas: string | null,
   rivit: TyonRiviSyote[],
-  alennusProsentti = 0
+  alennusProsentti = 0,
+  muutTyot: MuuTyoSyote[] = []
 ): Promise<TyonTulos> {
   try {
     await vaaditaanTyonKasittelija(tyoId);
-    if (rivit.length === 0) {
-      return { ok: false, virhe: "Työssä pitää olla vähintään yksi osa." };
+    if (rivit.length === 0 && muutTyot.length === 0) {
+      return { ok: false, virhe: "Työssä pitää olla vähintään yksi osa tai työ." };
     }
     const kohdevirhe = tarkistaKohteet(rivit);
     if (kohdevirhe) return { ok: false, virhe: kohdevirhe };
@@ -248,6 +296,9 @@ export async function paivitaTyo(
       p_rivit: riviPayload(rivit),
     });
     if (rpcVirhe) return { ok: false, virhe: rpcVirhe.message };
+
+    const muuVirhe = await kirjoitaMuutTyot(supabase, tyoId, muutTyot);
+    if (muuVirhe) return { ok: false, virhe: muuVirhe };
 
     const { error: tyoVirhe } = await supabase
       .from("tyot")

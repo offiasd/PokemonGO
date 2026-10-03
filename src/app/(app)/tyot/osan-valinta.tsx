@@ -82,12 +82,15 @@ export function OsanValinta({
   ajoneuvotyypit,
   valittuId,
   onValitse,
+  naytaOtsikko = true,
 }: {
   osat: ValittavaOsa[];
   ajoneuvotyypit: { avain: string; nimi: string }[];
   /** Osan id, MUU_AJONEUVO kertakohteelle, tai tyhjä kun mitään ei ole valittu. */
   valittuId: string;
   onValitse: (id: string) => void;
+  /** Pois kun kutsuja näyttää otsikon itse, esim. kortin otsikkona. */
+  naytaOtsikko?: boolean;
 }) {
   // null = tyyppiä ei ole vielä valittu, jolloin ruudukkoa ei näytetä lainkaan.
   const [tyyppi, setTyyppi] = useState<string | null>(null);
@@ -111,7 +114,7 @@ export function OsanValinta({
     return (
       <div className="grid gap-2">
         <div className="flex min-w-0 items-start justify-between gap-2">
-          <Label className="text-sm">Maalattava osa</Label>
+          {naytaOtsikko ? <Label className="text-sm">Maalattava osa</Label> : <span />}
           <Button
             type="button"
             variant="ghost"
@@ -164,7 +167,7 @@ export function OsanValinta({
   // --- Valintaa ei ole: tyyppi ja sen jälkeen ruudukko ---
   return (
     <div className="grid gap-3">
-      <Label className="text-sm">Maalattava osa</Label>
+      {naytaOtsikko && <Label className="text-sm">Maalattava osa</Label>}
 
       <div className="flex flex-wrap gap-1.5">
         {tarjolla.map((t) => (

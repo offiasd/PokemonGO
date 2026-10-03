@@ -94,6 +94,16 @@ export default async function KayttajanTyotSivu({
       : { data: [] };
   const rivinLisatyot = lisatyotData ?? [];
   const { data: lisatyonNimet } = await supabase.rpc("lisatoiden_nimet");
+  // Maalaamattomat työt - märkäpuhallus, rihtaus - omassa taulussaan.
+  const { data: muutTyotData } =
+    rivit.length > 0
+      ? await supabase
+          .from("tyon_muut_tyot")
+          .select("id, tyo_id, kuvaus, hinta_eur")
+          .in("tyo_id", tyot.map((t) => t.id))
+          .order("jarjestys")
+      : { data: [] };
+  const muutTyot = muutTyotData ?? [];
 
   // Rivillä on joko osa tai oma kuvaus: kertakohteen nimi on rivillä itsellään.
   const rivinNimi = (rivi: { osa_id: string | null; oma_kuvaus: string | null }) =>
@@ -104,11 +114,11 @@ export default async function KayttajanTyotSivu({
     variId ? (varitVastaus.data?.find((v) => v.id === variId)?.nimi ?? "Tuntematon väri") : "-";
 
   const tyonRivit = (tyoId: string) => rivit.filter((r) => r.tyo_id === tyoId);
+  const tyonMuutTyot = (tyoId: string) => muutTyot.filter((t) => t.tyo_id === tyoId);
   const summat = (tyo: TyoRow) => {
-    const valisumma = tyonRivit(tyo.id).reduce(
-      (s, r) => s + r.yksikkohinta_eur * r.kappalemaara,
-      0
-    );
+    const valisumma =
+      tyonRivit(tyo.id).reduce((s, r) => s + r.yksikkohinta_eur * r.kappalemaara, 0) +
+      tyonMuutTyot(tyo.id).reduce((s, t) => s + t.hinta_eur, 0);
     const alennusEur = Math.round(valisumma * (tyo.alennus_prosentti / 100) * 100) / 100;
     return { valisumma, alennusEur, loppusumma: Math.round((valisumma - alennusEur) * 100) / 100 };
   };
@@ -206,6 +216,14 @@ export default async function KayttajanTyotSivu({
                       </span>
                       <span className="shrink-0 text-muted-foreground">
                         {muotoileEuro(rivi.yksikkohinta_eur * rivi.kappalemaara)}
+                      </span>
+                    </li>
+                  ))}
+                  {tyonMuutTyot(tyo.id).map((t) => (
+                    <li key={t.id} className="flex justify-between gap-4">
+                      <span className="min-w-0 break-words">{t.kuvaus}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {muotoileEuro(t.hinta_eur)}
                       </span>
                     </li>
                   ))}

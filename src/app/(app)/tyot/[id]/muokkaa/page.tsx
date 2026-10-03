@@ -46,6 +46,7 @@ export default async function MuokkaaTyotaSivu({
     lisatyoVastaus,
     tyovaiheetVastaus,
     tuntiveloitusVastaus,
+    muutTyotVastaus,
   ] = await Promise.all([
     supabase.from("tyon_rivit").select(TYON_RIVI_SARAKKEET).eq("tyo_id", id),
     supabase
@@ -76,6 +77,11 @@ export default async function MuokkaaTyotaSivu({
       .select("osa_id, vaihe, arvioitu_kesto_min")
       .eq("tarvitaan", true),
     supabase.from("tuntiveloitukset").select("vaihe, tuntihinta"),
+    supabase
+      .from("tyon_muut_tyot")
+      .select("id, kuvaus, hinta_eur")
+      .eq("tyo_id", id)
+      .order("jarjestys"),
   ]);
 
   const tuntiveloitukset = new Map<TyoVaihe, number>();
@@ -226,6 +232,11 @@ export default async function MuokkaaTyotaSivu({
               asiakas: tyo.asiakas,
               alennusProsentti: tyo.alennus_prosentti,
               rivit: alkuRivit,
+              muutTyot: (muutTyotVastaus.data ?? []).map((t) => ({
+                avain: t.id,
+                kuvaus: t.kuvaus,
+                hintaEur: t.hinta_eur,
+              })),
             }}
           />
         </CardContent>

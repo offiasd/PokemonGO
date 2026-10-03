@@ -88,6 +88,17 @@ export default async function TyotSivu() {
       : { data: [] };
   const rivinLisatyot = lisatyotData ?? [];
   const { data: lisatyonNimet } = await supabase.rpc("lisatoiden_nimet");
+  // Maalaamattomat työt - märkäpuhallus, rihtaus - ovat omassa taulussaan:
+  // niillä ei ole osaa, väriä eikä maalinkulutusta, vain kuvaus ja hinta.
+  const { data: muutTyotData } =
+    tyoIdt.length > 0
+      ? await supabase
+          .from("tyon_muut_tyot")
+          .select("id, tyo_id, kuvaus, hinta_eur")
+          .in("tyo_id", tyoIdt)
+          .order("jarjestys")
+      : { data: [] };
+  const muutTyot = muutTyotData ?? [];
   const osat = osatVastaus.data ?? [];
   const varit = varitVastaus.data ?? [];
   const tyovaiheet = tyovaiheetVastaus.data ?? [];
@@ -130,11 +141,12 @@ export default async function TyotSivu() {
 
   // Alennus on työn oma prosentti, ei riveille hierottu hinta, joten se
   // lasketaan vasta näytettäessä rivien summasta.
+  const muutTyotTyolle = (tyoId: string) => muutTyot.filter((t) => t.tyo_id === tyoId);
+
   function tyonSummat(tyo: { id: string; alennus_prosentti: number }) {
-    const valisumma = rivitTyolle(tyo.id).reduce(
-      (s, r) => s + r.yksikkohinta_eur * r.kappalemaara,
-      0
-    );
+    const valisumma =
+      rivitTyolle(tyo.id).reduce((s, r) => s + r.yksikkohinta_eur * r.kappalemaara, 0) +
+      muutTyotTyolle(tyo.id).reduce((s, t) => s + t.hinta_eur, 0);
     const alennusEur = Math.round(valisumma * (tyo.alennus_prosentti / 100) * 100) / 100;
     return {
       valisumma,
@@ -383,6 +395,14 @@ export default async function TyotSivu() {
                         </span>
                       </li>
                     ))}
+                    {muutTyotTyolle(tyo.id).map((t) => (
+                      <li key={t.id} className="flex justify-between gap-4">
+                        <span className="min-w-0 break-words">{t.kuvaus}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {muotoileEuro(t.hinta_eur)}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                   <Summat tyo={tyo} summat={tyonSummat(tyo)} />
                 </CardContent>
@@ -462,6 +482,14 @@ export default async function TyotSivu() {
                         </span>
                       </li>
                     ))}
+                    {muutTyotTyolle(tyo.id).map((t) => (
+                      <li key={t.id} className="flex min-w-0 justify-between gap-4">
+                        <span className="min-w-0 break-words">{t.kuvaus}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {muotoileEuro(t.hinta_eur)}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                   <Summat tyo={tyo} summat={tyonSummat(tyo)} />
                 </CardContent>
@@ -532,6 +560,24 @@ export default async function TyotSivu() {
                         <span className="shrink-0 text-sm">
                           {muotoileEuro(rivi.yksikkohinta_eur * rivi.kappalemaara)}
                         </span>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Maalaamattomat työt samassa ruudukossa: ne kuuluvat työhön
+                      siinä missä maalatut osatkin. */}
+                  {muutTyotTyolle(tyo.id).map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex min-w-0 flex-col gap-3 rounded-md border p-3"
+                    >
+                      <p className="text-center text-base font-semibold break-words">
+                        {t.kuvaus}
+                      </p>
+                      <div className="mt-auto flex items-end justify-between gap-2">
+                        <span className="min-w-0 text-xs text-muted-foreground break-words">
+                          Ei maalausta
+                        </span>
+                        <span className="shrink-0 text-sm">{muotoileEuro(t.hinta_eur)}</span>
                       </div>
                     </div>
                   ))}

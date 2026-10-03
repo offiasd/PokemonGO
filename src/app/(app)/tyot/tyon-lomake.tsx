@@ -114,6 +114,18 @@ export interface KoriLisavari {
   arvioituKulutusG: number;
 }
 
+/**
+ * Korin maalaamaton työ: märkäpuhallus, rihtaus ja vastaavat.
+ *
+ * Ei osaa, väriä eikä kulutusta - vain mitä tehtiin ja mitä se maksaa.
+ * Näitä ei tallenneta mihinkään luetteloon vaan ne jäävät työlle.
+ */
+export interface KoriMuuTyo {
+  avain: string;
+  kuvaus: string;
+  hintaEur: number;
+}
+
 export interface KoriRivi {
   avain: string;
   osaNimi: string;
@@ -222,6 +234,7 @@ export function TyonLomake({
     asiakas: string | null;
     alennusProsentti: number;
     rivit: KoriRivi[];
+    muutTyot: KoriMuuTyo[];
   };
 }) {
   const router = useRouter();
@@ -247,6 +260,12 @@ export function TyonLomake({
       : ""
   );
   const [kori, setKori] = useState<KoriRivi[]>(muokattavaTyo?.rivit ?? []);
+  // Maalaamattomat työt omassa listassaan: niillä ei ole osaa, väriä eikä
+  // kulutusta, joten ne eivät mahdu työriviksi lainkaan.
+  const [muutTyot, setMuutTyot] = useState<KoriMuuTyo[]>(muokattavaTyo?.muutTyot ?? []);
+  const [muunKuvaus, setMuunKuvaus] = useState("");
+  const [muunHinta, setMuunHinta] = useState("");
+  const seuraavaMuunAvain = useRef(muokattavaTyo?.muutTyot.length ?? 0);
 
   const [osaId, setOsaId] = useState("");
   // "Muu"-rivin kohde omin sanoin, esim. "oma venekoppa".
@@ -922,7 +941,33 @@ export function TyonLomake({
     setKori((k) => k.filter((r) => r.avain !== avain));
   }
 
-  const koriYhteensa = kori.reduce((s, r) => s + r.yksikkohintaEur, 0);
+  function lisaaMuuTyo() {
+    const kuvaus = muunKuvaus.trim();
+    if (kuvaus === "") {
+      toast.error("Kirjoita mitä tehtiin.");
+      return;
+    }
+    setMuutTyot((vanhat) => [
+      ...vanhat,
+      {
+        avain: `muu-${seuraavaMuunAvain.current++}`,
+        kuvaus,
+        // Tyhjä hinta on nolla: työ voi sisältyä toiseen työhön.
+        hintaEur: Math.round((Number(muunHinta.replace(",", ".")) || 0) * 100) / 100,
+      },
+    ]);
+    setMuunKuvaus("");
+    setMuunHinta("");
+  }
+
+  function poistaMuuTyo(avain: string) {
+    setMuutTyot((vanhat) => vanhat.filter((t) => t.avain !== avain));
+  }
+
+  const koriYhteensa =
+    kori.reduce((s, r) => s + r.yksikkohintaEur, 0) +
+    muutTyot.reduce((s, t) => s + t.hintaEur, 0);
+  const korissa = kori.length + muutTyot.length;
   // Tyhjä kenttä ja roskasyöte tarkoittavat molemmat "ei alennusta". Rajaus
   // 0-100 % on sama kuin palvelinfunktiossa ja kannassa.
   const alennusProsentti = Math.min(Math.max(Number(alennus) || 0, 0), 100);
@@ -932,11 +977,11 @@ export function TyonLomake({
   // Uusi työ voidaan joko vastaanottaa (osat tuotu, maalaus alkaa myöhemmin)
   // tai aloittaa heti. Maali varataan molemmissa tapauksissa.
   function kasitteleTallennus(tila: "vastaanotettu" | "vaiheessa" = "vaiheessa") {
-    if (kori.length === 0) {
+    if (korissa === 0) {
       toast.error(
         muokattavaTyo
-          ? "Työssä pitää olla vähintään yksi osa."
-          : "Lisää vähintään yksi osa koriin ennen tallennusta."
+          ? "Työssä pitää olla vähintään yksi osa tai työ."
+          : "Lisää vähintään yksi osa tai työ koriin ennen tallennusta."
       );
       return;
     }
@@ -973,10 +1018,18 @@ export function TyonLomake({
     // Toiminto palauttaa virheen arvona eikä heitä sitä: tuotannossa Next.js
     // korvaa heitetyn virheen yleisellä React-virheellä, jolloin maalaaja näki
     // numerosarjan sen sijaan että olisi tiennyt mikä meni pieleen.
+    const muutSyotteet = muutTyot.map((t) => ({ kuvaus: t.kuvaus, hintaEur: t.hintaEur }));
+
     aloita(async () => {
       const tulos = muokattavaTyo
-        ? await paivitaTyo(muokattavaTyo.id, asiakas.trim() || null, syotteet, alennusProsentti)
-        : await aloitaTyo(asiakas.trim() || null, syotteet, alennusProsentti, tila);
+        ? await paivitaTyo(
+            muokattavaTyo.id,
+            asiakas.trim() || null,
+            syotteet,
+            alennusProsentti,
+            muutSyotteet
+          )
+        : await aloitaTyo(asiakas.trim() || null, syotteet, alennusProsentti, tila, muutSyotteet);
 
       if (!tulos.ok) {
         toast.error(tulos.virhe);
@@ -1052,7 +1105,7 @@ export function TyonLomake({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Lisää osa koriin</CardTitle>
+          <CardTitle className="text-base">Maalattava osa</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
           {/* Ensin kuva, sitten hinnoittelu: maalari näkee mitä on
@@ -1064,6 +1117,7 @@ export function TyonLomake({
             ajoneuvotyypit={ajoneuvotyypit}
             valittuId={osaId}
             onValitse={vaihdaOsa}
+            naytaOtsikko={false}
           />
 
           {onMuu && kuvausKentta}
@@ -1409,21 +1463,64 @@ export function TyonLomake({
         </CardContent>
       </Card>
 
+      {/* Maalaamaton työ: märkäpuhallus, vanteiden purku ja rihtaus ja muu
+          mitä maalaamolla tehdään. Näistä ei pidetä luetteloa - työ
+          kirjoitetaan sille työlle jolle se kuuluu ja jää siihen näkyviin. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Lisää työ</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid min-w-0 gap-2">
+            <Label htmlFor="muun_tyon_kuvaus">Mitä tehtiin</Label>
+            <Input
+              id="muun_tyon_kuvaus"
+              className="w-full min-w-0"
+              placeholder="Esim. vanteiden märkäpuhallus"
+              value={muunKuvaus}
+              onChange={(e) => setMuunKuvaus(e.target.value)}
+            />
+          </div>
+          <div className="grid min-w-0 max-w-40 gap-2">
+            <Label htmlFor="muun_tyon_hinta">Hinta (€)</Label>
+            <Input
+              id="muun_tyon_hinta"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="0,00"
+              className="w-full min-w-0 tabular-nums"
+              value={muunHinta}
+              onChange={(e) => setMuunHinta(e.target.value)}
+            />
+          </div>
+          <div>
+            <Button type="button" onClick={lisaaMuuTyo}>
+              <Plus className="size-4" />
+              Lisää koriin
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShoppingCart className="size-4" />
-            Kori ({kori.length})
+            Kori ({korissa})
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {kori.length === 0 && (
-            <p className="text-sm text-muted-foreground">Kori on tyhjä - lisää osia yllä.</p>
+          {korissa === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Kori on tyhjä - lisää osia tai töitä yllä.
+            </p>
           )}
           {/* Viisi saraketta ei mahdu puhelimeen: taulukko vieri vaakasuunnassa
               ja hinta sekä poistonappi jäivät ruudun ulkopuolelle. Kapealla
               ruudulla rivit ovat omina lohkoinaan, sm-koosta ylöspäin taulukko. */}
-          {kori.length > 0 && (
+          {korissa > 0 && (
             <div className="grid gap-2 sm:hidden">
               {kori.map((r) => (
                 <div key={r.avain} className="grid gap-1 rounded-md border p-3">
@@ -1471,9 +1568,27 @@ export function TyonLomake({
                   <span className="text-sm font-medium">{muotoileEuro(r.yksikkohintaEur)}</span>
                 </div>
               ))}
+              {muutTyot.map((t) => (
+                <div key={t.avain} className="grid gap-1 rounded-md border p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 font-medium break-words">{t.kuvaus}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="-mt-1 shrink-0"
+                      onClick={() => poistaMuuTyo(t.avain)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                  <span className="text-sm text-muted-foreground">Työ ilman maalausta</span>
+                  <span className="text-sm font-medium">{muotoileEuro(t.hintaEur)}</span>
+                </div>
+              ))}
             </div>
           )}
-          {kori.length > 0 && (
+          {korissa > 0 && (
             <div className="hidden sm:block">
               <Table>
                 <TableHeader>
@@ -1537,11 +1652,28 @@ export function TyonLomake({
                       </TableCell>
                     </TableRow>
                   ))}
+                  {muutTyot.map((t) => (
+                    <TableRow key={t.avain}>
+                      <TableCell>{t.kuvaus}</TableCell>
+                      <TableCell className="text-muted-foreground">Työ ilman maalausta</TableCell>
+                      <TableCell>{muotoileEuro(t.hintaEur)}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => poistaMuuTyo(t.avain)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                   </TableBody>
               </Table>
             </div>
           )}
-          {kori.length > 0 && (
+          {korissa > 0 && (
             <div className="flex flex-wrap items-end justify-between gap-3 border-t pt-4">
               <div className="grid gap-1.5">
                 <Label htmlFor="alennus">Alennus %</Label>

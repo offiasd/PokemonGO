@@ -1117,6 +1117,61 @@ export interface Database {
           },
         ];
       };
+      /**
+       * Työn maalaamattomat työt: märkäpuhallus, rihtaus ja vastaavat.
+       *
+       * Ei osaa, väriä eikä maalinkulutusta - vain kuvaus ja hinta. Oma taulu
+       * siksi, ettei maalinkulutuksen logiikka ulotu näihin.
+       */
+      tyon_muut_tyot: {
+        Row: {
+          id: string;
+          tyo_id: string;
+          kuvaus: string;
+          /** Asiakkaalle asetettu hinta, ei ostohinta. */
+          hinta_eur: number;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["tyon_muut_tyot"]["Row"]> & {
+          tyo_id: string;
+          kuvaus: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["tyon_muut_tyot"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "tyon_muut_tyot_tyo_id_fkey";
+            columns: ["tyo_id"];
+            isOneToOne: false;
+            referencedRelation: "tyot";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      arkistoidut_muut_tyot: {
+        Row: {
+          id: string;
+          tyo_id: string;
+          kuvaus: string;
+          hinta_eur: number;
+          jarjestys: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["arkistoidut_muut_tyot"]["Row"]> & {
+          id: string;
+          tyo_id: string;
+          kuvaus: string;
+          hinta_eur: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["arkistoidut_muut_tyot"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "arkistoidut_muut_tyot_tyo_id_fkey";
+            columns: ["tyo_id"];
+            isOneToOne: false;
+            referencedRelation: "arkistoidut_tyot";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tyon_rivin_lisavarit: {
         Row: {
           id: string;
