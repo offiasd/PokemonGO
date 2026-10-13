@@ -1537,11 +1537,11 @@ export function TyonLomake({
               ja hinta sekä poistonappi jäivät ruudun ulkopuolelle. Kapealla
               ruudulla rivit ovat omina lohkoinaan, sm-koosta ylöspäin taulukko. */}
           {korissa > 0 && (
-            <div className="grid gap-2 sm:hidden">
+            <div className="grid min-w-0 gap-2 sm:hidden">
               {kori.map((r) => (
-                <div key={r.avain} className="grid gap-1 rounded-md border p-3">
+                <div key={r.avain} className="grid min-w-0 gap-1 rounded-md border p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 font-medium break-words">{r.osaNimi}</span>
+                    <span className="min-w-0 font-medium wrap-anywhere">{r.osaNimi}</span>
                     <Button
                       type="button"
                       variant="ghost"
@@ -1552,7 +1552,7 @@ export function TyonLomake({
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
-                  <span className="text-sm break-words text-muted-foreground">
+                  <span className="min-w-0 text-sm text-muted-foreground wrap-anywhere">
                     {[r.variNimi, r.toinenVariNimi, ...r.lisavarit.map((l) => l.variNimi)]
                       .filter(Boolean)
                       .join(" + ")}
@@ -1577,7 +1577,7 @@ export function TyonLomake({
                     </span>
                   ))}
                   {r.kommentti && (
-                    <span className="text-xs break-words text-muted-foreground italic">
+                    <span className="min-w-0 text-xs text-muted-foreground italic wrap-anywhere">
                       {r.kommentti}
                     </span>
                   )}
@@ -1585,9 +1585,9 @@ export function TyonLomake({
                 </div>
               ))}
               {muutTyot.map((t) => (
-                <div key={t.avain} className="grid gap-1 rounded-md border p-3">
+                <div key={t.avain} className="grid min-w-0 gap-1 rounded-md border p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 font-medium break-words">{t.kuvaus}</span>
+                    <span className="min-w-0 font-medium wrap-anywhere">{t.kuvaus}</span>
                     <Button
                       type="button"
                       variant="ghost"

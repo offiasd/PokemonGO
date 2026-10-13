@@ -34,7 +34,7 @@ function Rivi({
   return (
     <details className="group rounded-md border">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 hover:bg-accent/50 [&::-webkit-details-marker]:hidden">
-        <span className="min-w-0 font-medium break-words">{otsikko}</span>
+        <span className="min-w-0 font-medium wrap-anywhere">{otsikko}</span>
         <span className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
           {aika}
           <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
@@ -175,7 +175,7 @@ export default async function TyonHistoriaSivu() {
                   <ul className="grid gap-1">
                     {arkistonRivit(tyo.id).map((rivi) => (
                       <li key={rivi.id} className="flex justify-between gap-4">
-                        <span className="min-w-0 break-words">
+                        <span className="min-w-0 wrap-anywhere">
                           {rivinNimi(rivi)} - {variNimi(rivi.vari_id)}
                           {rivi.toinen_vari_id && rivi.toinen_vari_rooli && (
                             <>
@@ -213,7 +213,7 @@ export default async function TyonHistoriaSivu() {
                     ))}
                     {arkistonTyot(tyo.id).map((t) => (
                       <li key={t.id} className="flex justify-between gap-4">
-                        <span className="min-w-0 break-words">{t.kuvaus}</span>
+                        <span className="min-w-0 wrap-anywhere">{t.kuvaus}</span>
                         <span className="shrink-0 text-muted-foreground">
                           {muotoileEuro(t.hinta_eur)}
                         </span>
@@ -250,7 +250,7 @@ export default async function TyonHistoriaSivu() {
                     <span className="text-muted-foreground">Syy: </span>
                     {peruutuksenSyynNimi(peruutus.syy)}
                   </p>
-                  {peruutus.tarkennus && <p className="break-words">{peruutus.tarkennus}</p>}
+                  {peruutus.tarkennus && <p className="wrap-anywhere">{peruutus.tarkennus}</p>}
                 </Rivi>
               ))}
             </CardContent>

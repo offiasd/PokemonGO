@@ -327,7 +327,7 @@ export default async function TyotSivu() {
                         rajat={asetukset}
                         naytaTeksti={false}
                       />
-                      <span className="min-w-0 break-words">{variNimi(rivi.variId)}</span>
+                      <span className="min-w-0 wrap-anywhere">{variNimi(rivi.variId)}</span>
                     </span>
                     <span className="text-muted-foreground">
                       {rivi.osia} {rivi.osia === 1 ? "osa" : "osaa"} -{" "}
@@ -389,7 +389,7 @@ export default async function TyotSivu() {
                   <ul className="grid gap-1 text-sm">
                     {tyonRivit.map((rivi) => (
                       <li key={rivi.id} className="flex justify-between gap-4">
-                        <span className="min-w-0 break-words">{riviteksti(rivi)}</span>
+                        <span className="min-w-0 wrap-anywhere">{riviteksti(rivi)}</span>
                         <span className="shrink-0 text-muted-foreground">
                           {muotoileEuro(rivi.yksikkohinta_eur * rivi.kappalemaara)}
                         </span>
@@ -397,7 +397,7 @@ export default async function TyotSivu() {
                     ))}
                     {muutTyotTyolle(tyo.id).map((t) => (
                       <li key={t.id} className="flex justify-between gap-4">
-                        <span className="min-w-0 break-words">{t.kuvaus}</span>
+                        <span className="min-w-0 wrap-anywhere">{t.kuvaus}</span>
                         <span className="shrink-0 text-muted-foreground">
                           {muotoileEuro(t.hinta_eur)}
                         </span>
@@ -484,7 +484,7 @@ export default async function TyotSivu() {
                     ))}
                     {muutTyotTyolle(tyo.id).map((t) => (
                       <li key={t.id} className="flex min-w-0 justify-between gap-4">
-                        <span className="min-w-0 break-words">{t.kuvaus}</span>
+                        <span className="min-w-0 wrap-anywhere">{t.kuvaus}</span>
                         <span className="shrink-0 text-muted-foreground">
                           {muotoileEuro(t.hinta_eur)}
                         </span>
@@ -531,13 +531,13 @@ export default async function TyotSivu() {
                       key={rivi.id}
                       className="flex min-w-0 flex-col gap-3 rounded-md border p-3"
                     >
-                      <p className="text-center text-base font-semibold break-words">
+                      <p className="text-center text-base font-semibold wrap-anywhere">
                         {rivinNimi(rivi)}
                       </p>
                       <div className="grid gap-0.5 text-center text-sm">
-                        <span className="break-words">{variNimi(rivi.vari_id)}</span>
+                        <span className="wrap-anywhere">{variNimi(rivi.vari_id)}</span>
                         {rivi.toinen_vari_id && rivi.toinen_vari_rooli && (
-                          <span className="text-muted-foreground break-words">
+                          <span className="text-muted-foreground wrap-anywhere">
                             {ROOLIN_NIMI[rivi.toinen_vari_rooli]}: {variNimi(rivi.toinen_vari_id)}
                           </span>
                         )}
@@ -546,7 +546,7 @@ export default async function TyotSivu() {
                         {rivinLisatyot
                           .filter((l) => l.tyon_rivi_id === rivi.id)
                           .map((l) => (
-                            <span key={l.id} className="text-muted-foreground break-words">
+                            <span key={l.id} className="text-muted-foreground wrap-anywhere">
                               {lisatyonNimi(l, lisatyonNimet)}
                               {l.osuus_prosentti !== null && ` ${l.osuus_prosentti} %`}
                               {l.vari_id && `: ${variNimi(l.vari_id)}`}
@@ -554,7 +554,7 @@ export default async function TyotSivu() {
                           ))}
                       </div>
                       <div className="mt-auto flex items-end justify-between gap-2">
-                        <span className="min-w-0 text-xs text-muted-foreground break-words">
+                        <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
                           {osanAjoneuvotyyppi(rivi.osa_id) ?? "-"}
                         </span>
                         <span className="shrink-0 text-sm">
@@ -570,11 +570,11 @@ export default async function TyotSivu() {
                       key={t.id}
                       className="flex min-w-0 flex-col gap-3 rounded-md border p-3"
                     >
-                      <p className="text-center text-base font-semibold break-words">
+                      <p className="text-center text-base font-semibold wrap-anywhere">
                         {t.kuvaus}
                       </p>
                       <div className="mt-auto flex items-end justify-between gap-2">
-                        <span className="min-w-0 text-xs text-muted-foreground break-words">
+                        <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
                           Ei maalausta
                         </span>
                         <span className="shrink-0 text-sm">{muotoileEuro(t.hinta_eur)}</span>

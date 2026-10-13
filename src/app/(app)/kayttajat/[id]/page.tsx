@@ -162,7 +162,7 @@ export default async function KayttajanTyotSivu({
               <div key={tyo.id} className="grid gap-2 rounded-md border p-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium break-words">
+                    <p className="font-medium wrap-anywhere">
                       {tyo.asiakas ?? "Ei asiakastietoa"}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -183,7 +183,7 @@ export default async function KayttajanTyotSivu({
                 <ul className="grid gap-1 text-sm">
                   {tyonRivit(tyo.id).map((rivi) => (
                     <li key={rivi.id} className="flex justify-between gap-4">
-                      <span className="min-w-0 break-words">
+                      <span className="min-w-0 wrap-anywhere">
                         {rivinNimi(rivi)} - {variNimi(rivi.vari_id)}
                         {rivi.toinen_vari_id && rivi.toinen_vari_rooli && (
                           <>
@@ -221,7 +221,7 @@ export default async function KayttajanTyotSivu({
                   ))}
                   {tyonMuutTyot(tyo.id).map((t) => (
                     <li key={t.id} className="flex justify-between gap-4">
-                      <span className="min-w-0 break-words">{t.kuvaus}</span>
+                      <span className="min-w-0 wrap-anywhere">{t.kuvaus}</span>
                       <span className="shrink-0 text-muted-foreground">
                         {muotoileEuro(t.hinta_eur)}
                       </span>
