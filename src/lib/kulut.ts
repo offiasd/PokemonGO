@@ -224,6 +224,122 @@ export function tarkistaTasmays(loppusummaEur: number, rivit: KuitinRivi[]): Tas
   return { tasmaa: Math.abs(erotus) <= 0.01, riviteYhteensa: summa, erotus };
 }
 
+/** Kuitin ALV-erittelyn rivi, kuten se poiminnasta tulee. */
+export interface AlvErittelyRivi {
+  verokanta: number;
+  veroton_eur: number;
+  vero_eur: number;
+  verollinen_eur: number;
+}
+
+/** Rivihinta verollisena rivin omalla kannalla. Vastinpari nettohinnalle. */
+export function verollinenHinta(nettoEur: number, verokanta: number | null): number {
+  if (!verokanta || verokanta <= 0) return nettoEur;
+  return Math.round(nettoEur * (1 + verokanta / 100) * 100) / 100;
+}
+
+export interface VerottomuusTunnistus {
+  /** Näyttävätkö rivihinnat verottomilta. */
+  verottomat: boolean;
+  /** Mihin päätelmä perustuu. Näytetään käyttäjälle sellaisenaan. */
+  peruste: string | null;
+  /** Rivien summa sellaisenaan. */
+  riviteYhteensa: number;
+  /** Rivien summa verollisena. */
+  verollinenYhteensa: number;
+  /**
+   * Kanta jota käytetään riville jolta kanta puuttuu.
+   *
+   * Vain jos kuitin erittelyssä on täsmälleen yksi kanta: silloin kaikki rivit
+   * ovat sillä kannalla ja se luetaan kuitista. Useamman kannan kuitilla
+   * kantaa ei arvata, vaan rivi jää muuntamatta.
+   */
+  oletusVerokanta: number | null;
+  /** Rivejä joilta kanta puuttuu kokonaan. Niitä ei voi muuntaa. */
+  kannattomia: number;
+}
+
+/**
+ * Tunnistaa kuitin jonka rivihinnat on ilmoitettu verottomina.
+ *
+ * Osa laskuista listaa tuotteet alv 0 ja näyttää veron vasta yhteenvedossa.
+ * Silloin rivien summa jää loppusummasta veron verran jälkeen, ja kulu
+ * kirjautuisi liian pienenä - yritys ei ole ALV-rekisterissä, joten kulu on
+ * nimenomaan bruttohinta.
+ *
+ * Kaksi tunnistustapaa, kumpikin kuitin omista luvuista:
+ *
+ * 1. ALV-erittely kertoo verottoman ja verollisen summan. Jos rivien summa
+ *    osuu verottomaan muttei verolliseen, rivit ovat verottomia.
+ * 2. Ilman erittelyä: jos rivit kannoillaan korotettuina osuvat loppusummaan
+ *    mutta sellaisenaan eivät, rivit ovat verottomia.
+ *
+ * Verokantaa ei koskaan arvata - se luetaan kuitista. Ilman kantaa riviä ei
+ * voi muuntaa, ja silloin muunnosta ei tarjota lainkaan.
+ *
+ * Tämä on laskentaa, ei verotuspäätös: sovellus kertoo mitä kuitissa lukee ja
+ * käyttäjä päättää muunnetaanko rivit.
+ */
+export function tunnistaVerottomatRivit(
+  loppusummaEur: number,
+  rivit: Pick<KuitinRivi, "brutto_eur" | "verokanta">[],
+  alvErittely: AlvErittelyRivi[] | null
+): VerottomuusTunnistus {
+  const erittely = alvErittely ?? [];
+  // Yhden kannan kuitilla jokainen rivi on sillä kannalla. Tämä luetaan
+  // kuitista eikä päätellä tuotteesta.
+  const kannat = [...new Set(erittely.map((e) => e.verokanta))];
+  const oletusVerokanta = kannat.length === 1 && kannat[0] > 0 ? kannat[0] : null;
+  const kanta = (rivi: Pick<KuitinRivi, "verokanta">) => rivi.verokanta ?? oletusVerokanta;
+
+  const summa = Math.round(rivit.reduce((s, r) => s + r.brutto_eur, 0) * 100) / 100;
+  const verollinenYhteensa =
+    Math.round(rivit.reduce((s, r) => s + verollinenHinta(r.brutto_eur, kanta(r)), 0) * 100) / 100;
+  const kannattomia = rivit.filter((r) => !kanta(r) || (kanta(r) ?? 0) <= 0).length;
+  const tyhja: VerottomuusTunnistus = {
+    verottomat: false,
+    peruste: null,
+    riviteYhteensa: summa,
+    verollinenYhteensa,
+    oletusVerokanta,
+    kannattomia,
+  };
+  if (rivit.length === 0 || summa <= 0) return tyhja;
+
+  // Kuitti pyöristää joka rivin sentteihin, joten heitot kertyvät rivimäärän
+  // mukana. Sama periaate kuin poiminnan ALV-täsmäytyksessä.
+  const toleranssi = Math.max(0.02, 0.01 * rivit.length);
+
+  if (erittely.length > 0) {
+    const veroton = Math.round(erittely.reduce((s, e) => s + e.veroton_eur, 0) * 100) / 100;
+    const verollinen = Math.round(erittely.reduce((s, e) => s + e.verollinen_eur, 0) * 100) / 100;
+    const onVeroa = verollinen - veroton > 0.01;
+    if (onVeroa && Math.abs(summa - veroton) <= toleranssi && Math.abs(summa - verollinen) > toleranssi) {
+      return {
+        ...tyhja,
+        verottomat: true,
+        peruste: "Rivien summa vastaa ALV-erittelyn verotonta summaa, ei verollista.",
+      };
+    }
+    return tyhja;
+  }
+
+  // Ilman erittelyä tunnistus nojaa loppusummaan, joten jokaisella rivillä on
+  // oltava kanta: yksikin kannaton rivi tekisi korotetusta summasta väärän.
+  if (kannattomia > 0 || loppusummaEur <= 0) return tyhja;
+  if (
+    Math.abs(verollinenYhteensa - loppusummaEur) <= toleranssi &&
+    Math.abs(summa - loppusummaEur) > toleranssi
+  ) {
+    return {
+      ...tyhja,
+      verottomat: true,
+      peruste: "Rivit verokantoineen korotettuina vastaavat loppusummaa, sellaisenaan eivät.",
+    };
+  }
+  return tyhja;
+}
+
 /**
  * Yli 1 200 euron ostos: ei pienhankinta vaan poistopohjaa.
  *

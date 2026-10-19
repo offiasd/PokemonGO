@@ -61,6 +61,8 @@ import {
   kayttotarkoituksenNimi,
   kuluinaYhteensa,
   tarkistaTasmays,
+  tunnistaVerottomatRivit,
+  verollinenHinta,
   type Kayttotarkoitus,
   type KayttotarkoituksenTiedot,
 } from "@/lib/kulut";
@@ -486,6 +488,9 @@ export function KuitinLomake({
     kayttotarkoitus: r.kayttotarkoitus,
   }));
   const tasmays = tarkistaTasmays(luku(loppusumma), riviYhteenvedot);
+  // Osa laskuista ilmoittaa rivit alv 0 ja veron vasta yhteenvedossa. Silloin
+  // rivien summa jää loppusummasta jälkeen ja kulu kirjautuisi liian pienenä.
+  const verottomuus = tunnistaVerottomatRivit(luku(loppusumma), riviYhteenvedot, alvErittely);
   const kuluina = kuluinaYhteensa(riviYhteenvedot);
   const luokittelematta = rivit.filter((r) => !r.kayttotarkoitus).length;
   const alvTasmaa = naytaAlv && alvErittely !== null && alvErittely.length > 0;
@@ -496,6 +501,29 @@ export function KuitinLomake({
   );
 
   const muokattava = rivit.find((r) => r.avain === muokattavaRivi) ?? null;
+
+  /**
+   * Muuntaa rivihinnat verollisiksi rivien omilla verokannoilla.
+   *
+   * Käyttäjän oma päätös, ei automaatti: poiminta on ehdotus eikä kuitin
+   * lukeminen saa muuttaa lukuja käyttäjän selän takana.
+   */
+  function muunnaVerollisiksi() {
+    setRivit((vanhat) =>
+      vanhat.map((r) => {
+        // Kanta rivin omasta tiedosta, ja sen puuttuessa kuitin erittelystä
+        // kun erittelyssä on vain yksi kanta. Kantaa ei arvata.
+        const kanta = r.verokanta ?? verottomuus.oletusVerokanta;
+        return {
+          ...r,
+          bruttoEur: verollinenHinta(r.bruttoEur, kanta),
+          verokanta: kanta,
+          bruttoEurLaskettu: null,
+        };
+      })
+    );
+    toast.success("Rivihinnat muunnettu verollisiksi kuitin verokannoilla.");
+  }
 
   function lisaaRivi() {
     const avain = `uusi-${seuraavaAvain.current++}`;
@@ -942,7 +970,38 @@ export function KuitinLomake({
 
       <Card>
         <CardContent className="grid gap-3">
-          {!tasmays.tasmaa && rivit.length > 0 && (
+          {verottomuus.verottomat && (
+            <div className="grid min-w-0 gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
+              <span className="min-w-0 font-medium wrap-anywhere">
+                Rivihinnat näyttävät verottomilta (alv 0 %).
+              </span>
+              <span className="min-w-0 text-muted-foreground wrap-anywhere">
+                {verottomuus.peruste} Rivien summa {summa(verottomuus.riviteYhteensa)},
+                verollisena {summa(verottomuus.verollinenYhteensa)}, kuitin loppusumma{" "}
+                {summa(luku(loppusumma))}. Yritys ei ole ALV-rekisterissä, joten kulu on
+                bruttohinta.
+              </span>
+              {verottomuus.kannattomia > 0 && (
+                <span className="min-w-0 text-muted-foreground wrap-anywhere">
+                  {verottomuus.kannattomia} riviltä puuttuu verokanta eikä kuitin erittelystä
+                  saa yksiselitteistä kantaa. Kantaa ei arvata, joten ne rivit jäävät muunnoksessa
+                  ennalleen.
+                </span>
+              )}
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 min-w-0 max-w-full"
+                  onClick={muunnaVerollisiksi}
+                >
+                  <span className="min-w-0 truncate">Muunna rivit verollisiksi</span>
+                </Button>
+              </div>
+            </div>
+          )}
+          {!tasmays.tasmaa && rivit.length > 0 && !verottomuus.verottomat && (
             <p className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
               Rivien summa ei täsmää loppusummaan ({summa(tasmays.erotus)} ero). Kuitti
               tallentuu tarkistettavaksi. Jos kuva on epäselvä, kuvaa kuitti uudelleen ennen kuin
