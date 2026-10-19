@@ -59,6 +59,8 @@ interface ToimittajanRyhma {
   /** Kuittien loppusummat euroina, tai null kun yksikään ei ole summissa. */
   summaEur: number | null;
   kuluinaEur: number;
+  /** Montako kuittia on summissa mukana. Kertoo pyöristysvaran suuruuden. */
+  summissa: number;
   puutteellisia: number;
   mitatoityja: number;
 }
@@ -94,6 +96,7 @@ function ryhmitteleToimittajittain(kuitit: KuittiListalla[]): ToimittajanRyhma[]
           ? summissa.reduce((summa, k) => summa + k.loppusummaEur, 0)
           : null,
         kuluinaEur: summissa.reduce((summa, k) => summa + k.kuluinaEur, 0),
+        summissa: summissa.length,
         puutteellisia: ryhmanKuitit.filter((k) => k.puute !== null).length,
         mitatoityja: ryhmanKuitit.filter((k) => k.mitatoity).length,
       };
@@ -174,8 +177,16 @@ export function Kuittilista({ kuitit }: { kuitit: KuittiListalla[] }) {
         if (ryhma.mitatoityja > 0) tiedot.push(`${ryhma.mitatoityja} mitätöity`);
         if (ryhma.puutteellisia > 0) {
           tiedot.push(`${ryhma.puutteellisia} vaatii huomiota`);
-        } else if (ryhma.summaEur !== null && ryhma.kuluinaEur !== ryhma.summaEur) {
-          // Ero tulee yksityisotoista: ne ovat kuitilla mutta eivät kuluja.
+        } else if (
+          ryhma.summaEur !== null &&
+          // Ero kertoo yksityisotoista: ne ovat kuitilla mutta eivät kuluja.
+          // Kuitti pyöristää jokaisen rivin sentteihin, joten sentin heitto
+          // kuittia kohden on pyöristystä eikä yksityisottoa. Sama toleranssi
+          // kuin kuitin omassa täsmäytyksessä - muuten lista valittaisi erosta
+          // jonka kuitin sivu hyväksyy. Vertailu sentteinä, koska 86,78 - 86,77
+          // on liukuluvuilla 0,010000000000005 eikä siis "enintään sentti".
+          Math.round(Math.abs(ryhma.summaEur - ryhma.kuluinaEur) * 100) > ryhma.summissa
+        ) {
           tiedot.push(`kuluina ${muotoileEuro(ryhma.kuluinaEur)}`);
         }
 
