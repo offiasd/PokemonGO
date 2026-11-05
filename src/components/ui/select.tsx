@@ -31,7 +31,12 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-fit items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none data-[placeholder]:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        // min-w-0 ja valitun arvon katkaisu: ilman niitä pitkä valinta, kuten
+        // "High Performance SC Clear", asettaa valikon minimileveyden ja
+        // venyttää koko lomakkeen puhelimen ruudun yli. Katkaistu teksti on
+        // scroll-säiliö, jolloin minimileveys on nolla ja valikko kutistuu
+        // sille varattuun tilaan.
+        "flex w-fit min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none data-[placeholder]:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

@@ -1128,6 +1128,206 @@ export function TyonLomake({
 
           {osaId && <div className="grid gap-4 sm:max-w-sm">{kategoriaKentta}</div>}
 
+          {/* Custom-työ: sama osa maalataan usealla värillä, kulutus jaetaan
+              käsin ja hinta sovitaan tapauskohtaisesti. Valinta on heti
+              kategorian jälkeen eikä värivalikon alapuolella: custom-työ on
+              päätös työn luonteesta, ei väristä, eikä sitä varten pidä joutua
+              selaamaan koko värivalikkoa tai valitsemaan pääväriä ensin.
+              Esitäytöt tulevat kategorialta, joten se riittää napin ehdoksi. */}
+          {osaId && kategoria && !custom && !onMuu && (
+            <div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCustom(true)}>
+                <Palette className="size-4" />
+                Custom
+              </Button>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Useampi väri samaan osaan, oma kulutus ja oma hinta.
+              </p>
+            </div>
+          )}
+
+          {kulutusKasin && kategoria && (
+            <div className="grid min-w-0 gap-4 rounded-md border p-4">
+              {/* Otsikko ja Peruuta samalla rivillä, selite omallaan: 320
+                  pikselin ruudulla napin viereen jää selitteelle niin vähän
+                  tilaa, että teksti valuu yhden sanan levyiseksi pylvääksi. */}
+              <div className="grid min-w-0 gap-1">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <Label className="min-w-0 font-medium wrap-anywhere">
+                    {onMuu ? "Arvio" : "Custom-työ"}
+                  </Label>
+                  {!onMuu && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 shrink-0 px-2"
+                      onClick={tyhjennaCustom}
+                    >
+                      Peruuta
+                    </Button>
+                  )}
+                </div>
+                <p className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
+                  {onMuu
+                    ? "Arvioi kulutus ja hinta nyt - toteutunut kulutus kirjataan kun työ merkitään valmiiksi."
+                    : "Jaa esitäytetty kulutus väreille ja aseta työlle hinta."}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="kommentti">Kommentti</Label>
+                <Textarea
+                  id="kommentti"
+                  rows={2}
+                  value={kommentti}
+                  onChange={(e) => setKommentti(e.target.value)}
+                  placeholder="Esim. 50/50 vanteet tai satuloiden logot värillä"
+                />
+              </div>
+
+              {/* Esitäytetyt kulutukset pysyvät näkyvissä kenttien vieressä:
+                  useammalle värille jaettaessa on tiedettävä mistä summasta
+                  ollaan jakamassa ja paljonko on jo jaettu. */}
+              <div
+                className={
+                  onMuu
+                    ? "grid min-w-0 gap-4"
+                    : "grid min-w-0 gap-4 sm:grid-cols-[1fr_13rem] sm:items-start"
+                }
+              >
+                <div className="grid min-w-0 gap-3">
+                  <div className="grid min-w-0 gap-1">
+                    <Label htmlFor="kulutus" className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
+                      {valittuVari?.nimi ?? "Pääväri"} (g){onMuu ? " *" : ""}
+                    </Label>
+                    <Input
+                      id="kulutus"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={kentanArvo(kulutusSyote, oletusKulutusG)}
+                      onChange={(e) => setKulutusSyote(e.target.value)}
+                    />
+                  </div>
+                  {lisavarit.map((lisa) => (
+                    <div
+                      key={lisa.avain}
+                      className="grid min-w-0 gap-2 rounded-md bg-muted/40 p-3 sm:grid-cols-[1fr_7rem_auto] sm:items-end"
+                    >
+                      <div className="grid min-w-0 gap-1">
+                        <Label
+                          htmlFor={`lisavari_${lisa.avain}`}
+                          className="text-xs text-muted-foreground"
+                        >
+                          Lisäväri
+                        </Label>
+                        <Select
+                          value={lisa.variId}
+                          onValueChange={(v) => paivitaLisavari(lisa.avain, { variId: v })}
+                        >
+                          <SelectTrigger id={`lisavari_${lisa.avain}`} className="w-full">
+                            <SelectValue placeholder="Valitse väri" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {lisavarinVaihtoehdot.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {v.nimi}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-end gap-2 sm:contents">
+                        <div className="grid min-w-0 flex-1 gap-1 sm:flex-none">
+                          <Label
+                            htmlFor={`lisakulutus_${lisa.avain}`}
+                            className="text-xs text-muted-foreground"
+                          >
+                            Kulutus (g) *
+                          </Label>
+                          <Input
+                            id={`lisakulutus_${lisa.avain}`}
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={lisa.kulutus}
+                            onChange={(e) =>
+                              paivitaLisavari(lisa.avain, { kulutus: e.target.value })
+                            }
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Poista lisäväri"
+                          onClick={() =>
+                            setLisavarit((vanhat) => vanhat.filter((l) => l.avain !== lisa.avain))
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div>
+                    <Button type="button" variant="outline" size="sm" onClick={lisaaLisavari}>
+                      <Plus className="size-4" />
+                      Lisää väri
+                    </Button>
+                  </div>
+                </div>
+
+                {!onMuu && (
+                <div className="grid min-w-0 gap-1 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Esitäytetyt kulutukset</span>
+                  <span className="flex justify-between gap-3">
+                    <span className="min-w-0 truncate">Pääväri</span>
+                    <span className="shrink-0">{oletusKulutusG} g</span>
+                  </span>
+                  {paavarinAutomaatit.map((r) => (
+                    <span key={r.avain} className="flex justify-between gap-3">
+                      <span className="min-w-0 truncate">{r.nimi}</span>
+                      <span className="shrink-0">{r.kulutusG} g</span>
+                    </span>
+                  ))}
+                  <span className="flex justify-between gap-3 border-t pt-1">
+                    <span>Yhteensä</span>
+                    <span className="shrink-0">{oletusYhteensaG} g</span>
+                  </span>
+                  <span className="mt-1 flex justify-between gap-3 border-t pt-1 text-foreground">
+                    <span>Nyt jaettu</span>
+                    <span className="shrink-0">{Math.round(kulutusYhteensaG * 100) / 100} g</span>
+                  </span>
+                </div>
+                )}
+              </div>
+
+              <div className="grid gap-1 sm:max-w-[16rem]">
+                <Label htmlFor="hinta" className="text-xs text-muted-foreground">
+                  Hinta €
+                  {laskettuHintaEur !== null && ` - laskettu ${muotoileEuro(laskettuHintaEur)}`}
+                </Label>
+                <Input
+                  id="hinta"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={kentanArvo(hintaSyote, laskettuHintaEur ?? 0)}
+                  onChange={(e) => setHintaSyote(e.target.value)}
+                />
+                {onMuu && (
+                  <p className="text-xs text-muted-foreground">
+                    Ilman omaa hintaa veloitus on maalinkulutus + kate.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+
           {kategoria && (
             <VarinValinta
               varit={kategorianVarit}
@@ -1219,190 +1419,6 @@ export function TyonLomake({
               lisätyölaatikon ulkopuolella - myös lisätyötön candy varaa
               pohjaväriä ja voi jäädä saldosta vajaaksi. */}
           {kategoria && variId && <RivinYhteenveto tulos={lisatoidenTulos} />}
-
-          {/* Custom-työ: sama osa maalataan usealla värillä, kulutus jaetaan
-              käsin ja hinta sovitaan tapauskohtaisesti. Nappi tulee näkyviin
-              osan ja kategorian valinnan jälkeen, koska esitäytöt tulevat
-              kategorialta. */}
-          {osaId && kategoria && !custom && !onMuu && (
-            <div>
-              <Button type="button" variant="outline" size="sm" onClick={() => setCustom(true)}>
-                <Palette className="size-4" />
-                Custom
-              </Button>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Useampi väri samaan osaan, oma kulutus ja oma hinta.
-              </p>
-            </div>
-          )}
-
-          {kulutusKasin && kategoria && (
-            <div className="grid gap-4 rounded-md border p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <Label className="font-medium">{onMuu ? "Arvio" : "Custom-työ"}</Label>
-                  <p className="text-xs text-muted-foreground">
-                    {onMuu
-                      ? "Arvioi kulutus ja hinta nyt - toteutunut kulutus kirjataan kun työ merkitään valmiiksi."
-                      : "Jaa esitäytetty kulutus väreille ja aseta työlle hinta."}
-                  </p>
-                </div>
-                {!onMuu && (
-                  <Button type="button" variant="ghost" size="sm" onClick={tyhjennaCustom}>
-                    Peruuta
-                  </Button>
-                )}
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="kommentti">Kommentti</Label>
-                <Textarea
-                  id="kommentti"
-                  rows={2}
-                  value={kommentti}
-                  onChange={(e) => setKommentti(e.target.value)}
-                  placeholder="Esim. 50/50 vanteet tai satuloiden logot värillä"
-                />
-              </div>
-
-              {/* Esitäytetyt kulutukset pysyvät näkyvissä kenttien vieressä:
-                  useammalle värille jaettaessa on tiedettävä mistä summasta
-                  ollaan jakamassa ja paljonko on jo jaettu. */}
-              <div
-                className={
-                  onMuu ? "grid gap-4" : "grid gap-4 sm:grid-cols-[1fr_13rem] sm:items-start"
-                }
-              >
-                <div className="grid gap-3">
-                  <div className="grid gap-1">
-                    <Label htmlFor="kulutus" className="text-xs text-muted-foreground">
-                      {valittuVari?.nimi ?? "Pääväri"} (g){onMuu ? " *" : ""}
-                    </Label>
-                    <Input
-                      id="kulutus"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={kentanArvo(kulutusSyote, oletusKulutusG)}
-                      onChange={(e) => setKulutusSyote(e.target.value)}
-                    />
-                  </div>
-                  {lisavarit.map((lisa) => (
-                    <div
-                      key={lisa.avain}
-                      className="grid gap-2 rounded-md bg-muted/40 p-3 sm:grid-cols-[1fr_7rem_auto] sm:items-end"
-                    >
-                      <div className="grid gap-1">
-                        <Label
-                          htmlFor={`lisavari_${lisa.avain}`}
-                          className="text-xs text-muted-foreground"
-                        >
-                          Lisäväri
-                        </Label>
-                        <Select
-                          value={lisa.variId}
-                          onValueChange={(v) => paivitaLisavari(lisa.avain, { variId: v })}
-                        >
-                          <SelectTrigger id={`lisavari_${lisa.avain}`} className="w-full">
-                            <SelectValue placeholder="Valitse väri" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {lisavarinVaihtoehdot.map((v) => (
-                              <SelectItem key={v.id} value={v.id}>
-                                {v.nimi}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-end gap-2 sm:contents">
-                        <div className="grid min-w-0 flex-1 gap-1 sm:flex-none">
-                          <Label
-                            htmlFor={`lisakulutus_${lisa.avain}`}
-                            className="text-xs text-muted-foreground"
-                          >
-                            Kulutus (g) *
-                          </Label>
-                          <Input
-                            id={`lisakulutus_${lisa.avain}`}
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={lisa.kulutus}
-                            onChange={(e) =>
-                              paivitaLisavari(lisa.avain, { kulutus: e.target.value })
-                            }
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Poista lisäväri"
-                          onClick={() =>
-                            setLisavarit((vanhat) => vanhat.filter((l) => l.avain !== lisa.avain))
-                          }
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-
-                  <div>
-                    <Button type="button" variant="outline" size="sm" onClick={lisaaLisavari}>
-                      <Plus className="size-4" />
-                      Lisää väri
-                    </Button>
-                  </div>
-                </div>
-
-                {!onMuu && (
-                <div className="grid gap-1 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Esitäytetyt kulutukset</span>
-                  <span className="flex justify-between gap-3">
-                    <span className="min-w-0 truncate">Pääväri</span>
-                    <span className="shrink-0">{oletusKulutusG} g</span>
-                  </span>
-                  {paavarinAutomaatit.map((r) => (
-                    <span key={r.avain} className="flex justify-between gap-3">
-                      <span className="min-w-0 truncate">{r.nimi}</span>
-                      <span className="shrink-0">{r.kulutusG} g</span>
-                    </span>
-                  ))}
-                  <span className="flex justify-between gap-3 border-t pt-1">
-                    <span>Yhteensä</span>
-                    <span className="shrink-0">{oletusYhteensaG} g</span>
-                  </span>
-                  <span className="mt-1 flex justify-between gap-3 border-t pt-1 text-foreground">
-                    <span>Nyt jaettu</span>
-                    <span className="shrink-0">{Math.round(kulutusYhteensaG * 100) / 100} g</span>
-                  </span>
-                </div>
-                )}
-              </div>
-
-              <div className="grid gap-1 sm:max-w-[16rem]">
-                <Label htmlFor="hinta" className="text-xs text-muted-foreground">
-                  Hinta €
-                  {laskettuHintaEur !== null && ` - laskettu ${muotoileEuro(laskettuHintaEur)}`}
-                </Label>
-                <Input
-                  id="hinta"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={kentanArvo(hintaSyote, laskettuHintaEur ?? 0)}
-                  onChange={(e) => setHintaSyote(e.target.value)}
-                />
-                {onMuu && (
-                  <p className="text-xs text-muted-foreground">
-                    Ilman omaa hintaa veloitus on maalinkulutus + kate.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Maalaajalla ei ole hinnoittelutietoja, joten laskettua hintaa ei
               synny kiinteän kategoriahinnan puuttuessa: hinta kirjoitetaan
