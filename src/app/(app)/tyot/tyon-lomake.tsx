@@ -688,6 +688,20 @@ export function TyonLomake({
     return varit.filter((v) => !varatut.has(v.id));
   }, [varit, variId, paavarinAutomaatit]);
 
+  // Custom-työssä pääväri valitaan työn sisältä eikä kategorian
+  // värivalikosta: sama osa voi saada värejä useasta kategoriasta, eikä
+  // kategoriaa ole pakko valita lainkaan. Jo lisäväriksi otetut ja
+  // automaattiset kerrokset ovat poissa, jottei sama väri varaisi maalia
+  // kahteen kertaan.
+  const paavarinVaihtoehdot = useMemo(() => {
+    const varatut = new Set(
+      [...lisavarit.map((l) => l.variId), ...paavarinAutomaatit.map((r) => r.variId)].filter(
+        Boolean
+      )
+    );
+    return varit.filter((v) => !varatut.has(v.id));
+  }, [varit, lisavarit, paavarinAutomaatit]);
+
   const lisavarienKulutusG = lisavarit.reduce(
     (summa, l) => summa + numeroTaiOletus(l.kulutus, 0),
     0
@@ -712,7 +726,11 @@ export function TyonLomake({
 
   function vaihdaKategoria(v: string) {
     setKategoria(v as MyytavaMaaliTyyppi);
-    setVariId("");
+    // Tavallisella rivillä väri kuuluu kategoriaan, joten valinta nollataan.
+    // Custom-työssä värit valitaan työn sisältä kategoriasta riippumatta ja
+    // kategoria otetaan vain esitäyttöjen vuoksi - silloin valittu pääväri ei
+    // saa kadota alta.
+    if (!custom) setVariId("");
     setLakkausValittu(false);
     setAutomaattiMuokkaukset([]);
   }
@@ -1126,15 +1144,13 @@ export function TyonLomake({
 
           {onMuu && kuvausKentta}
 
-          {osaId && <div className="grid gap-4 sm:max-w-sm">{kategoriaKentta}</div>}
-
           {/* Custom-työ: sama osa maalataan usealla värillä, kulutus jaetaan
-              käsin ja hinta sovitaan tapauskohtaisesti. Valinta on heti
-              kategorian jälkeen eikä värivalikon alapuolella: custom-työ on
-              päätös työn luonteesta, ei väristä, eikä sitä varten pidä joutua
-              selaamaan koko värivalikkoa tai valitsemaan pääväriä ensin.
-              Esitäytöt tulevat kategorialta, joten se riittää napin ehdoksi. */}
-          {osaId && kategoria && !custom && !onMuu && (
+              käsin ja hinta sovitaan tapauskohtaisesti. Valinta on heti osan
+              jälkeen, kategorian yläpuolella: custom-työ on päätös työn
+              luonteesta eikä se seuraa kategoriasta, joten sitä ei pidä joutua
+              etsimään kategorian ja värivalikon takaa. Kategoria jää silti
+              valittavaksi: siitä tulevat esitäytöt ja laskettu hinta. */}
+          {osaId && !custom && !onMuu && (
             <div>
               <Button type="button" variant="outline" size="sm" onClick={() => setCustom(true)}>
                 <Palette className="size-4" />
@@ -1146,7 +1162,9 @@ export function TyonLomake({
             </div>
           )}
 
-          {kulutusKasin && kategoria && (
+          {osaId && <div className="grid gap-4 sm:max-w-sm">{kategoriaKentta}</div>}
+
+          {kulutusKasin && (custom || kategoria) && (
             <div className="grid min-w-0 gap-4 rounded-md border p-4">
               {/* Otsikko ja Peruuta samalla rivillä, selite omallaan: 320
                   pikselin ruudulla napin viereen jää selitteelle niin vähän
@@ -1191,25 +1209,66 @@ export function TyonLomake({
                   ollaan jakamassa ja paljonko on jo jaettu. */}
               <div
                 className={
-                  onMuu
-                    ? "grid min-w-0 gap-4"
-                    : "grid min-w-0 gap-4 sm:grid-cols-[1fr_13rem] sm:items-start"
+                  !onMuu && kategoria
+                    ? "grid min-w-0 gap-4 sm:grid-cols-[1fr_13rem] sm:items-start"
+                    : "grid min-w-0 gap-4"
                 }
               >
                 <div className="grid min-w-0 gap-3">
-                  <div className="grid min-w-0 gap-1">
-                    <Label htmlFor="kulutus" className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
-                      {valittuVari?.nimi ?? "Pääväri"} (g){onMuu ? " *" : ""}
-                    </Label>
-                    <Input
-                      id="kulutus"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={kentanArvo(kulutusSyote, oletusKulutusG)}
-                      onChange={(e) => setKulutusSyote(e.target.value)}
-                    />
-                  </div>
+                  {/* Custom-työssä pääväri on yksi työn väreistä ja valitaan
+                      tässä lisävärien tapaan. "Muu"-rivillä väri tulee yhä
+                      kategorian kuvavalikosta, joten siellä riittää kulutus. */}
+                  {custom ? (
+                    <div className="grid min-w-0 gap-2 rounded-md bg-muted/40 p-3 sm:grid-cols-[1fr_7rem] sm:items-end">
+                      <div className="grid min-w-0 gap-1">
+                        <Label htmlFor="paavari" className="text-xs text-muted-foreground">
+                          Pääväri *
+                        </Label>
+                        <Select value={variId} onValueChange={valitsePaavari}>
+                          <SelectTrigger id="paavari" className="w-full">
+                            <SelectValue placeholder="Valitse väri" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {paavarinVaihtoehdot.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {v.nimi}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid min-w-0 gap-1">
+                        <Label htmlFor="kulutus" className="text-xs text-muted-foreground">
+                          Kulutus (g) *
+                        </Label>
+                        <Input
+                          id="kulutus"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={kentanArvo(kulutusSyote, oletusKulutusG)}
+                          onChange={(e) => setKulutusSyote(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid min-w-0 gap-1">
+                      <Label
+                        htmlFor="kulutus"
+                        className="min-w-0 text-xs text-muted-foreground wrap-anywhere"
+                      >
+                        {valittuVari?.nimi ?? "Pääväri"} (g){onMuu ? " *" : ""}
+                      </Label>
+                      <Input
+                        id="kulutus"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={kentanArvo(kulutusSyote, oletusKulutusG)}
+                        onChange={(e) => setKulutusSyote(e.target.value)}
+                      />
+                    </div>
+                  )}
                   {lisavarit.map((lisa) => (
                     <div
                       key={lisa.avain}
@@ -1280,7 +1339,9 @@ export function TyonLomake({
                   </div>
                 </div>
 
-                {!onMuu && (
+                {/* Ilman kategoriaa esitäyttöjä ei ole: nollarivien laatikko
+                    olisi pelkkää hämäystä. */}
+                {!onMuu && kategoria && (
                 <div className="grid min-w-0 gap-1 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">Esitäytetyt kulutukset</span>
                   <span className="flex justify-between gap-3">
@@ -1328,7 +1389,7 @@ export function TyonLomake({
           )}
 
 
-          {kategoria && (
+          {kategoria && !custom && (
             <VarinValinta
               varit={kategorianVarit}
               valittuId={variId}
