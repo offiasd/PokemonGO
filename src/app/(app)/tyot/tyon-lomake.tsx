@@ -56,6 +56,16 @@ import {
   type LisatyonPerusta,
   type LisatyoValinta,
 } from "@/lib/lisatyot";
+import {
+  grammat,
+  LAKAN_AVAIN,
+  laskeArvionMaalit,
+  PAAMAALIN_AVAIN,
+  pohjanAvain,
+  type ArvionMaaliRivi,
+  type AutomaatinSaato,
+  type MaalinRooli,
+} from "@/lib/arviomaalit";
 import type { OsienLisatyo } from "@/lib/supabase/database.types";
 
 import { aloitaTyo, paivitaTyo } from "./actions";
@@ -296,6 +306,9 @@ export function TyonLomake({
   const [hintaSyote, setHintaSyote] = useState<string | null>(null);
   const [lisavarit, setLisavarit] = useState<LisavariSyote[]>([]);
   const seuraavaLisavariAvain = useRef(0);
+  // Arviolomakkeen automaattisten lakka- ja pohjaväririvien muokkaukset:
+  // vaihdettu väri, käsin kirjoitetut grammat tai ✕:llä poistettu rivi.
+  const [arvionSaadot, setArvionSaadot] = useState<AutomaatinSaato[]>([]);
 
   // Lisätyöt: monivärisyys, tekstit ja logot omana rakenteenaan. null
   // automaattisessa värissä tarkoittaa "asetusten oletus", merkkijono
@@ -356,9 +369,15 @@ export function TyonLomake({
   // toisin, mutta oletus jää näkyviin arvion tueksi.
   const oletusKulutusG = valittuKategoriahinta?.arvioitu_kulutus_g ?? 0;
   const oletusToinenKulutusG = toisenKulutusG;
-  // "Muu"-rivillä kulutus on aina käsin kirjoitettu, koska esitäyttöä ei ole.
-  const kulutusKasin = custom || onMuu;
-  const arvioituKulutusG = kulutusKasin
+  /**
+   * Arviolomake: Muu kohde tai luettelo-osa omalla arviolla.
+   *
+   * Siinä ei ole kategoriahintaa eikä osan esitäyttöjä, joten kaikki grammat
+   * ja hinta tulevat maalaajalta ja maalit ovat yhtenä listana. Normaali
+   * luettelo-osan lomake kulkee tämän ohi muuttumattomana.
+   */
+  const onArvio = custom || onMuu;
+  const arvioituKulutusG = onArvio
     ? numeroTaiOletus(kulutusSyote ?? "", oletusKulutusG)
     : oletusKulutusG;
 
@@ -409,6 +428,117 @@ export function TyonLomake({
     oletusLakkaId && lisatyonLakkaVaihtoehdot.some((v) => v.id === oletusLakkaId)
       ? oletusLakkaId
       : null;
+
+  // ---- Arviolomakkeen maalilista ----
+  // Päämaali on listan ensimmäinen rivi ja käyttäjän lisäämät maalit
+  // jatkavat siitä. Lomake pitää nämä samoissa tiloissa kuin ennenkin
+  // (variId, kulutusSyote, lisavarit), jolloin tallennus osuu entiseen
+  // rakenteeseen: päämaali työriville ja loput lisäväreiksi.
+  const arvionMaalit = useMemo(
+    () => [
+      { avain: PAAMAALIN_AVAIN, variId, kulutus: kulutusSyote ?? "" },
+      ...lisavarit.map((l) => ({ avain: l.avain, variId: l.variId, kulutus: l.kulutus })),
+    ],
+    [variId, kulutusSyote, lisavarit]
+  );
+
+  const arvionTulos = useMemo(
+    () =>
+      laskeArvionMaalit({
+        maalit: arvionMaalit,
+        saadot: arvionSaadot,
+        varit,
+        oletusPohjavariId: lisatyonPohjavariId,
+        oletusLakkaId: lisatyonLakkaId,
+        // Muu kohteella ei ole osaa eikä siten lakkauskulutusta: lakkaa menee
+        // saman verran kuin päämaalia. Luettelo-osalla osan oma arvo voittaa.
+        osanLakkausKulutusG: onMuu ? null : (valittuOsa?.lakkaus_kulutus_g ?? null),
+      }),
+    [
+      arvionMaalit,
+      arvionSaadot,
+      varit,
+      lisatyonPohjavariId,
+      lisatyonLakkaId,
+      onMuu,
+      valittuOsa,
+    ]
+  );
+
+  /**
+   * Maalilista näyttöjärjestyksessä.
+   *
+   * Jokaisen maalin alla sen oma automaattinen pohjaväri ja lakka viimeisenä,
+   * koska lakkaa on yksi koko kohteelle. Keskeneräinen rivi, jolle väriä ei
+   * ole vielä valittu, on mukana vain lomakkeella: laskenta ei tunne sitä.
+   */
+  const arvionNakyma = useMemo(() => {
+    const automaatit = new Map(
+      arvionTulos.rivit.filter((r) => r.automaattinen).map((r) => [r.avain, r])
+    );
+    type Kohta = {
+      avain: string;
+      rooli: MaalinRooli;
+      variId: string;
+      syote: string;
+      automaattinen: boolean;
+      muokattu: boolean;
+      lahdeNimi: string | null;
+    };
+    const lista: Kohta[] = [];
+    const automaatinKohta = (r: ArvionMaaliRivi): Kohta => ({
+      avain: r.avain,
+      rooli: r.rooli,
+      variId: r.variId,
+      syote: r.kulutusSyote,
+      automaattinen: true,
+      muokattu: r.muokattu,
+      lahdeNimi: r.lahdeNimi,
+    });
+    for (const [i, m] of arvionMaalit.entries()) {
+      lista.push({
+        avain: m.avain,
+        rooli: i === 0 ? "paamaali" : "lisamaali",
+        variId: m.variId,
+        syote: m.kulutus,
+        automaattinen: false,
+        muokattu: false,
+        lahdeNimi: null,
+      });
+      const pohja = automaatit.get(pohjanAvain(m.avain));
+      if (pohja) lista.push(automaatinKohta(pohja));
+    }
+    const lakka = automaatit.get(LAKAN_AVAIN);
+    if (lakka) lista.push(automaatinKohta(lakka));
+    return lista;
+  }, [arvionMaalit, arvionTulos]);
+
+  /** Sama väri ei voi olla kahdella maalirivillä: toinen varaus jäisi piiloon. */
+  const arvionVaihtoehdot = useCallback(
+    (avain: string) => {
+      const varatut = new Set(
+        arvionMaalit.filter((m) => m.avain !== avain && m.variId).map((m) => m.variId)
+      );
+      return varit.filter((v) => !varatut.has(v.id));
+    },
+    [arvionMaalit, varit]
+  );
+
+  /**
+   * Maalikustannus pelkkänä tietona hintakentän alle.
+   *
+   * Vain adminille: luku johdetaan värin ostohinnasta, jota maalaaja ei saa
+   * nähdä. Maalaajalla kokonaishinta on nolla, joten kentän piilottaminen on
+   * myös ainoa rehellinen vaihtoehto - nolla euroa olisi väärä tieto.
+   */
+  const arvionMaalikustannusEur = useMemo(() => {
+    if (!laskettuHinnoittelu) return null;
+    const summa = arvionTulos.rivit.reduce((s, r) => {
+      const v = varit.find((x) => x.id === r.variId);
+      return s + (v ? (r.kulutusG / 1000) * v.kokonaishinta : 0);
+    }, 0);
+    return Math.round(summa * 100) / 100;
+  }, [arvionTulos, varit, laskettuHinnoittelu]);
 
   const lisatoidenTulos = useMemo(
     () =>
@@ -657,12 +787,19 @@ export function TyonLomake({
   // lähtöarvo, koska monivärityön hintaa ei voi johtaa kategoriasta. Sama
   // kenttä tulee näkyviin kun hinnoittelutietoja ei ole käytettävissä: silloin
   // kiinteän kategoriahinnan puuttuessa hinta kirjoitetaan itse.
-  const hintaKasin = kulutusKasin || !laskettuHinnoittelu;
-  const yksikkohintaEur = !hintaKasin
-    ? laskettuHintaEur
-    : (hintaSyote ?? "").trim() === "" && laskettuHintaEur === null
+  const hintaKasin = onArvio || !laskettuHinnoittelu;
+  // Arviolomakkeella hinta on tyhjä ja pakollinen. Maalikustannuksesta
+  // esitäytetty hinta on lähes aina väärä, koska työ ei ole siinä mukana -
+  // ja sen ehti tallentaa huomaamatta.
+  const yksikkohintaEur = onArvio
+    ? (hintaSyote ?? "").trim() === ""
       ? null
-      : Math.round(numeroTaiOletus(hintaSyote ?? "", laskettuHintaEur ?? 0) * 100) / 100;
+      : Math.round(numeroTaiOletus(hintaSyote ?? "", 0) * 100) / 100
+    : !hintaKasin
+      ? laskettuHintaEur
+      : (hintaSyote ?? "").trim() === "" && laskettuHintaEur === null
+        ? null
+        : Math.round(numeroTaiOletus(hintaSyote ?? "", laskettuHintaEur ?? 0) * 100) / 100;
 
   // Asiakashinta = osan kategoriahinta + lisätöiden hinnat. Automaattiset
   // pohjaväri- ja lakkarivit eivät lisää hintaa: ne varaavat maalia ja
@@ -678,37 +815,6 @@ export function TyonLomake({
   // kirjoitettu arvo jää voimaan.
   const kentanArvo = (syote: string | null, oletus: number) =>
     syote ?? (oletus > 0 ? String(oletus) : "");
-
-  // Sama väri ei voi olla rivillä kahdesti: pääväri, pohjaväri ja jo lisätyt
-  // ovat poissa valittavista.
-  const lisavarinVaihtoehdot = useMemo(() => {
-    const varatut = new Set(
-      [variId, ...paavarinAutomaatit.map((r) => r.variId)].filter(Boolean)
-    );
-    return varit.filter((v) => !varatut.has(v.id));
-  }, [varit, variId, paavarinAutomaatit]);
-
-  // Custom-työssä pääväri valitaan työn sisältä eikä kategorian
-  // värivalikosta: sama osa voi saada värejä useasta kategoriasta, eikä
-  // kategoriaa ole pakko valita lainkaan. Jo lisäväriksi otetut ja
-  // automaattiset kerrokset ovat poissa, jottei sama väri varaisi maalia
-  // kahteen kertaan.
-  const paavarinVaihtoehdot = useMemo(() => {
-    const varatut = new Set(
-      [...lisavarit.map((l) => l.variId), ...paavarinAutomaatit.map((r) => r.variId)].filter(
-        Boolean
-      )
-    );
-    return varit.filter((v) => !varatut.has(v.id));
-  }, [varit, lisavarit, paavarinAutomaatit]);
-
-  const lisavarienKulutusG = lisavarit.reduce(
-    (summa, l) => summa + numeroTaiOletus(l.kulutus, 0),
-    0
-  );
-  const automaattienKulutusG = paavarinAutomaatit.reduce((s, r) => s + r.kulutusG, 0);
-  const kulutusYhteensaG = arvioituKulutusG + automaattienKulutusG + lisavarienKulutusG;
-  const oletusYhteensaG = oletusKulutusG + (paavarinAutomaatit.length > 0 ? oletusToinenKulutusG : 0);
 
   function vaihdaOsa(v: string) {
     setOsaId(v);
@@ -758,6 +864,47 @@ export function TyonLomake({
     setKulutusSyote(null);
     setHintaSyote(null);
     setLisavarit([]);
+    setArvionSaadot([]);
+  }
+
+  /**
+   * Custom-työ päälle: rivi siirtyy arviolomakkeelle.
+   *
+   * Kategorian lisätyöt ja valinnainen lakkaus jäävät pois, koska
+   * arviolomakkeella maalit ovat yhtenä listana. Vanhat valinnat nollataan
+   * heti, jottei näkymätön lisityö jäisi varaamaan maalia.
+   */
+  function aloitaCustom() {
+    setCustom(true);
+    setLakkausValittu(false);
+    setAutomaattiMuokkaukset([]);
+    tyhjennaLisatyot();
+    // Kategoria jää muuten roikkumaan taustalle ja veisi riville kiinteän
+    // hinnan ja esitäyttöjä, joita arviolomakkeella ei ole. Valittu väri
+    // säilyy ja siitä tulee maalilistan päämaali.
+    setKategoria("");
+  }
+
+  /** Muokkaus yhteen arviolomakkeen automaattiseen riviin. */
+  function saadaAutomaattia(avain: string, muutos: Partial<Omit<AutomaatinSaato, "avain">>) {
+    setArvionSaadot((vanhat) =>
+      vanhat.some((s) => s.avain === avain)
+        ? vanhat.map((s) => (s.avain === avain ? { ...s, ...muutos } : s))
+        : [...vanhat, { avain, ...muutos }]
+    );
+  }
+
+  /**
+   * Rivin poisto maalilistasta.
+   *
+   * Automaattinen rivi jää poistetuksi (varoitus kertoo jos sitä olisi
+   * tarvittu), käyttäjän oma maali katoaa listasta. Päämaalia ei voi poistaa:
+   * ilman sitä riviä ei ole.
+   */
+  function poistaArvionMaali(avain: string, automaattinen: boolean) {
+    if (avain === PAAMAALIN_AVAIN) return;
+    if (automaattinen) saadaAutomaattia(avain, { poistettu: true });
+    else setLisavarit((vanhat) => vanhat.filter((l) => l.avain !== avain));
   }
 
   /**
@@ -874,35 +1021,39 @@ export function TyonLomake({
 
   function lisaaKoriin() {
     if ((!valittuOsa && !onMuu) || !valittuVari) {
-      toast.error("Valitse osa, kategoria ja väri.");
+      toast.error(onArvio ? "Valitse päämaali." : "Valitse osa, kategoria ja väri.");
       return;
     }
     if (riviHintaEur === null) {
-      toast.error("Anna hinta asiakkaalle - sitä ei voi laskea näillä tiedoilla.");
+      toast.error(
+        onArvio
+          ? "Anna hinta asiakkaalle - se on pakollinen."
+          : "Anna hinta asiakkaalle - sitä ei voi laskea näillä tiedoilla."
+      );
       return;
     }
     if (onMuu && !omaKuvaus.trim()) {
       toast.error("Kirjoita mitä maalataan.");
       return;
     }
-    if (arvioituKulutusG <= 0) {
+    // Arviolomakkeella nollakulutus on varoitus eikä este: pakollisia ovat
+    // vain kuvaus, päämaali ja hinta. Normaalilla rivillä kulutus tulee
+    // kategorialta, joten nolla tarkoittaa siellä puuttuvaa tietoa.
+    if (!onArvio && arvioituKulutusG <= 0) {
       toast.error("Anna maalinkulutus - ilman sitä varastosta ei varata oikeaa määrää.");
       return;
     }
-    // Jokainen lisäväri varaa maalia varastosta, joten kulutus on pakko tietää.
-    // Ilman tarkistusta rivi tallentuisi nollalla eikä saldo vähenisi.
-    const kelvottomat = kulutusKasin
-      ? lisavarit.filter((l) => !l.variId || numeroTaiOletus(l.kulutus, 0) <= 0)
-      : [];
+    // Maalirivi ilman väriä ei tallennu mihinkään: joko väri tai rivi pois.
+    const kelvottomat = onArvio ? lisavarit.filter((l) => !l.variId) : [];
     if (kelvottomat.length > 0) {
-      toast.error("Valitse jokaiselle lisävärille väri ja arvioitu kulutus.");
+      toast.error("Valitse jokaiselle maalille väri tai poista rivi.");
       return;
     }
     // Sama väri kahdesti samalla rivillä varaisi maalia kahteen kertaan ja
     // kaatuisi vasta kannassa. Kategorian vaihto voi jättää lisävärin osumaan
     // uuteen päävääriin, joten tarkistus on tässä eikä pelkässä valikossa.
     const kaytetyt = [variId];
-    const lisavarienIdt = kulutusKasin ? lisavarit.map((l) => l.variId) : [];
+    const lisavarienIdt = onArvio ? lisavarit.map((l) => l.variId) : [];
     if (new Set([...kaytetyt, ...lisavarienIdt]).size !== kaytetyt.length + lisavarienIdt.length) {
       toast.error("Sama väri on rivillä kahdesti - valitse eri värit.");
       return;
@@ -915,6 +1066,33 @@ export function TyonLomake({
       return;
     }
 
+    // Arviolomakkeen automaattiset rivit tallentuvat samaan rakenteeseen kuin
+    // luettelo-osien automaattiset rivit, jotta saldovaraus ja toteutunut
+    // kulutus toimivat yhtenäisesti. Kulutus tulee lomakkeelta eikä osan
+    // lakkauskentästä: juuri siitä syntyi nollan gramman varaus.
+    const arvionAutomaatit: KoriLisatyo[] = arvionTulos.rivit
+      .filter((r) => r.automaattinen)
+      .map((r) => ({
+        avain: r.avain,
+        // Lähdeviittaus osoittaa lisätyöriviin, eivätkä arviolomakkeen maalit
+        // ole lisätöitä, joten lähde jää kirjaamatta. Rivin nimi ja väri
+        // kertovat silti mistä on kyse.
+        lahdeAvain: null,
+        lisatyoId: null,
+        nimi: r.rooli === "lakka" ? "Lakkaus" : "Pohjaväri",
+        variId: r.variId,
+        variNimi: r.variNimi,
+        maara: 1,
+        osuusProsentti: null,
+        kulutusG: r.kulutusG,
+        // Automaattinen rivi ei lisää hintaa: se varaa maalia ja kuluttaa
+        // saldoa. Hinta on se minkä maalaaja kirjoitti hintakenttään.
+        hintaEur: 0,
+        automaattinen: r.rooli === "lakka" ? "lakka" : "pohjavari",
+        lakkausLaajuus: r.rooli === "lakka" ? "koko_osa" : null,
+        lahdeKuvaus: r.lahdeNimi,
+      }));
+
     const rivi: KoriRivi = {
       avain: String(seuraavaAvain.current++),
       osaId: onMuu ? null : (valittuOsa?.id ?? null),
@@ -922,7 +1100,7 @@ export function TyonLomake({
       osaNimi: onMuu ? omaKuvaus.trim() : (valittuOsa?.nimi ?? ""),
       variId: valittuVari.id,
       variNimi: valittuVari.nimi,
-      arvioituKulutusG: perusvarinKulutusG,
+      arvioituKulutusG: onArvio ? grammat(kulutusSyote ?? "") : perusvarinKulutusG,
       yksikkohintaEur: riviHintaEur,
       // Uudella rivillä pohjaväri ja lakka ovat automaattisia lisätyörivejä,
       // eivät työrivin omia kenttiä. Vanhat rivit kantavat nämä yhä.
@@ -931,28 +1109,34 @@ export function TyonLomake({
       toinenVariRooli: null,
       toinenArvioituKulutusG: null,
       custom,
-      kommentti: custom ? kommentti.trim() || null : null,
-      lisatyot: lisatoidenTulos.rivit.map((r) => ({
-        avain: r.avain,
-        lahdeAvain: r.lahdeAvain,
-        lisatyoId: r.lisatyoId,
-        nimi: r.nimi,
-        variId: r.variId,
-        variNimi: r.variNimi,
-        maara: r.maara,
-        osuusProsentti: r.osuusProsentti,
-        kulutusG: r.kulutusG,
-        hintaEur: r.hintaEur,
-        automaattinen: r.automaattinen,
-        lakkausLaajuus: r.lakkausLaajuus,
-        lahdeKuvaus: r.lahdeKuvaus,
-      })),
-      lisavarit: kulutusKasin
-        ? lisavarit.map((l) => ({
-            variId: l.variId,
-            variNimi: varit.find((v) => v.id === l.variId)?.nimi ?? "Tuntematon väri",
-            arvioituKulutusG: numeroTaiOletus(l.kulutus, 0),
-          }))
+      // Kommentti kertoo mitä rivillä oikeasti tehtiin, ja se kuuluu myös
+      // Muu kohteelle - ei vain custom-työlle.
+      kommentti: onArvio ? kommentti.trim() || null : null,
+      lisatyot: onArvio
+        ? arvionAutomaatit
+        : lisatoidenTulos.rivit.map((r) => ({
+            avain: r.avain,
+            lahdeAvain: r.lahdeAvain,
+            lisatyoId: r.lisatyoId,
+            nimi: r.nimi,
+            variId: r.variId,
+            variNimi: r.variNimi,
+            maara: r.maara,
+            osuusProsentti: r.osuusProsentti,
+            kulutusG: r.kulutusG,
+            hintaEur: r.hintaEur,
+            automaattinen: r.automaattinen,
+            lakkausLaajuus: r.lakkausLaajuus,
+            lahdeKuvaus: r.lahdeKuvaus,
+          })),
+      lisavarit: onArvio
+        ? lisavarit
+            .filter((l) => l.variId)
+            .map((l) => ({
+              variId: l.variId,
+              variNimi: varit.find((v) => v.id === l.variId)?.nimi ?? "Tuntematon väri",
+              arvioituKulutusG: grammat(l.kulutus),
+            }))
         : [],
     };
     setKori((k) => [...k, rivi]);
@@ -1152,7 +1336,7 @@ export function TyonLomake({
               valittavaksi: siitä tulevat esitäytöt ja laskettu hinta. */}
           {osaId && !custom && !onMuu && (
             <div>
-              <Button type="button" variant="outline" size="sm" onClick={() => setCustom(true)}>
+              <Button type="button" variant="outline" size="sm" onClick={aloitaCustom}>
                 <Palette className="size-4" />
                 Custom
               </Button>
@@ -1162,134 +1346,84 @@ export function TyonLomake({
             </div>
           )}
 
-          {osaId && <div className="grid gap-4 sm:max-w-sm">{kategoriaKentta}</div>}
+          {/* Kategoria kuuluu vain normaalille riville: se ratkaisee kiinteän
+              hinnan ja värivalikon sisällön. Arviolomakkeella hinta
+              kirjoitetaan itse ja värit valitaan maalilistasta, joten
+              kategorialle ei jää tehtävää. */}
+          {osaId && !onArvio && <div className="grid gap-4 sm:max-w-sm">{kategoriaKentta}</div>}
 
-          {kulutusKasin && (custom || kategoria) && (
-            <div className="grid min-w-0 gap-4 rounded-md border p-4">
-              {/* Otsikko ja Peruuta samalla rivillä, selite omallaan: 320
-                  pikselin ruudulla napin viereen jää selitteelle niin vähän
-                  tilaa, että teksti valuu yhden sanan levyiseksi pylvääksi. */}
-              <div className="grid min-w-0 gap-1">
+          {/* Arviolomake: yksi maalilista, hinta ja kommentti. Lakka ja
+              pohjaväri ovat tavallisia rivejä roolilla, eivät omia
+              blokkejaan - maalaaja näkee yhdellä silmäyksellä mitä maalia
+              kohteeseen menee ja paljonko. */}
+          {onArvio && (
+            <div className="grid min-w-0 gap-4">
+              {custom && (
                 <div className="flex min-w-0 items-center justify-between gap-2">
-                  <Label className="min-w-0 font-medium wrap-anywhere">
-                    {onMuu ? "Arvio" : "Custom-työ"}
-                  </Label>
-                  {!onMuu && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 shrink-0 px-2"
-                      onClick={tyhjennaCustom}
-                    >
-                      Peruuta
-                    </Button>
-                  )}
+                  <Label className="min-w-0 font-medium wrap-anywhere">Custom-työ</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 shrink-0 px-2"
+                    onClick={tyhjennaCustom}
+                  >
+                    Peruuta
+                  </Button>
                 </div>
-                <p className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
-                  {onMuu
-                    ? "Arvioi kulutus ja hinta nyt - toteutunut kulutus kirjataan kun työ merkitään valmiiksi."
-                    : "Jaa esitäytetty kulutus väreille ja aseta työlle hinta."}
-                </p>
-              </div>
+              )}
 
-              <div className="grid gap-2">
-                <Label htmlFor="kommentti">Kommentti</Label>
-                <Textarea
-                  id="kommentti"
-                  rows={2}
-                  value={kommentti}
-                  onChange={(e) => setKommentti(e.target.value)}
-                  placeholder="Esim. 50/50 vanteet tai satuloiden logot värillä"
-                />
-              </div>
-
-              {/* Esitäytetyt kulutukset pysyvät näkyvissä kenttien vieressä:
-                  useammalle värille jaettaessa on tiedettävä mistä summasta
-                  ollaan jakamassa ja paljonko on jo jaettu. */}
-              <div
-                className={
-                  !onMuu && kategoria
-                    ? "grid min-w-0 gap-4 sm:grid-cols-[1fr_13rem] sm:items-start"
-                    : "grid min-w-0 gap-4"
-                }
-              >
-                <div className="grid min-w-0 gap-3">
-                  {/* Custom-työssä pääväri on yksi työn väreistä ja valitaan
-                      tässä lisävärien tapaan. "Muu"-rivillä väri tulee yhä
-                      kategorian kuvavalikosta, joten siellä riittää kulutus. */}
-                  {custom ? (
-                    <div className="grid min-w-0 gap-2 rounded-md bg-muted/40 p-3 sm:grid-cols-[1fr_7rem] sm:items-end">
-                      <div className="grid min-w-0 gap-1">
-                        <Label htmlFor="paavari" className="text-xs text-muted-foreground">
-                          Pääväri *
-                        </Label>
-                        <Select value={variId} onValueChange={valitsePaavari}>
-                          <SelectTrigger id="paavari" className="w-full">
-                            <SelectValue placeholder="Valitse väri" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {paavarinVaihtoehdot.map((v) => (
-                              <SelectItem key={v.id} value={v.id}>
-                                {v.nimi}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid min-w-0 gap-1">
-                        <Label htmlFor="kulutus" className="text-xs text-muted-foreground">
-                          Kulutus (g) *
-                        </Label>
-                        <Input
-                          id="kulutus"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={kentanArvo(kulutusSyote, oletusKulutusG)}
-                          onChange={(e) => setKulutusSyote(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid min-w-0 gap-1">
-                      <Label
-                        htmlFor="kulutus"
-                        className="min-w-0 text-xs text-muted-foreground wrap-anywhere"
-                      >
-                        {valittuVari?.nimi ?? "Pääväri"} (g){onMuu ? " *" : ""}
-                      </Label>
-                      <Input
-                        id="kulutus"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={kentanArvo(kulutusSyote, oletusKulutusG)}
-                        onChange={(e) => setKulutusSyote(e.target.value)}
-                      />
-                    </div>
-                  )}
-                  {lisavarit.map((lisa) => (
+              <div className="grid min-w-0 gap-3">
+                <Label className="min-w-0 font-medium">Maalit</Label>
+                {arvionNakyma.map((kohta) => {
+                  const automaattinen = kohta.automaattinen;
+                  const paamaali = kohta.rooli === "paamaali";
+                  const vaihtoehdot = automaattinen
+                    ? kohta.rooli === "lakka"
+                      ? lisatyonLakkaVaihtoehdot
+                      : lisatyonPohjaVaihtoehdot
+                    : arvionVaihtoehdot(kohta.avain);
+                  const otsikko = paamaali
+                    ? "Päämaali *"
+                    : kohta.rooli === "lakka"
+                      ? "Lakka"
+                      : kohta.rooli === "pohjavari"
+                        ? "Pohjaväri"
+                        : "Maali";
+                  return (
                     <div
-                      key={lisa.avain}
-                      className="grid min-w-0 gap-2 rounded-md bg-muted/40 p-3 sm:grid-cols-[1fr_7rem_auto] sm:items-end"
+                      key={kohta.avain}
+                      className="grid min-w-0 gap-2 rounded-md border p-3 sm:grid-cols-[1fr_7rem_auto] sm:items-end"
                     >
                       <div className="grid min-w-0 gap-1">
                         <Label
-                          htmlFor={`lisavari_${lisa.avain}`}
-                          className="text-xs text-muted-foreground"
+                          htmlFor={`maali_${kohta.avain}`}
+                          className="min-w-0 text-xs text-muted-foreground wrap-anywhere"
                         >
-                          Lisäväri
+                          {otsikko}
+                          {automaattinen && (
+                            <>
+                              {" · automaattinen"}
+                              {kohta.muokattu && " · muokattu"}
+                              {kohta.lahdeNimi && ` (${kohta.lahdeNimi})`}
+                            </>
+                          )}
                         </Label>
                         <Select
-                          value={lisa.variId}
-                          onValueChange={(v) => paivitaLisavari(lisa.avain, { variId: v })}
+                          value={kohta.variId}
+                          onValueChange={(v) =>
+                            automaattinen
+                              ? saadaAutomaattia(kohta.avain, { variId: v })
+                              : paamaali
+                                ? valitsePaavari(v)
+                                : paivitaLisavari(kohta.avain, { variId: v })
+                          }
                         >
-                          <SelectTrigger id={`lisavari_${lisa.avain}`} className="w-full">
+                          <SelectTrigger id={`maali_${kohta.avain}`} className="w-full">
                             <SelectValue placeholder="Valitse väri" />
                           </SelectTrigger>
                           <SelectContent>
-                            {lisavarinVaihtoehdot.map((v) => (
+                            {vaihtoehdot.map((v) => (
                               <SelectItem key={v.id} value={v.id}>
                                 {v.nimi}
                               </SelectItem>
@@ -1300,96 +1434,101 @@ export function TyonLomake({
                       <div className="flex items-end gap-2 sm:contents">
                         <div className="grid min-w-0 flex-1 gap-1 sm:flex-none">
                           <Label
-                            htmlFor={`lisakulutus_${lisa.avain}`}
+                            htmlFor={`kulutus_${kohta.avain}`}
                             className="text-xs text-muted-foreground"
                           >
-                            Kulutus (g) *
+                            Kulutus (g)
                           </Label>
                           <Input
-                            id={`lisakulutus_${lisa.avain}`}
+                            id={`kulutus_${kohta.avain}`}
                             type="number"
-                            min="1"
+                            inputMode="decimal"
+                            min="0"
                             step="1"
-                            value={lisa.kulutus}
+                            className="min-w-0 tabular-nums"
+                            value={kohta.syote}
                             onChange={(e) =>
-                              paivitaLisavari(lisa.avain, { kulutus: e.target.value })
+                              automaattinen
+                                ? saadaAutomaattia(kohta.avain, { kulutus: e.target.value })
+                                : paamaali
+                                  ? setKulutusSyote(e.target.value)
+                                  : paivitaLisavari(kohta.avain, { kulutus: e.target.value })
                             }
                           />
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Poista lisäväri"
-                          onClick={() =>
-                            setLisavarit((vanhat) => vanhat.filter((l) => l.avain !== lisa.avain))
-                          }
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                        {!paamaali && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Poista maali"
+                            onClick={() => poistaArvionMaali(kohta.avain, automaattinen)}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
 
-                  <div>
-                    <Button type="button" variant="outline" size="sm" onClick={lisaaLisavari}>
-                      <Plus className="size-4" />
-                      Lisää väri
-                    </Button>
-                  </div>
+                <div>
+                  <Button type="button" variant="outline" size="sm" onClick={lisaaLisavari}>
+                    <Plus className="size-4" />
+                    Lisää maali
+                  </Button>
                 </div>
-
-                {/* Ilman kategoriaa esitäyttöjä ei ole: nollarivien laatikko
-                    olisi pelkkää hämäystä. */}
-                {!onMuu && kategoria && (
-                <div className="grid min-w-0 gap-1 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Esitäytetyt kulutukset</span>
-                  <span className="flex justify-between gap-3">
-                    <span className="min-w-0 truncate">Pääväri</span>
-                    <span className="shrink-0">{oletusKulutusG} g</span>
-                  </span>
-                  {paavarinAutomaatit.map((r) => (
-                    <span key={r.avain} className="flex justify-between gap-3">
-                      <span className="min-w-0 truncate">{r.nimi}</span>
-                      <span className="shrink-0">{r.kulutusG} g</span>
-                    </span>
-                  ))}
-                  <span className="flex justify-between gap-3 border-t pt-1">
-                    <span>Yhteensä</span>
-                    <span className="shrink-0">{oletusYhteensaG} g</span>
-                  </span>
-                  <span className="mt-1 flex justify-between gap-3 border-t pt-1 text-foreground">
-                    <span>Nyt jaettu</span>
-                    <span className="shrink-0">{Math.round(kulutusYhteensaG * 100) / 100} g</span>
-                  </span>
-                </div>
-                )}
               </div>
 
-              <div className="grid gap-1 sm:max-w-[16rem]">
+              {/* Varoitukset eivät estä tallennusta: maalaaja tietää mitä
+                  tekee, ja puuttuva lakka voi olla tietoinen valinta. */}
+              {arvionTulos.varoitukset.length > 0 && (
+                <div className="grid min-w-0 gap-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                  {arvionTulos.varoitukset.map((varoitus, i) => (
+                    <div key={`${varoitus.laji}-${i}`} className="flex min-w-0 gap-2">
+                      <TriangleAlert className="mt-px size-3.5 shrink-0" />
+                      <span className="min-w-0 wrap-anywhere">{varoitus.viesti}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid min-w-0 gap-1 sm:max-w-[16rem]">
                 <Label htmlFor="hinta" className="text-xs text-muted-foreground">
-                  Hinta €
-                  {laskettuHintaEur !== null && ` - laskettu ${muotoileEuro(laskettuHintaEur)}`}
+                  Hinta € *
                 </Label>
                 <Input
                   id="hinta"
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.01"
-                  value={kentanArvo(hintaSyote, laskettuHintaEur ?? 0)}
+                  className="min-w-0 tabular-nums"
+                  value={hintaSyote ?? ""}
                   onChange={(e) => setHintaSyote(e.target.value)}
                 />
-                {onMuu && (
-                  <p className="text-xs text-muted-foreground">
-                    Ilman omaa hintaa veloitus on maalinkulutus + kate.
+                {/* Pelkkä tieto, ei esitäyttö: maalikustannus ei ole hinta,
+                    koska työ ei ole siinä mukana. */}
+                {arvionMaalikustannusEur !== null && (
+                  <p className="min-w-0 text-xs text-muted-foreground wrap-anywhere">
+                    Maalikustannus {muotoileEuro(arvionMaalikustannusEur)}
                   </p>
                 )}
               </div>
+
+              <div className="grid min-w-0 gap-2">
+                <Label htmlFor="kommentti">Kommentti</Label>
+                <Textarea
+                  id="kommentti"
+                  rows={2}
+                  value={kommentti}
+                  onChange={(e) => setKommentti(e.target.value)}
+                  placeholder="Esim. 50/50 vanteet tai satuloiden logot värillä"
+                />
+              </div>
             </div>
           )}
-
-
-          {kategoria && !custom && (
+          {kategoria && !onArvio && (
             <VarinValinta
               varit={kategorianVarit}
               valittuId={variId}
@@ -1397,7 +1536,7 @@ export function TyonLomake({
               tyhjaTeksti="Tässä kategoriassa ei ole värejä - lisää kategoria värille."
             />
           )}
-          {lakkausMahdollinen && (
+          {lakkausMahdollinen && !onArvio && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="lakkaus_kytketty"
@@ -1416,7 +1555,7 @@ export function TyonLomake({
           {/* Päävärin pohjaväri ja lakkaus ovat osa perusmaalausta ja
               sisältyvät osalle asetettuun kiinteään hintaan, joten ne näkyvät
               heti värin alla eivätkä lisätöiden joukossa. */}
-          {kategoria && variId && (
+          {kategoria && variId && !onArvio && (
             <PaavarinKerrokset
               tulos={lisatoidenTulos}
               pohjavariVaihtoehdot={lisatyonPohjaVaihtoehdot}
@@ -1429,7 +1568,7 @@ export function TyonLomake({
           {/* Lisätyöt tulevat värin jälkeen: jaon osuus lasketaan perusvärin
               kulutuksesta ja automaattinen lakkaus riippuu siitä, lakataanko
               rivi jo muutenkin. */}
-          {kategoria && variId && (
+          {kategoria && variId && !onArvio && (
             <LisatyotRivilla
               perustat={osanLisatyot}
               varit={varit}
@@ -1479,12 +1618,12 @@ export function TyonLomake({
           {/* Varoitukset ja maalinkulutus koskevat koko riviä, joten ne ovat
               lisätyölaatikon ulkopuolella - myös lisätyötön candy varaa
               pohjaväriä ja voi jäädä saldosta vajaaksi. */}
-          {kategoria && variId && <RivinYhteenveto tulos={lisatoidenTulos} />}
+          {kategoria && variId && !onArvio && <RivinYhteenveto tulos={lisatoidenTulos} />}
 
           {/* Maalaajalla ei ole hinnoittelutietoja, joten laskettua hintaa ei
               synny kiinteän kategoriahinnan puuttuessa: hinta kirjoitetaan
               käsin samaan tapaan kuin custom-rivillä. */}
-          {!laskettuHinnoittelu && !kulutusKasin && valittuVari && (kategoria || onMuu) && (
+          {!laskettuHinnoittelu && !onArvio && valittuVari && (kategoria || onMuu) && (
             <div className="grid gap-1 sm:max-w-[16rem]">
               <Label htmlFor="hinta_kasin" className="text-xs text-muted-foreground">
                 Hinta €
@@ -1506,7 +1645,7 @@ export function TyonLomake({
             </div>
           )}
 
-          {kategoria && valittuVari && riviHintaEur !== null && (
+          {kategoria && valittuVari && !onArvio && riviHintaEur !== null && (
             <p className="text-sm break-words text-muted-foreground">
               {hintaKasin ? "Hinta: " : "Laskettu hinta: "}
               <span className="font-medium text-foreground">{muotoileEuro(riviHintaEur)}</span>
@@ -1524,7 +1663,7 @@ export function TyonLomake({
                   {" - maalia "}
                   {[
                     perusvarinKulutusG,
-                    ...(kulutusKasin ? lisavarit.map((l) => numeroTaiOletus(l.kulutus, 0)) : []),
+                    ...(onArvio ? lisavarit.map((l) => numeroTaiOletus(l.kulutus, 0)) : []),
                     ...lisatoidenTulos.rivit.map((r) => r.kulutusG),
                   ]
                     .filter((g) => g > 0)

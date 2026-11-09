@@ -165,10 +165,14 @@ export default async function MuokkaaTyotaSivu({
     variNimi: varinNimi(rivi.vari_id) ?? "Tuntematon väri",
     arvioituKulutusG: rivi.arvioitu_kulutus_g,
     yksikkohintaEur: rivi.yksikkohinta_eur,
-    toinenVariId: rivi.toinen_vari_id,
-    toinenVariNimi: varinNimi(rivi.toinen_vari_id),
-    toinenVariRooli: rivi.toinen_vari_rooli,
-    toinenArvioituKulutusG: rivi.toinen_arvioitu_kulutus_g,
+    // Vanhan rivin pohjaväri ja lakka olivat työrivin omia kenttiä. Ne
+    // näytetään ja tallennetaan nyt lisätyörivinä kuten uusillakin riveillä,
+    // jolloin sama kerros ei ole kannassa kahdessa eri muodossa. Mitään ei
+    // migroida etukäteen: muoto vaihtuu vasta kun työtä muokataan.
+    toinenVariId: null,
+    toinenVariNimi: null,
+    toinenVariRooli: null,
+    toinenArvioituKulutusG: null,
     custom: rivi.custom,
     kommentti: rivi.kommentti,
     lisavarit: (lisavarit ?? [])
@@ -178,24 +182,50 @@ export default async function MuokkaaTyotaSivu({
         variNimi: varinNimi(l.vari_id) ?? "Tuntematon väri",
         arvioituKulutusG: l.arvioitu_kulutus_g,
       })),
-    lisatyot: (rivinLisatyot ?? [])
-      .filter((l) => l.tyon_rivi_id === rivi.id)
-      .map((l) => ({
-        // Avaimena kannan id, jolloin lähdeviittaus säilyy muokkauksen yli.
-        avain: l.id,
-        lahdeAvain: l.lahde_rivi_id,
-        lakkausLaajuus: l.lakkaus_laajuus,
-        lahdeKuvaus: null,
-        lisatyoId: l.lisatyo_id,
-        nimi: lisatyonNimi(l.lisatyo_id, l.automaattinen),
-        variId: l.vari_id ?? "",
-        variNimi: varinNimi(l.vari_id) ?? "Tuntematon väri",
-        maara: l.maara,
-        osuusProsentti: l.osuus_prosentti,
-        kulutusG: l.kulutus_g ?? 0,
-        hintaEur: l.hinta_eur ?? 0,
-        automaattinen: l.automaattinen,
-      })),
+    lisatyot: [
+      // Muunnettu vanha kerros ensimmäisenä: se kuuluu päävärin alle tai
+      // päälle, ei lisätöiden sekaan.
+      ...(rivi.toinen_vari_id && rivi.toinen_vari_rooli
+        ? [
+            {
+              avain: `vanha-toinen-${rivi.id}`,
+              lahdeAvain: null,
+              lakkausLaajuus:
+                rivi.toinen_vari_rooli === "lakka" ? ("koko_osa" as const) : null,
+              lahdeKuvaus: null,
+              lisatyoId: null,
+              nimi: rivi.toinen_vari_rooli === "lakka" ? "Lakkaus" : "Pohjaväri",
+              variId: rivi.toinen_vari_id,
+              variNimi: varinNimi(rivi.toinen_vari_id) ?? "Tuntematon väri",
+              maara: 1,
+              osuusProsentti: null,
+              kulutusG: rivi.toinen_arvioitu_kulutus_g ?? 0,
+              // Kerros sisältyi rivin hintaan jo ennenkin: se ei saa lisätä
+              // hintaa muodon vaihtuessa.
+              hintaEur: 0,
+              automaattinen: rivi.toinen_vari_rooli,
+            },
+          ]
+        : []),
+      ...(rivinLisatyot ?? [])
+        .filter((l) => l.tyon_rivi_id === rivi.id)
+        .map((l) => ({
+          // Avaimena kannan id, jolloin lähdeviittaus säilyy muokkauksen yli.
+          avain: l.id,
+          lahdeAvain: l.lahde_rivi_id,
+          lakkausLaajuus: l.lakkaus_laajuus,
+          lahdeKuvaus: null,
+          lisatyoId: l.lisatyo_id,
+          nimi: lisatyonNimi(l.lisatyo_id, l.automaattinen),
+          variId: l.vari_id ?? "",
+          variNimi: varinNimi(l.vari_id) ?? "Tuntematon väri",
+          maara: l.maara,
+          osuusProsentti: l.osuus_prosentti,
+          kulutusG: l.kulutus_g ?? 0,
+          hintaEur: l.hinta_eur ?? 0,
+          automaattinen: l.automaattinen,
+        })),
+    ],
   }));
 
   return (

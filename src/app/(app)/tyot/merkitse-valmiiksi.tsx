@@ -36,6 +36,19 @@ export interface ValmiiksiLisatyo {
   arvioituKulutusG: number;
 }
 
+/**
+ * Arviolomakkeella lisätty maali.
+ *
+ * Oma taulunsa (tyon_rivin_lisavarit), joten se ei ole lisätyö eikä rivin
+ * pääväri - mutta kuluttaa maalia siinä missä ne, joten toteutunut menekki
+ * on kysyttävä myös siitä.
+ */
+export interface ValmiiksiLisavari {
+  id: string;
+  variNimi: string;
+  arvioituKulutusG: number;
+}
+
 export interface ValmiiksiRivi {
   id: string;
   osaNimi: string;
@@ -45,6 +58,7 @@ export interface ValmiiksiRivi {
   toinenVariNimi: string | null;
   toinenVariRooli: ToinenVariRooli | null;
   toinenArvioituKulutusG: number | null;
+  lisavarit: ValmiiksiLisavari[];
   lisatyot: ValmiiksiLisatyo[];
 }
 
@@ -70,6 +84,11 @@ export function MerkitseValmiiksi({ tyoId, rivit }: { tyoId: string; rivit: Valm
       rivit.flatMap((r) => r.lisatyot.map((lt) => [lt.id, String(lt.arvioituKulutusG)]))
     )
   );
+  const [lisavarienArvot, setLisavarienArvot] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      rivit.flatMap((r) => r.lisavarit.map((lv) => [lv.id, String(lv.arvioituKulutusG)]))
+    )
+  );
 
   function kasitteleValmistuminen() {
     aloita(async () => {
@@ -82,6 +101,10 @@ export function MerkitseValmiiksi({ tyoId, rivit }: { tyoId: string; rivit: Valm
             toinenToteutunutKulutusG: r.toinenVariNimi
               ? Number(toisetArvot[r.id] ?? r.toinenArvioituKulutusG ?? 0)
               : null,
+            lisavarit: r.lisavarit.map((lv) => ({
+              lisavariRiviId: lv.id,
+              toteutunutKulutusG: Number(lisavarienArvot[lv.id] ?? lv.arvioituKulutusG),
+            })),
             lisatyot: r.lisatyot.map((lt) => ({
               lisatyoRiviId: lt.id,
               toteutunutKulutusG: Number(lisatyonArvot[lt.id] ?? lt.arvioituKulutusG),
@@ -156,6 +179,29 @@ export function MerkitseValmiiksi({ tyoId, rivit }: { tyoId: string; rivit: Valm
                   />
                 </div>
               )}
+              {r.lisavarit.map((lv) => (
+                <div key={lv.id} className="grid gap-2">
+                  <Label
+                    htmlFor={`lisavari_toteutunut_${lv.id}`}
+                    className="text-xs text-muted-foreground"
+                  >
+                    <span className="min-w-0 wrap-anywhere">
+                      {lv.variNimi}: toteutunut kulutus (g)
+                    </span>
+                  </Label>
+                  <Input
+                    id={`lisavari_toteutunut_${lv.id}`}
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="min-w-0 tabular-nums"
+                    value={lisavarienArvot[lv.id] ?? ""}
+                    onChange={(e) =>
+                      setLisavarienArvot((a) => ({ ...a, [lv.id]: e.target.value }))
+                    }
+                  />
+                </div>
+              ))}
               {r.lisatyot.map((lt) => (
                 <div key={lt.id} className="grid gap-2">
                   <Label

@@ -67,7 +67,7 @@ export default async function TyotSivu() {
     rivit.length > 0
       ? await supabase
           .from("tyon_rivin_lisavarit")
-          .select("rivi_id, vari_id")
+          .select("id, rivi_id, vari_id, arvioitu_kulutus_g")
           .in("rivi_id", rivit.map((r) => r.id))
           .order("jarjestys")
       : { data: [] };
@@ -451,6 +451,16 @@ export default async function TyotSivu() {
                           toinenVariNimi: r.toinen_vari_id ? variNimi(r.toinen_vari_id) : null,
                           toinenVariRooli: r.toinen_vari_rooli,
                           toinenArvioituKulutusG: r.toinen_arvioitu_kulutus_g,
+                          // Arviolomakkeen maalit ovat omassa taulussaan ja
+                          // kuluttavat maalia siinä missä pääväri: ilman tätä
+                          // monivärityön toteutunut menekki jäisi kirjaamatta.
+                          lisavarit: lisavarit
+                            .filter((l) => l.rivi_id === r.id)
+                            .map((l) => ({
+                              id: l.id,
+                              variNimi: variNimi(l.vari_id),
+                              arvioituKulutusG: l.arvioitu_kulutus_g,
+                            })),
                           // Vain värilliset rivit kuluttavat maalia: pelkkä
                           // teippaustyö ei vie grammoja eikä sitä kysytä.
                           lisatyot: rivinLisatyot

@@ -322,6 +322,8 @@ export interface RiviPaivitys {
   toinenToteutunutKulutusG?: number | null;
   /** Lisätyörivien toteutunut menekki: pohjaväri, lakka ja värilliset lisätyöt. */
   lisatyot?: { lisatyoRiviId: string; toteutunutKulutusG: number }[];
+  /** Arviolomakkeella lisättyjen maalien toteutunut menekki. */
+  lisavarit?: { lisavariRiviId: string; toteutunutKulutusG: number }[];
 }
 
 export async function merkitseTyoValmiiksi(
@@ -341,8 +343,16 @@ export async function merkitseTyoValmiiksi(
       .eq("id", rp.riviId);
     if (error) throw new Error(error.message);
 
-    // Lisätyörivit päivitetään ennen työn tilaa: saldotrigger lukee
-    // toteutuneen menekin siinä hetkessä kun tila vaihtuu valmiiksi.
+    // Lisävärit ja lisätyörivit päivitetään ennen työn tilaa: saldotrigger
+    // lukee toteutuneen menekin siinä hetkessä kun tila vaihtuu valmiiksi.
+    for (const lv of rp.lisavarit ?? []) {
+      const { error: lisavariVirhe } = await supabase
+        .from("tyon_rivin_lisavarit")
+        .update({ toteutunut_kulutus_g: lv.toteutunutKulutusG })
+        .eq("id", lv.lisavariRiviId);
+      if (lisavariVirhe) throw new Error(lisavariVirhe.message);
+    }
+
     for (const lt of rp.lisatyot ?? []) {
       const { error: lisatyoVirhe } = await supabase
         .from("tyon_rivin_lisatyot")
