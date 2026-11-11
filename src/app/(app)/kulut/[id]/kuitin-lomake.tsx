@@ -59,6 +59,7 @@ import { muotoileEuro, muotoileMaara, muotoileValuutta, VALUUTAT } from "@/lib/v
 import {
   ehdotaLuokittelu,
   kayttotarkoituksenNimi,
+  opinAvain,
   kuluinaYhteensa,
   tarkistaTasmays,
   tunnistaVerottomatRivit,
@@ -67,7 +68,10 @@ import {
   type KayttotarkoituksenTiedot,
 } from "@/lib/kulut";
 
+import { kestoKuukausina } from "@/lib/takuut";
+
 import { korvaaKuitinTiedosto, tallennaKuitti } from "../actions";
+import { TakuunMuokkaus } from "../takuun-muokkaus";
 
 interface RiviSyote {
   avain: string;
@@ -86,6 +90,22 @@ interface RiviSyote {
   kayttotarkoitus: Kayttotarkoitus | null;
   kululuokkaId: string | null;
   muistiinpano: string | null;
+  /** Mallin vihje: onko rivi laite vai kulutustarvike. Null = ei tiedossa. */
+  kestotuoteVihje?: boolean | null;
+}
+
+/** Kuitin takuu sellaisena kuin lomake sen tarvitsee. */
+export interface TakuuRivilla {
+  id: string;
+  kuitinRiviId: string | null;
+  rivinTeksti: string | null;
+  nimi: string;
+  alkaa: string;
+  paattyy: string;
+  sarjanumero: string | null;
+  muistiinpano: string | null;
+  kuitinTakuuteksti: string | null;
+  lahde: "kuitti" | "kasin";
 }
 
 /**
@@ -124,6 +144,11 @@ const PITKA_PAINALLUS_MS = 450;
 /** Kannan sallimat yksiköt samassa järjestyksessä kuin check-rajoite. */
 const YKSIKOT: Yksikko[] = ["lb", "kg", "g", "l", "ml", "kpl", "pkt"];
 
+/** Pelkät päivämäärät suomalaisittain. */
+function pvm(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("fi-FI");
+}
+
 function luku(arvo: string): number {
   const numero = Number(arvo.replace(",", "."));
   return Number.isFinite(numero) ? numero : 0;
@@ -142,6 +167,7 @@ function luku(arvo: string): number {
 export function KuitinLomake({
   kuitti,
   rivit: alkuRivit,
+  takuut,
   luokat,
   opitut,
   kayttotarkoitukset,
@@ -172,6 +198,8 @@ export function KuitinLomake({
     kurssinLahde: "pankki" | "kurssi" | "sama" | null;
   };
   rivit: RiviSyote[];
+  /** Kuitin takuut. Omassa taulussaan, joten ne eivät tallennu lomakkeen mukana. */
+  takuut: TakuuRivilla[];
   luokat: { id: string; nimi: string }[];
   /** Aiemmin luokitellut tuotetekstit normalisoituna avaimena. */
   opitut: Record<string, { kayttotarkoitus: Kayttotarkoitus; kululuokkaId: string | null }>;
@@ -750,6 +778,19 @@ export function KuitinLomake({
 
           {rivit.map((rivi, jarjestys) => {
             const yksityinen = rivi.kayttotarkoitus === "yksityisotto";
+            // Takuu löytyy rivin id:llä tai, kun linkki on katkennut rivien
+            // uudelleenkirjoituksessa, rivin tekstillä. Sama normalisointi
+            // kuin kannassa ja oppimisessa.
+            const takuu =
+              takuut.find((t) => t.kuitinRiviId === rivi.avain) ??
+              takuut.find(
+                (t) =>
+                  t.kuitinRiviId === null &&
+                  t.rivinTeksti !== null &&
+                  opinAvain(t.rivinTeksti) === opinAvain(rivi.teksti)
+              ) ??
+              null;
+            const takuunKesto = takuu ? kestoKuukausina(takuu.alkaa, takuu.paattyy) : null;
             const selite = [
               // Määrä yksikköineen on rivin tunnistetieto siinä missä
               // luokittelukin: "3" ilman yksikköä ei kerro mitään.
@@ -821,6 +862,56 @@ export function KuitinLomake({
                     </span>
                   </span>
                 </button>
+
+                {/* Takuu on rivin alla omana rivinään: se ei ole
+                    kirjanpitotietoa eikä kuulu luokittelun sekaan, mutta
+                    juuri ostohetkellä se on helpoin kirjata. */}
+                <div className="flex min-w-0 flex-wrap items-center gap-2 pb-2">
+                  <TakuunMuokkaus
+                    kuittiId={kuitti.id}
+                    kuitinRiviId={takuu?.kuitinRiviId ?? null}
+                    rivinTeksti={rivi.teksti}
+                    oletusNimi={rivi.teksti}
+                    oletusAlkaa={kuitti.paivays}
+                    takuu={
+                      takuu
+                        ? {
+                            id: takuu.id,
+                            nimi: takuu.nimi,
+                            alkaa: takuu.alkaa,
+                            paattyy: takuu.paattyy,
+                            sarjanumero: takuu.sarjanumero,
+                            muistiinpano: takuu.muistiinpano,
+                            kuitinTakuuteksti: takuu.kuitinTakuuteksti,
+                            lahde: takuu.lahde,
+                          }
+                        : null
+                    }
+                  >
+                    {takuu ? (
+                      <button
+                        type="button"
+                        className="min-w-0 cursor-pointer rounded-md bg-tila-vihrea-pinta px-1.5 py-0.5 text-[11px] text-tila-vihrea-teksti wrap-anywhere"
+                      >
+                        Takuu {takuunKesto === null ? `→ ${pvm(takuu.paattyy)}` : `${takuunKesto} kk`}
+                        {" · "}
+                        {takuu.lahde === "kuitti" ? "kuitilta" : "käsin"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={cn(
+                          "min-w-0 cursor-pointer text-xs wrap-anywhere hover:underline",
+                          rivi.kestotuoteVihje === true
+                            ? "font-medium text-warning"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {rivi.kestotuoteVihje === true ? "Laite? Lisää takuu" : "+ Takuu"}
+                      </button>
+                    )}
+                  </TakuunMuokkaus>
+                </div>
 
                 {/* Valikko avataan ohjatusti, koska napautus on varattu
                     käyttötarkoituksen vaihtoon. Ankkuri on näkymätön ja

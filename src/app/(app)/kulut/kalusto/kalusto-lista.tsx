@@ -31,6 +31,8 @@ export interface KalustoListalla {
   luovutushintaEur: number | null;
   /** Kuitilta siirretyn rivin alkuperäinen bruttosumma, vertailuksi. */
   kuitinBruttoEur: number | null;
+  /** Voimassa olevan takuun päättymispäivä. Null kun takuuta ei ole. */
+  takuuPaattyy: string | null;
 }
 
 type Dialogi = "muokkaus" | "luovutus" | "poisto";
@@ -104,6 +106,13 @@ export function KalustoLista({ rivit }: { rivit: KalustoListalla[] }) {
           <span className="min-w-0 font-medium wrap-anywhere">{rivi.nimi}</span>
           <span className="font-medium tabular-nums">{muotoileEuro(rivi.hankintamenoEur)}</span>
         </div>
+        {/* Takuu näkyy siellä missä laitettakin katsotaan: rikkoutuneen
+            koneen kohdalla ensimmäinen kysymys on onko takuuta jäljellä. */}
+        {rivi.takuuPaattyy && (
+          <span className="w-fit rounded-md bg-tila-vihrea-pinta px-1.5 py-0.5 text-[11px] text-tila-vihrea-teksti tabular-nums">
+            Takuu → {paiva(rivi.takuuPaattyy)}
+          </span>
+        )}
         <p className="text-sm text-muted-foreground">
           {paiva(rivi.hankittu)}
           {rivi.luovutettu && (

@@ -49,6 +49,20 @@ export default async function KalustoSivu({
     : { data: [] };
   const brutot = new Map((kuittirivit ?? []).map((r) => [r.id, r.brutto_eur]));
 
+  // Voimassa olevat takuut kalustokohteittain: päättynyttä takuuta ei näytetä
+  // siruna, koska siru kertoo juuri siitä että takuuseen voi vedota.
+  const { data: takuut } = await supabase
+    .from("takuut")
+    .select("kalusto_id, paattyy")
+    .not("kalusto_id", "is", null)
+    .gte("paattyy", new Date().toISOString().slice(0, 10));
+  const takuuPaivat = new Map<string, string>();
+  for (const t of takuut ?? []) {
+    if (!t.kalusto_id) continue;
+    const nyt = takuuPaivat.get(t.kalusto_id);
+    if (!nyt || t.paattyy > nyt) takuuPaivat.set(t.kalusto_id, t.paattyy);
+  }
+
   const rivit: KalustoListalla[] = (kalusto ?? []).map((k) => ({
     id: k.id,
     nimi: k.nimi,
@@ -59,6 +73,7 @@ export default async function KalustoSivu({
     luovutettu: k.luovutettu,
     luovutushintaEur: k.luovutushinta_eur,
     kuitinBruttoEur: k.kuitin_rivi_id ? (brutot.get(k.kuitin_rivi_id) ?? null) : null,
+    takuuPaattyy: takuuPaivat.get(k.id) ?? null,
   }));
 
   const kaytossa = rivit.filter((k) => k.luovutettu === null);

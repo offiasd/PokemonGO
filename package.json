@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "testaa-supabase": "node scripts/testaa-supabase.mjs",
-    "testaa-arviomaalit": "node --experimental-strip-types --no-warnings scripts/testaa-arviomaalit.mjs"
+    "testaa-arviomaalit": "node --experimental-strip-types --no-warnings scripts/testaa-arviomaalit.mjs",
+    "testaa-poiminta": "node --experimental-strip-types --no-warnings scripts/testaa-poiminta.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.6",

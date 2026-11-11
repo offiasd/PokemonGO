@@ -310,6 +310,20 @@ Deno.serve(async (req) => {
       if (tallennusVirhe) {
         return await virhe(`Poiminnan tallennus epäonnistui: ${tallennusVirhe.message}`);
       }
+
+      // Takuut kirjoitetaan vasta rivien jälkeen omalla kutsullaan: ne eivät
+      // ole kirjanpitotietoa eivätkä kuulu kuitin rivien kirjoittajaan.
+      // Funktio luo takuun vain riville, jolla kuitissa lukee takuu, ja
+      // linkittää jo olemassa olevat takuut uusiin riveihin.
+      const { error: takuuVirhe } = await supabase.rpc("luo_takuut_poiminnasta", {
+        p_kuitti_id: kuittiId,
+        p_poiminta: poiminta as unknown as Record<string, unknown>,
+      });
+      // Takuu ei ole kirjanpitotietoa, joten sen epäonnistuminen ei saa
+      // kaataa luettua kuittia: rivit ovat jo tallessa.
+      if (takuuVirhe) {
+        console.error("Takuiden kirjaus epäonnistui", takuuVirhe.message);
+      }
     }
 
     return json({ poiminta, arvio });

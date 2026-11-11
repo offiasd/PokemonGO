@@ -296,8 +296,20 @@ export async function tallennaKuitti(
       if (valuuttaVirhe) return { ok: false, virhe: valuuttaVirhe.message };
     }
 
+    // Rivit poistettiin ja kirjoitettiin uudelleen, joten takuiden linkki
+    // riviin katkesi. Takuu löytää rivinsä takaisin rivin tekstin
+    // perusteella - ilman tätä käsin lisätty takuu irtoaisi joka
+    // tallennuksessa.
+    const { error: takuuVirhe } = await supabase.rpc("linkita_takuut", {
+      p_kuitti_id: kuittiId,
+    });
+    // Takuu ei ole kirjanpitotietoa: linkityksen epäonnistuminen ei saa
+    // kaataa kuitin tallennusta, joka on jo tehty.
+    if (takuuVirhe) console.error("Takuiden linkitys epäonnistui", takuuVirhe.message);
+
     revalidatePath("/kulut");
     revalidatePath(`/kulut/${kuittiId}`);
+    revalidatePath("/kulut/takuut");
     revalidatePath("/");
     return { ok: true };
   } catch (virhe) {

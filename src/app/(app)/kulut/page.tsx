@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, PackageCheck } from "lucide-react";
+import { AlertTriangle, PackageCheck, ShieldCheck } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { vaaditaanAdmin } from "@/lib/supabase/kayttaja";
@@ -212,9 +212,37 @@ export default async function KulutSivu({
   const jakauma = [...luokittain.entries()].sort((a, b) => b[1] - a[1]);
   const suurinLuokka = jakauma[0]?.[1] ?? 0;
 
+  // Takuu on tieto jota tarvitaan vasta kun laite hajoaa, mutta päättymässä
+  // oleva takuu on tieto jota tarvitaan nyt: reklamaatio ehtii vielä.
+  // Mitätöidyn kuitin takuu ei ole voimassa eikä kuulu merkkiin.
+  const { data: takuuVaroitukset } = await supabase
+    .from("takuut_nakyma")
+    .select("id, jaljella_pv, kuitti_mitatoity_at")
+    .gte("paattyy", new Date().toISOString().slice(0, 10))
+    .lte("jaljella_pv", asetukset.takuu_varoitus_pv);
+  const paattymassaOlevia = (takuuVaroitukset ?? []).filter(
+    (t) => t.kuitti_mitatoity_at === null
+  ).length;
+
   return (
     <div className="grid gap-4">
       <KulutValilehdet />
+
+      {/* Takuut on oma näkymänsä eikä välilehti: sinne mennään harvoin,
+          mutta päättymässä oleva takuu on syytä huomata täällä. */}
+      <div className="flex min-w-0 flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/kulut/takuut">
+            <ShieldCheck className="size-4" />
+            Takuut
+            {paattymassaOlevia > 0 && (
+              <span className="ml-1 rounded-full bg-tila-punainen-pinta px-1.5 py-0.5 text-[11px] font-medium text-tila-punainen-teksti tabular-nums">
+                {paattymassaOlevia}
+              </span>
+            )}
+          </Link>
+        </Button>
+      </div>
 
       <Card>
         <CardContent className="grid gap-4">

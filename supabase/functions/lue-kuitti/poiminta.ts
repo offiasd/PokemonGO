@@ -21,6 +21,12 @@ export interface PoimittuRivi {
   brutto_valuutassa: number;
   /** Luettu kuitista. Null jos kuitissa ei lue rivin kantaa. */
   verokanta: number | null;
+  /** Takuuteksti sellaisenaan kuitilta, esim. "Takuu 2 v". Null jos ei mainintaa. */
+  takuu_teksti: string | null;
+  /** Takuun pituus kuukausina, vain jos se lukee kuitissa. */
+  takuu_kk: number | null;
+  /** Vihje: laite, työkalu tai kaluste (true) vai kulutustarvike (false). */
+  kestotuote: boolean | null;
 }
 
 /** Yksi rivi kuitin ALV-erittelytaulukosta. */
@@ -108,6 +114,17 @@ Säännöt:
 9. Ulkomaisella laskulla ei yleensä ole Suomen ALV:tä. Jätä silloin
    alv_erittely tyhjäksi ja rivien verokannat tyhjiksi - keksitty verokanta
    veisi vähennyksen väärään suuntaan.
+10. Takuu luetaan kuitista. Jos kuitissa lukee rivin kohdalla tai koko
+    kuitille takuu (esim. "Takuu 2 v", "Takuu 24 kk", "Garanti 1 år",
+    "2 year warranty"), kirjaa takuu_teksti sellaisenaan ja takuu_kk
+    kuukausina. Koko kuittia koskeva takuu kirjataan jokaiselle riville,
+    joka on kestotuote. Älä koskaan päättele takuuta tuotteesta tai
+    kaupasta: jos kuitissa ei lue takuuta, jätä molemmat tyhjiksi.
+
+    kestotuote on vihje käyttöliittymälle, ei kirjanpitotieto: true jos rivi
+    on laite, työkalu, kone tai kaluste. false jos se on kulutustarvike,
+    maali, puhallusaine, pakkaus, rahti, pantti tai palvelu. null jos et
+    tiedä.
 
 Palauta tiedot kuitin_tiedot-työkalulla.`;
 
@@ -169,6 +186,21 @@ export const TYOKALU = {
             verokanta: {
               type: ["number", "null"],
               description: "Rivin verokanta prosentteina kuitilta luettuna, esim. 25.5.",
+            },
+            takuu_teksti: {
+              type: ["string", "null"],
+              description:
+                "Takuuteksti sellaisenaan kuitilta, esim. \"Takuu 2 v\". Null jos kuitissa ei lue takuuta.",
+            },
+            takuu_kk: {
+              type: ["number", "null"],
+              description:
+                "Takuun pituus kuukausina, vain jos se lukee kuitissa. Älä päättele tuotteesta.",
+            },
+            kestotuote: {
+              type: ["boolean", "null"],
+              description:
+                "True jos rivi on laite, työkalu, kone tai kaluste. False jos kulutustarvike tai palvelu. Null jos et tiedä.",
             },
           },
           required: ["teksti", "brutto_valuutassa"],
@@ -280,6 +312,25 @@ function teksti(arvo: unknown): string | null {
   return siisti ? siisti : null;
 }
 
+/**
+ * Takuun pituus kuukausina.
+ *
+ * Kelpaa vain kokonaisena kuukausimääränä väliltä 1-120. Murtoluku
+ * katkaistaan alaspäin eikä pyöristetä: kuuden kuukauden takuu on kuusi
+ * kuukautta, ei vuosi. Nolla ja kymmentä vuotta pidempi ovat lukuvirheitä.
+ */
+function takuukuukausiksi(arvo: unknown): number | null {
+  const luku = numeroksi(arvo);
+  if (luku === null) return null;
+  const kk = Math.floor(luku);
+  return kk >= 1 && kk <= 120 ? kk : null;
+}
+
+/** Vain aito tosi tai epätosi. "kyllä" on mallin oma muotoilu, ei vihje. */
+function totuusarvoksi(arvo: unknown): boolean | null {
+  return typeof arvo === "boolean" ? arvo : null;
+}
+
 /** Kannan sallimat yksiköt. Tuntematon yksikkö jätetään pois, ei arvata. */
 const YKSIKOT = ["lb", "kg", "g", "l", "ml", "kpl", "pkt"];
 
@@ -322,13 +373,22 @@ export function jasennaPoiminta(raaka: unknown): KuittiPoiminta {
 
   const rivit: PoimittuRivi[] = (Array.isArray(olio.rivit) ? olio.rivit : [])
     .filter(onOlio)
-    .map((rivi) => ({
-      teksti: teksti(rivi.teksti) ?? "",
-      maara: numeroksi(rivi.maara),
-      yksikko: yksikoksi(rivi.yksikko),
-      brutto_valuutassa: sentteina(numeroksi(rivi.brutto_valuutassa) ?? 0),
-      verokanta: numeroksi(rivi.verokanta),
-    }))
+    .map((rivi) => {
+      const takuuTeksti = teksti(rivi.takuu_teksti);
+      return {
+        teksti: teksti(rivi.teksti) ?? "",
+        maara: numeroksi(rivi.maara),
+        yksikko: yksikoksi(rivi.yksikko),
+        brutto_valuutassa: sentteina(numeroksi(rivi.brutto_valuutassa) ?? 0),
+        verokanta: numeroksi(rivi.verokanta),
+        takuu_teksti: takuuTeksti,
+        // Takuu kirjataan vain kun kuitilta on luettu teksti. Pelkkä
+        // kuukausiluku ilman tekstin tukea on mallin päätelmä tuotteesta,
+        // ja juuri sitä ei saa kirjata takuuksi.
+        takuu_kk: takuuTeksti === null ? null : takuukuukausiksi(rivi.takuu_kk),
+        kestotuote: totuusarvoksi(rivi.kestotuote),
+      };
+    })
     // Tekstitön rivi ei ole tunnistettavissa eikä opittavissa, joten se on
     // poiminnan roskaa eikä kuitin rivi.
     .filter((rivi) => rivi.teksti !== "");

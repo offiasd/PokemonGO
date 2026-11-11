@@ -74,6 +74,16 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
     .order("jarjestys");
   const rivit = rivitData ?? [];
 
+  // Takuut ovat omassa taulussaan eivätkä kuitin riveillä: kauden lukitus ei
+  // koske niitä, eivätkä ne katoa kun rivit kirjoitetaan uudelleen.
+  const { data: takuutData } = await supabase
+    .from("takuut")
+    .select(
+      "id, kuitin_rivi_id, rivin_teksti, nimi, alkaa, paattyy, sarjanumero, muistiinpano, kuitin_takuuteksti, lahde"
+    )
+    .eq("kuitti_id", id)
+    .order("luotu");
+
   // Maalikuitti tunnistetaan kolmella tavalla: tunnettu maalitoimittaja,
   // Maalit ja lakat -kululuokka riveillä, tai käsin merkintä. Yksikin riittää,
   // koska kaikki kolme kertovat samaa - tästä kuitista tuli maalia hyllyyn.
@@ -245,6 +255,19 @@ export default async function KuittiSivu({ params }: { params: Promise<{ id: str
               kayttotarkoitus: r.kayttotarkoitus,
               kululuokkaId: r.kululuokka_id,
               muistiinpano: r.muistiinpano,
+              kestotuoteVihje: r.kestotuote_vihje,
+            }))}
+            takuut={(takuutData ?? []).map((t) => ({
+              id: t.id,
+              kuitinRiviId: t.kuitin_rivi_id,
+              rivinTeksti: t.rivin_teksti,
+              nimi: t.nimi,
+              alkaa: t.alkaa,
+              paattyy: t.paattyy,
+              sarjanumero: t.sarjanumero,
+              muistiinpano: t.muistiinpano,
+              kuitinTakuuteksti: t.kuitin_takuuteksti,
+              lahde: t.lahde,
             }))}
             luokat={luokat}
             opitut={opitut}

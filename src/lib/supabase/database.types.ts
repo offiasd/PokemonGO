@@ -367,6 +367,35 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["kuittierat"]["Row"]>;
         Relationships: EiSuhteita;
       };
+      takuut: {
+        Row: {
+          id: string;
+          /** Null kun takuu on lisätty käsin ilman kuittia. */
+          kuitti_id: string | null;
+          /** Katkeaa kun kuitin rivit kirjoitetaan uudelleen; linkita_takuut korjaa. */
+          kuitin_rivi_id: string | null;
+          kalusto_id: string | null;
+          nimi: string;
+          /** Kuitin rivin teksti, jonka varassa takuu löytää rivinsä uudelleen. */
+          rivin_teksti: string | null;
+          alkaa: string;
+          paattyy: string;
+          lahde: "kuitti" | "kasin";
+          /** Takuuteksti sellaisenaan kuitilta, esim. "Takuu 24 kk". */
+          kuitin_takuuteksti: string | null;
+          sarjanumero: string | null;
+          muistiinpano: string | null;
+          luotu: string;
+          luoja_id: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["takuut"]["Row"]> & {
+          nimi: string;
+          alkaa: string;
+          paattyy: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["takuut"]["Row"]>;
+        Relationships: EiSuhteita;
+      };
       kuitin_rivit: {
         Row: {
           id: string;
@@ -385,6 +414,8 @@ export interface Database {
           kululuokka_id: string | null;
           muistiinpano: string | null;
           jarjestys: number;
+          /** Mallin vihje: laite (true) vai kulutustarvike (false). Null = ei tiedossa. */
+          kestotuote_vihje: boolean | null;
         };
         Insert: Partial<Database["public"]["Tables"]["kuitin_rivit"]["Row"]> & {
           kuitti_id: string;
@@ -472,6 +503,8 @@ export interface Database {
           oletus_halytysraja_g: number;
           /** Taso jolla väri katsotaan täydeksi: saldopalkin asteikon yläpää. */
           oletus_taysiraja_g: number;
+          /** Kuinka monta päivää ennen takuun päättymistä varoitetaan. */
+          takuu_varoitus_pv: number;
           tullimaksu_prosentti_oletus: number;
           alv_prosentti_oletus: number;
           /** Kate-% EU-väreille (ja oletus kun alkuperää ei tiedetä). */
@@ -1446,6 +1479,19 @@ export interface Database {
         };
         Relationships: EiSuhteita;
       };
+      takuut_nakyma: {
+        Row: Database["public"]["Tables"]["takuut"]["Row"] & {
+          toimittaja: string | null;
+          kuitin_paivays: string | null;
+          /** Mitätöidyn kuitin takuita ei näytetä. */
+          kuitti_mitatoity_at: string | null;
+          /** Päiviä takuun päättymiseen. Negatiivinen kun takuu on päättynyt. */
+          jaljella_pv: number;
+          /** Koko takuuaika päivinä. Palkin asteikko. */
+          kesto_pv: number;
+        };
+        Relationships: EiSuhteita;
+      };
       tyojen_talous: {
         Row: {
           tyo_id: string;
@@ -1539,6 +1585,16 @@ export interface Database {
         Returns: undefined;
       };
       /** Siirtää kuitin rivin kalustoon. Brutosta puretaan vero rivin kannalla. */
+      /** Takuiden uudelleenlinkitys kuitin riveihin rivin tekstin perusteella. */
+      linkita_takuut: {
+        Args: { p_kuitti_id: string };
+        Returns: undefined;
+      };
+      /** Poiminnasta luetut takuut ja kestotuotevihjeet kuitin riveille. */
+      luo_takuut_poiminnasta: {
+        Args: { p_kuitti_id: string; p_poiminta: Record<string, unknown> };
+        Returns: undefined;
+      };
       siirra_rivi_kalustoon: {
         Args: { p_rivi_id: string; p_nimi?: string | null; p_hankittu?: string | null };
         Returns: string;
