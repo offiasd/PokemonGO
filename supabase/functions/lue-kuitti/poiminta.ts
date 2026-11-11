@@ -190,7 +190,7 @@ export const TYOKALU = {
             takuu_teksti: {
               type: ["string", "null"],
               description:
-                "Takuuteksti sellaisenaan kuitilta, esim. \"Takuu 2 v\". Null jos kuitissa ei lue takuuta.",
+                "Takuuteksti sellaisenaan kuitilta, esim. Takuu 2 v. Null jos kuitissa ei lue takuuta.",
             },
             takuu_kk: {
               type: ["number", "null"],

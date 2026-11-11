@@ -87,7 +87,7 @@ export async function tallennaTakuu(syote: TakuuSyote): Promise<TakuuTulos> {
       await supabase.rpc("linkita_takuut", { p_kuitti_id: syote.kuittiId });
     }
 
-    paivita();
+    paivita(syote.kuittiId ?? null);
     return { ok: true };
   } catch (virhe) {
     return {
@@ -101,9 +101,16 @@ export async function poistaTakuu(id: string): Promise<TakuuTulos> {
   try {
     await vaaditaanAdmin();
     const supabase = await createClient();
+    // Kuitti haetaan ennen poistoa, jotta myös kuittisivun välimuisti
+    // päivittyy: muuten poistettu takuu jää rivin siruksi näkyviin.
+    const { data: takuu } = await supabase
+      .from("takuut")
+      .select("kuitti_id")
+      .eq("id", id)
+      .maybeSingle();
     const { error } = await supabase.from("takuut").delete().eq("id", id);
     if (error) return { ok: false, virhe: error.message };
-    paivita();
+    paivita(takuu?.kuitti_id ?? null);
     return { ok: true };
   } catch (virhe) {
     return {
@@ -113,8 +120,10 @@ export async function poistaTakuu(id: string): Promise<TakuuTulos> {
   }
 }
 
-function paivita() {
+function paivita(kuittiId: string | null) {
   revalidatePath("/kulut");
   revalidatePath("/kulut/takuut");
   revalidatePath("/kulut/kalusto");
+  // Kuittisivu näyttää takuun rivin siruna, joten sekin on päivitettävä.
+  if (kuittiId) revalidatePath(`/kulut/${kuittiId}`);
 }
