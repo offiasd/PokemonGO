@@ -17,6 +17,19 @@ function tarkistaAlennus(prosentti: number): number {
   return Math.round(prosentti * 100) / 100;
 }
 
+/**
+ * Euroalennus on nolla tai enemmän. Ylärajaa ei ole tässä: välisumma
+ * selviää vasta riveistä, ja alennus rajataan siihen vasta laskennassa
+ * (laskeAlennus ja tyojen_talous-näkymä), jottei sama raja ole kahdessa
+ * paikassa eri tavalla.
+ */
+function tarkistaAlennusSumma(summaEur: number): number {
+  if (!Number.isFinite(summaEur) || summaEur < 0) {
+    throw new Error("Euroalennus ei voi olla negatiivinen.");
+  }
+  return Math.round(summaEur * 100) / 100;
+}
+
 export interface TyonRiviSyote {
   /** Null kun kohde ei ole osaluettelossa, jolloin omaKuvaus kertoo mikä se on. */
   osaId: string | null;
@@ -209,7 +222,8 @@ export async function aloitaTyo(
   rivit: TyonRiviSyote[],
   alennusProsentti = 0,
   tila: "vastaanotettu" | "vaiheessa" = "vaiheessa",
-  muutTyot: MuuTyoSyote[] = []
+  muutTyot: MuuTyoSyote[] = [],
+  alennusSummaEur = 0
 ): Promise<TyonTulos> {
   try {
     // Vain admin kirjaa töitä: maalaaja ottaa valmiiksi kirjatun työn itselleen.
@@ -233,6 +247,7 @@ export async function aloitaTyo(
         vastaanotti_id: kayttaja.id,
         tyo_aloitettu: vastaanotettu ? null : new Date().toISOString(),
         alennus_prosentti: tarkistaAlennus(alennusProsentti),
+        alennus_summa_eur: tarkistaAlennusSumma(alennusSummaEur),
       })
       .select("id")
       .single();
@@ -276,7 +291,8 @@ export async function paivitaTyo(
   asiakas: string | null,
   rivit: TyonRiviSyote[],
   alennusProsentti = 0,
-  muutTyot: MuuTyoSyote[] = []
+  muutTyot: MuuTyoSyote[] = [],
+  alennusSummaEur = 0
 ): Promise<TyonTulos> {
   try {
     await vaaditaanTyonKasittelija(tyoId);
@@ -302,7 +318,11 @@ export async function paivitaTyo(
 
     const { error: tyoVirhe } = await supabase
       .from("tyot")
-      .update({ asiakas, alennus_prosentti: tarkistaAlennus(alennusProsentti) })
+      .update({
+        asiakas,
+        alennus_prosentti: tarkistaAlennus(alennusProsentti),
+        alennus_summa_eur: tarkistaAlennusSumma(alennusSummaEur),
+      })
       .eq("id", tyoId);
     if (tyoVirhe) return { ok: false, virhe: tyoVirhe.message };
 

@@ -13,6 +13,7 @@ import {
   TOINEN_VARI_ROOLIN_NIMI,
 } from "@/lib/vakiot";
 import { ARKISTOIDUN_RIVIN_SARAKKEET } from "@/lib/supabase/sarakkeet";
+import { laskeAlennus } from "@/lib/alennus";
 
 import { Summat } from "../summat";
 
@@ -108,12 +109,15 @@ export default async function TyonHistoriaSivu() {
 
   const arkistonRivit = (tyoId: string) => arkistoRivit.filter((r) => r.tyo_id === tyoId);
   const arkistonTyot = (tyoId: string) => arkistonMuutTyot.filter((t) => t.tyo_id === tyoId);
-  const arkistonHinta = (tyo: { id: string; alennus_prosentti: number }) => {
+  const arkistonHinta = (tyo: {
+    id: string;
+    alennus_prosentti: number;
+    alennus_summa_eur: number;
+  }) => {
     const valisumma =
       arkistonRivit(tyo.id).reduce((s, r) => s + r.yksikkohinta_eur * r.kappalemaara, 0) +
       arkistonTyot(tyo.id).reduce((s, t) => s + t.hinta_eur, 0);
-    const alennusEur = Math.round(valisumma * (tyo.alennus_prosentti / 100) * 100) / 100;
-    return { valisumma, alennusEur, loppusumma: Math.round((valisumma - alennusEur) * 100) / 100 };
+    return { valisumma, ...laskeAlennus(valisumma, tyo.alennus_prosentti, tyo.alennus_summa_eur) };
   };
 
   const paiva = (aika: string | null) =>

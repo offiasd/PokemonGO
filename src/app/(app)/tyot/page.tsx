@@ -21,6 +21,7 @@ import {
 } from "@/lib/vakiot";
 import type { ToinenVariRooli, TyoVaihe } from "@/lib/supabase/database.types";
 import { TYON_RIVI_SARAKKEET, type TyonRivi } from "@/lib/supabase/sarakkeet";
+import { laskeAlennus } from "@/lib/alennus";
 
 import { AloitaTyo } from "./aloita-tyo";
 import { MerkitseValmiiksi } from "./merkitse-valmiiksi";
@@ -143,16 +144,15 @@ export default async function TyotSivu() {
   // lasketaan vasta näytettäessä rivien summasta.
   const muutTyotTyolle = (tyoId: string) => muutTyot.filter((t) => t.tyo_id === tyoId);
 
-  function tyonSummat(tyo: { id: string; alennus_prosentti: number }) {
+  function tyonSummat(tyo: {
+    id: string;
+    alennus_prosentti: number;
+    alennus_summa_eur: number;
+  }) {
     const valisumma =
       rivitTyolle(tyo.id).reduce((s, r) => s + r.yksikkohinta_eur * r.kappalemaara, 0) +
       muutTyotTyolle(tyo.id).reduce((s, t) => s + t.hinta_eur, 0);
-    const alennusEur = Math.round(valisumma * (tyo.alennus_prosentti / 100) * 100) / 100;
-    return {
-      valisumma,
-      alennusEur,
-      loppusumma: Math.round((valisumma - alennusEur) * 100) / 100,
-    };
+    return { valisumma, ...laskeAlennus(valisumma, tyo.alennus_prosentti, tyo.alennus_summa_eur) };
   }
 
   const vastaanotetut = tyot

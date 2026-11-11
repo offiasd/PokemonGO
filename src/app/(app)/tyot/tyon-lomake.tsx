@@ -30,7 +30,6 @@ import {
 import {
   kategorianVarienMaara,
   muotoileEuro,
-  muotoileProsentti,
   myytavaMaaliTyypinNimi,
   MYYTAVAT_MAALI_TYYPIT,
   PAKOLLINEN_TOINEN_VARI_ROOLI,
@@ -68,7 +67,10 @@ import {
 } from "@/lib/arviomaalit";
 import type { OsienLisatyo } from "@/lib/supabase/database.types";
 
+import { laskeAlennus } from "@/lib/alennus";
+
 import { aloitaTyo, paivitaTyo } from "./actions";
+import { alennuksenSelite } from "./summat";
 import { LisatyotRivilla, PaavarinKerrokset, RivinYhteenveto } from "./lisatyot-rivilla";
 import { MUU_AJONEUVO, OsanValinta, VarinValinta } from "./osan-valinta";
 
@@ -244,6 +246,7 @@ export function TyonLomake({
     id: string;
     asiakas: string | null;
     alennusProsentti: number;
+    alennusSummaEur: number;
     rivit: KoriRivi[];
     muutTyot: KoriMuuTyo[];
   };
@@ -268,6 +271,13 @@ export function TyonLomake({
   const [alennus, setAlennus] = useState(
     muokattavaTyo && muokattavaTyo.alennusProsentti > 0
       ? String(muokattavaTyo.alennusProsentti)
+      : ""
+  );
+  // Euroalennus prosentin rinnalla: "kymmenen prosenttia ja vielä kaksikymppiä
+  // alas" on tavallinen kauppa, eikä sitä saa joutua laskemaan prosenteiksi.
+  const [alennusSumma, setAlennusSumma] = useState(
+    muokattavaTyo && muokattavaTyo.alennusSummaEur > 0
+      ? String(muokattavaTyo.alennusSummaEur)
       : ""
   );
   const [kori, setKori] = useState<KoriRivi[]>(muokattavaTyo?.rivit ?? []);
@@ -1175,10 +1185,11 @@ export function TyonLomake({
     muutTyot.reduce((s, t) => s + t.hintaEur, 0);
   const korissa = kori.length + muutTyot.length;
   // Tyhjä kenttä ja roskasyöte tarkoittavat molemmat "ei alennusta". Rajaus
-  // 0-100 % on sama kuin palvelinfunktiossa ja kannassa.
-  const alennusProsentti = Math.min(Math.max(Number(alennus) || 0, 0), 100);
-  const alennusEur = Math.round(koriYhteensa * (alennusProsentti / 100) * 100) / 100;
-  const loppusumma = Math.round((koriYhteensa - alennusEur) * 100) / 100;
+  // 0-100 % on sama kuin palvelinfunktiossa ja kannassa, ja alennuksen
+  // yhteismäärä lasketaan samalla moduulilla kuin työlistassa.
+  const alennusProsentti = Math.min(Math.max(Number(alennus.replace(",", ".")) || 0, 0), 100);
+  const alennusSummaEur = Math.max(Number(alennusSumma.replace(",", ".")) || 0, 0);
+  const { alennusEur, loppusumma } = laskeAlennus(koriYhteensa, alennusProsentti, alennusSummaEur);
 
   // Uusi työ voidaan joko vastaanottaa (osat tuotu, maalaus alkaa myöhemmin)
   // tai aloittaa heti. Maali varataan molemmissa tapauksissa.
@@ -1233,9 +1244,17 @@ export function TyonLomake({
             asiakas.trim() || null,
             syotteet,
             alennusProsentti,
-            muutSyotteet
+            muutSyotteet,
+            alennusSummaEur
           )
-        : await aloitaTyo(asiakas.trim() || null, syotteet, alennusProsentti, tila, muutSyotteet);
+        : await aloitaTyo(
+            asiakas.trim() || null,
+            syotteet,
+            alennusProsentti,
+            tila,
+            muutSyotteet,
+            alennusSummaEur
+          );
 
       if (!tulos.ok) {
         toast.error(tulos.virhe);
@@ -1906,29 +1925,50 @@ export function TyonLomake({
           )}
           {korissa > 0 && (
             <div className="flex flex-wrap items-end justify-between gap-3 border-t pt-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="alennus">Alennus %</Label>
-                <Input
-                  id="alennus"
-                  className="w-28"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.5"
-                  placeholder="0"
-                  value={alennus}
-                  onChange={(e) => setAlennus(e.target.value)}
-                />
+              {/* Prosentti ja euroalennus vierekkäin: molemmat ovat kapeita
+                  lukukenttiä ja mahtuvat rinnakkain myös puhelimen ruudulla. */}
+              <div className="flex min-w-0 flex-wrap gap-3">
+                <div className="grid min-w-0 gap-1.5">
+                  <Label htmlFor="alennus">Alennus %</Label>
+                  <Input
+                    id="alennus"
+                    className="w-24 min-w-0 tabular-nums"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    placeholder="0"
+                    value={alennus}
+                    onChange={(e) => setAlennus(e.target.value)}
+                  />
+                </div>
+                <div className="grid min-w-0 gap-1.5">
+                  <Label htmlFor="alennus_summa">Alennus €</Label>
+                  <Input
+                    id="alennus_summa"
+                    className="w-24 min-w-0 tabular-nums"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={alennusSumma}
+                    onChange={(e) => setAlennusSumma(e.target.value)}
+                  />
+                </div>
               </div>
               <div className="grid flex-1 gap-1 text-sm sm:flex-none">
                 <div className="flex justify-between gap-6">
                   <span className="text-muted-foreground">Välisumma</span>
                   <span>{muotoileEuro(koriYhteensa)}</span>
                 </div>
-                {alennusProsentti > 0 && (
-                  <div className="flex justify-between gap-6 text-muted-foreground">
-                    <span>Alennus {muotoileProsentti(alennusProsentti)}</span>
-                    <span>-{muotoileEuro(alennusEur)}</span>
+                {(alennusProsentti > 0 || alennusSummaEur > 0) && (
+                  <div className="flex min-w-0 justify-between gap-6 text-muted-foreground">
+                    <span className="min-w-0 wrap-anywhere">
+                      {alennuksenSelite(alennusProsentti, alennusSummaEur)}
+                    </span>
+                    <span className="shrink-0">-{muotoileEuro(alennusEur)}</span>
                   </div>
                 )}
                 <div className="flex justify-between gap-6 border-t pt-1">
@@ -1939,12 +1979,17 @@ export function TyonLomake({
             </div>
           )}
           {/* Vastaanotto on tavallisin: osat tuodaan ensin ja maalataan kun
-              vuoro tulee. Heti aloittaminen on toinen nappi samalla rivillä. */}
+              vuoro tulee. Heti aloittaminen on toinen nappi samalla rivillä.
+
+              Nappi aukeaa myös pelkällä maalaamattomalla työllä: märkäpuhallus
+              tai rihtaus on oma työnsä, jossa ei ole yhtään maalattavaa osaa.
+              Aiemmin ehto katsoi vain maalirivejä, jolloin sellaista työtä ei
+              voinut tallentaa lainkaan. */}
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               onClick={() => kasitteleTallennus(muokattavaTyo ? "vaiheessa" : "vastaanotettu")}
-              disabled={kaynnissa || kori.length === 0}
+              disabled={kaynnissa || korissa === 0}
             >
               {kaynnissa && <Loader2 className="size-4 animate-spin" />}
               {muokattavaTyo ? "Tallenna muutokset" : "Vastaanota työ"}
@@ -1954,7 +1999,7 @@ export function TyonLomake({
                 type="button"
                 variant="outline"
                 onClick={() => kasitteleTallennus("vaiheessa")}
-                disabled={kaynnissa || kori.length === 0}
+                disabled={kaynnissa || korissa === 0}
               >
                 Aloita heti
               </Button>

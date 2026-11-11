@@ -1011,6 +1011,8 @@ export interface Database {
           valmistui_id: string | null;
           valmistunut: string | null;
           alennus_prosentti: number;
+          /** Kiinteä euroalennus prosentin lisäksi. */
+          alennus_summa_eur: number;
           arkistoitu: string;
           /** Kuka arkistoi. Null = automaattinen arkistointi. */
           arkistoi_id: string | null;
@@ -1074,6 +1076,8 @@ export interface Database {
           valmistui_id: string | null;
           valmistunut: string | null;
           alennus_prosentti: number;
+          /** Kiinteä euroalennus prosentin lisäksi. */
+          alennus_summa_eur: number;
         };
         Insert: Partial<Database["public"]["Tables"]["tyot"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["tyot"]["Row"]>;
@@ -1457,7 +1461,10 @@ export interface Database {
           arkistoitu: boolean;
           riveja: number;
           alennus_prosentti: number;
+          /** Työlle annettu kiinteä euroalennus. */
+          alennus_summa_eur: number;
           valisumma_eur: number;
+          /** Alennus yhteensä: prosenttiosuus välisummasta + alennus_summa_eur. */
           alennus_eur: number;
           loppusumma_eur: number;
           maalikustannus_eur: number;

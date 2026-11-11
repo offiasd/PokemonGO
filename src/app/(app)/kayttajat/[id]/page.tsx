@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { lisatyonNimi, muotoileEuro, TYON_TILAN_NIMI } from "@/lib/vakiot";
 import type { Database, ToinenVariRooli, TyonTila } from "@/lib/supabase/database.types";
 import { TYON_RIVI_SARAKKEET } from "@/lib/supabase/sarakkeet";
+import { laskeAlennus } from "@/lib/alennus";
 
 import { Summat } from "../../tyot/summat";
 
@@ -119,8 +120,7 @@ export default async function KayttajanTyotSivu({
     const valisumma =
       tyonRivit(tyo.id).reduce((s, r) => s + r.yksikkohinta_eur * r.kappalemaara, 0) +
       tyonMuutTyot(tyo.id).reduce((s, t) => s + t.hinta_eur, 0);
-    const alennusEur = Math.round(valisumma * (tyo.alennus_prosentti / 100) * 100) / 100;
-    return { valisumma, alennusEur, loppusumma: Math.round((valisumma - alennusEur) * 100) / 100 };
+    return { valisumma, ...laskeAlennus(valisumma, tyo.alennus_prosentti, tyo.alennus_summa_eur) };
   };
 
   const ryhmat: { tila: TyonTila; tyot: TyoRow[] }[] = (

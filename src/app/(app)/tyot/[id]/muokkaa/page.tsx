@@ -25,7 +25,7 @@ export default async function MuokkaaTyotaSivu({
 
   const { data: tyo } = await supabase
     .from("tyot")
-    .select("id, asiakas, tila, alennus_prosentti, aloitti_id")
+    .select("id, asiakas, tila, alennus_prosentti, alennus_summa_eur, aloitti_id")
     .eq("id", id)
     .single();
   if (!tyo) notFound();
@@ -261,6 +261,7 @@ export default async function MuokkaaTyotaSivu({
               id: tyo.id,
               asiakas: tyo.asiakas,
               alennusProsentti: tyo.alennus_prosentti,
+              alennusSummaEur: tyo.alennus_summa_eur,
               rivit: alkuRivit,
               muutTyot: (muutTyotVastaus.data ?? []).map((t) => ({
                 avain: t.id,
