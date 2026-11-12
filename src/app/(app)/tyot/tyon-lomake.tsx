@@ -292,6 +292,8 @@ export function TyonLomake({
   const seuraavaMuunAvain = useRef(muokattavaTyo?.muutTyot.length ?? 0);
 
   const [osaId, setOsaId] = useState("");
+  // Osan jälkeisiin valintoihin vieritetään osan valinnan jälkeen, ks. vaihdaOsa.
+  const valinnat = useRef<HTMLDivElement>(null);
   // "Muu"-rivin kohde omin sanoin, esim. "oma venekoppa".
   const [omaKuvaus, setOmaKuvaus] = useState("");
   const [kategoria, setKategoria] = useState<MyytavaMaaliTyyppi | "">("");
@@ -838,6 +840,33 @@ export function TyonLomake({
     // Toisen osan lisätyöt ovat eri lisätöitä: valinnat eivät saa jäädä
     // roikkumaan, koska ne viittaisivat lisätyöhön jota uudella osalla ei ole.
     tyhjennaLisatyot();
+    if (v !== "") vierita();
+  }
+
+  /**
+   * Takaisin valintojen kohdalle osan valinnan jälkeen.
+   *
+   * Osalista on pitkä: puhelimella osa valitaan kymmenien kuvien joukosta
+   * kaukaa sivun alaosasta. Valinta kutistaa listan yhdeksi kortiksi, jolloin
+   * käyttäjä jää tyhjälle kohdalle kategorian ja värivalinnan alapuolelle ja
+   * joutuu etsimään ne vieritämällä ylöspäin.
+   *
+   * Kohteena ovat valinnat eikä kortin alku: puhelimen ruudulla kortin alkuun
+   * vierittäminen jättäisi kategorian alanavigaation taakse. Keskitettynä
+   * valittu osa näkyy yhä yläpuolella ja värivalinta jatkuu alapuolella.
+   */
+  function vierita() {
+    // Vieritys vasta renderin jälkeen: lista kutistuu samalla päivityksellä,
+    // ja ennen sitä mitattu kohta olisi vanhan, pitkän listan kohta.
+    requestAnimationFrame(() => {
+      const liikkumatta =
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      valinnat.current?.scrollIntoView({
+        behavior: liikkumatta ? "auto" : "smooth",
+        block: "center",
+      });
+    });
   }
 
   function vaihdaKategoria(v: string) {
@@ -1345,6 +1374,10 @@ export function TyonLomake({
             naytaOtsikko={false}
           />
 
+          {/* Vierityksen kohde: nämä ovat ne valinnat jotka osan jälkeen
+              tehdään, ja juuri ne on saatava ruudulle. Kääre ei muuta
+              asettelua: välit ovat samat kuin kortin omassa ruudukossa. */}
+          <div ref={valinnat} className="grid scroll-mt-16 gap-4 empty:hidden">
           {onMuu && kuvausKentta}
 
           {/* Custom-työ: sama osa maalataan usealla värillä, kulutus jaetaan
@@ -1370,6 +1403,7 @@ export function TyonLomake({
               kirjoitetaan itse ja värit valitaan maalilistasta, joten
               kategorialle ei jää tehtävää. */}
           {osaId && !onArvio && <div className="grid gap-4 sm:max-w-sm">{kategoriaKentta}</div>}
+          </div>
 
           {/* Arviolomake: yksi maalilista, hinta ja kommentti. Lakka ja
               pohjaväri ovat tavallisia rivejä roolilla, eivät omia
